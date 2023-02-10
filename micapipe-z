@@ -1,0 +1,508 @@
+#!/bin/bash
+#
+# MICAPIPE-Z BIDS - Normalization and visualization of structural imaging features 
+#
+version() {
+  echo -e "\z-brains Feb 2023 (Version v.0.0.1 'wobbly')\n"
+}
+#---------------- FUNCTION: HELP ----------------#
+help() {
+echo -e "
+\033[38;5;141mCOMMAND:\033[0m
+   $(basename $0)
+
+
+\033[38;5;141mARGUMENTS:\033[0m
+\t\033[38;5;197m-sub\033[0m             : idBIDS identification
+\t\033[38;5;197m-out\033[0m             : Output directory for the processed files <derivatives>.
+\t\033[38;5;197m-bids\033[0m            : Path to BIDS directory
+\t\033[38;5;120m-ses\033[0m             : OPTIONAL flag that indicates the session name (if omitted will manage as SINGLE session)
+
+   Flags for second stages of structural processing:
+\t\033[38;5;197m-sctx_vol\033[0m        : Subcortical volume
+\t\t           ( micapipe requirements: -proc_freesurfer )
+\t\033[38;5;197m-proc_flair\033[0m      : T2-FLAIR processing
+\t\t           ( micapipe requirements: -proc_structural, -proc_freesurfer, and -post_structural )
+\t\033[38;5;197m-proc_qt1\033[0m        : qT1 processing
+\t\t           ( micapipe requirements: -proc_structural, -proc_freesurfer, and -post_structural )
+\t\033[38;5;197m-post_dwi\033[0m        : DWI post-processing
+\t\t           ( micapipe requirements: -proc_structural, -proc_freesurfer, -post_structural, and proc_dwi )
+\t\033[38;5;197m-regional_z\033[0m      : Multivariate regional analysis
+\t\t           ( micapipe requirements: -proc_structural, -proc_freesurfer and -post_structural )
+\t\t\033[38;5;120m-thr\033[0m           : Z-score threshold for regional maps
+\t\t\t         Default=|1.96|
+\t\t\033[38;5;120m-demo\033[0m          : Path to demographic file
+\t\t\t         Default=''
+\t\033[38;5;197m-asymmetry\033[0m       : Multivariate feature asymmetry analysis
+\t\t           ( micapipe requirements: -proc_structural, -proc_freesurfer and -post_structural )
+\t\t\033[38;5;120m-thr\033[0m           : Z-score threshold for asymmetry maps
+\t\t\t         Default=|1.96|
+\t\t\033[38;5;120m-demo\033[0m          : Path to demographic file
+\t\t\t         Default=''
+
+
+\033[38;5;141mOPTIONS:\033[0m
+\t\033[38;5;197m-h|-help\033[0m         : Print help
+\t\033[38;5;197m-v|-version\033[0m      : Print software version
+\t\033[38;5;197m-force\033[0m           : WARNING this will overwrite the idBIDS directory
+\t\033[38;5;197m-quiet\033[0m           : Do not print comments
+\t\033[38;5;197m-nocleanup\033[0m       : Do not delete temporary directory at script completion
+\t\033[38;5;197m-threads\033[0m         : Number of threads (Default is 6)
+\t\033[38;5;197m-tmpDir\033[0m          : Specify location of temporary directory <path> (Default is /tmp)
+\t\033[38;5;197m-slim\033[0m            : This option will keep only the main outputs and erase all the intermediate files
+\t\033[38;5;197m-mica\033[0m            : Only for MICA local processing
+\t\033[38;5;197m-qsub\033[0m            : Only for MICA network processing (SGE mica.q)
+\t\033[38;5;197m-qall\033[0m            : Only for MICA network processing (SGE all.q)  
+
+
+\033[38;5;141mUSAGE:\033[0m
+    \033[38;5;141m$(basename $0)\033[0m  \033[38;5;197m-sub\033[0m <idBIDS_id> \033[38;5;197m-out\033[0m <outputDirectory> \033[38;5;197m-bids\033[0m <BIDS-directory> \033[38;5;197m-post_freesurfer\033[0m
+
+
+\033[38;5;141mDEPENDENCIES:\033[0m
+    > ANTs        2.3.3   (https://github.com/ANTsX/ANTs)
+    > FSL         6.0     (https://fsl.fmrib.ox.ac.uk/fsl/fslwiki)
+    > Freesurfer  6.0     (https://surfer.nmr.mgh.harvard.edu/)
+    > workbench   1.4.2   (https://www.humanconnectome.org/software/workbench-command)
+    > python      3.7.6   (https://www.python.org) 
+    > hippunfold  1.0.0   (https://github.com/khanlab/hippunfold)
+
+
+McGill University, MNI, MICA lab, Feb 2023
+https://github.com/MICA-MNI/micapipe
+https://github.com/MICA-MNI/z-brains
+http://mica-mni.github.io/
+"
+}
+
+# Source utilities functions from MICAPIPE
+if [ -z ${ZBRAINS} ]; then echo "ZBRAINS NOT DEFINED ð¤"; exit 0; fi
+if [ -z ${MICAPIPE} ]; then echo "MICAPIPE NOT DEFINED ð¤"; exit 0; fi
+source "${MICAPIPE}/functions/utilities.sh"
+
+
+# -----------------------------------------------------------------------------------------------#
+#			ARGUMENTS
+# Create VARIABLES
+for arg in "$@"
+do
+  case "$arg" in
+  -h|-help)
+    help
+    exit 1
+  ;;
+  -v|-version)
+    version
+    exit 1
+  ;;
+  -sub)
+    id=$2
+    shift;shift
+  ;;
+  -out)
+    out=$2
+    shift;shift
+  ;;
+  -bids)
+    BIDS=$2
+    shift;shift
+  ;;
+  -ses)
+    SES=$2
+    shift;shift
+  ;;
+  -sctx_vol)
+    sctxVOL=TRUE
+    shift
+  ;;
+  -proc_flair)
+    procFLAIR=TRUE
+    shift
+  ;;
+  -proc_qt1)
+    procQT1=TRUE
+    shift
+  ;;
+  -post_dwi)
+    postDWI=TRUE
+    shift
+  ;;
+  -regional_z)
+    REGZ=TRUE
+    shift
+  ;;
+  -thr)
+    thr=$2
+    shift;shift
+  ;;
+  -demo)
+    demo=$2
+    shift;shift
+  ;;
+  -asymmetry)
+    ASYMMETRY=TRUE
+    shift
+  ;;
+  -thr)
+    thr=$2
+    shift;shift
+  ;;
+  -demo)
+    demo=$2
+    shift;shift
+  ;;
+  -mica)
+    mica=TRUE
+    shift
+  ;;
+  -tmpDir)
+    tmpDir=$2
+    shift;shift;
+  ;;
+  -qsub)
+    micaq=TRUE
+    shift
+  ;;
+  -qall)
+    qall=TRUE
+    shift
+  ;;
+  -nocleanup)
+    nocleanup=TRUE
+    shift
+  ;;
+  -threads)
+    threads=$2
+    shift;shift
+  ;;
+  -force)
+    force=TRUE
+    shift
+  ;;
+  -quiet)
+    quiet=TRUE
+    shift
+  ;;
+  -*)
+    Error "Unknown option ${2}"
+    help
+    exit 1
+  ;;
+    esac
+done
+
+# argument check out & WARNINGS
+arg=($id $out $BIDS)
+if [ ${#arg[@]} -lt 3 ]; then
+Error "One or more mandatory arguments are missing:
+               -sub  : $id
+               -out  : $out
+               -bids : $BIDS"
+help; exit 1; fi
+runs=($ALL $sctxVOL $procQT1 $procFLAIR $postDWI $REGZ $ASYMMETRY)
+if [ "${#runs[@]}" -lt 1 ]; then
+Error "A processing flag is missing:
+                    -sctx_vol
+                    -proc_flair
+                    -proc_qt1
+                    -post_dwi
+                    -regional_z
+                    -asymmetry"
+help; exit 1; fi
+
+# arguments for regional and asymmetry analysis
+if [ -z "$thr" ]; then thr=1.96; fi
+if [ -z "$demo" ]; then demo=''; fi
+
+# Get the real path of the Inputs
+out=$(realpath $out)/micapipe
+BIDS=$(realpath $BIDS)
+id=${id/sub-/}
+here=$(pwd)
+
+# Number of session (Default is "ses-pre")
+if [ -z ${SES} ]; then SES="SINGLE"; else SES="ses-${SES/ses-/}"; fi
+
+# Assigns variables names
+bids_variables "$BIDS" "$id" "$out" "$SES"
+
+# Check BIDS Directory
+if [ ! -d "${subject_bids}" ]; then Error "$id was not found on the BIDS directory\n\t Check ls ${subject_bids}"; exit 1; fi
+
+# Erase temporary files by default
+if [ -z ${nocleanup} ]; then nocleanup=FALSE; fi
+
+# No print Do_cmd
+if [ "$quiet" = "TRUE" ]; then export quiet=TRUE; fi
+
+# Temporary directory
+if [ -z ${tmpDir} ]; then export tmpDir=/tmp; else tmpDir=$(realpath $tmpDir); fi
+
+# Freesurfer directory (if already exists)
+if [ -z ${FSdir} ]; then FSdir="FALSE"; else  FSdir=$(realpath $FSdir); fi
+
+
+# -----------------------------------------------------------------------------------------------#
+Title "z-brains pipeline - (Version $Version) \n\t\tidBIDS: $id Session: $SES"
+
+
+# -----------------------------------------------------------------------------------------------#
+# Launch the init file for local processing at MICA lab
+if [ "$micaq" = "TRUE" ] || [ "$qall" = "TRUE" ] || [ "$mica" = "TRUE" ]; then
+    source "${MICAPIPE}/functions/init.sh"
+else
+
+    # -----------------------------------------------------------------------------------------------#
+    #   CHECK PACKAGES DEPENDENCIES
+    # tree display
+    if [[ -z $(which tree) ]]; then Warn "tree function was not found"; fi
+    # freesurfer
+    if [[ -z $(which recon-all) ]]; then Error "FreeSurfer was not found"; exit 1; fi
+    # FSL
+    if [[ -z $(which flirt) ]]; then Error "FSL was not found"; exit 1; fi
+    # ANTSx
+    if [[ -z $(which antsRegistration) ]]; then Error "ANTs was not found"; exit 1; fi
+    # workbench
+    if [[ -z $(which wb_command) ]]; then Error "WorkBench was not found"; exit 1; fi
+fi
+
+# Processing
+if [[ -z $PROC ]]; then export PROC="LOCAL"; fi
+
+# Number of THREADS used by ANTs and workbench, default is 6 if not defined by -threads
+if [[ -z $threads ]]; then export threads=6; fi
+Info "z-brains will use $threads threads for multicore processing"
+
+# Directories check
+if [[ ${force} == TRUE ]]; then
+  Warning "$id processing directory will be overwritten"
+  rm -rf $out/${idBIDS};
+fi
+
+
+# -----------------------------------------------------------------------------------------------#
+# Timer & Beginning
+aloita=$(date +%s)
+
+# Create tmp dir
+if [ ! -d ${tmpDir} ]; then Do_cmd mkdir -p $tmpDir; fi
+
+
+# -----------------------------------------------------------------------------------------------#
+# subject_dir
+# Creates subject directory if it doesn't exist
+if [ ! -d "${subject_dir}" ]; then
+    Info "Subject ${id} directory doesn't exist"
+    Do_cmd mkdir -p $subject_dir/{logs,xfm,QC,dwi,func,anat/{first,volumetric,surfaces/conte69}}
+    chmod -R 770 $subject_dir
+else
+    Info "Subject ${id} directory exist"
+fi
+
+# freesurfer Directory
+if [ ! -d "$dir_surf" ]; then mkdir "$dir_surf" && chmod -R 770 "$dir_surf"; fi
+if [ ! -d "${dir_surf}/fsaverage5" ]; then Do_cmd ln -s "$FREESURFER_HOME/idBIDSs/fsaverage5/" "${dir_surf}"; fi
+
+# print directory organization
+if [[ ! -z $(which tree) ]]; then
+    if [ "$ALL" = "TRUE" ] || [ "$procVOL" = "TRUE" ]; then Info "$idBIDS directory structure:\n"; tree -d $subject_dir; fi
+fi
+
+# Pipeline description json
+micapipe_json
+
+# -----------------------------------------------------------------------------------------------#
+# # #        Structural processing: Subcortical volume
+# -----------------------------------------------------------------------------------------------#
+if [ "$ALL" = "TRUE" ] || [ "$sctxVOL" = "TRUE" ]; then
+    log_file_str=$dir_logs/sctx_vol_$(date +'%d-%m-%Y')
+
+    # Define UTILITIES directory
+    export scriptDir=${ZBRAINS}/functions
+
+    COMMAND="${scriptDir}/01_sctx_vol.sh $BIDS $id $out $SES $nocleanup $threads $tmpDir"
+    # mica.q - Structural processing: Subcortical volume
+    if [[ $micaq == "TRUE" ]]; then
+        Info "MICA qsub - Structural processing: Subcortical volume"
+        Warning "This option only works on the MICA workstations"
+        export PROC="qsub-MICA"
+        # Info "Setting a warper to run on mica.q"
+        qsub -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_sctx_vol -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+             # all.q - Structural processing: Subcortical volume
+    elif [[ $qall == "TRUE" ]]; then
+        Info "all.q qsub - Structural processing: Subcortical volume"
+        Warning "This option only works on the McGill BIC network"
+        export PROC="qsub-all.q"
+        # Info "Setting a warper to run on all.q"
+        qsub -q all.q -pe all.pe $threads -l h_vmem=6G -N q${id}_sctx_vol -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+    else
+        #  LOCAL - Structural processing: Subcortical volume
+        $COMMAND $PROC 2>&1 | tee -a ${log_file_str}.txt
+    fi
+fi
+
+# -----------------------------------------------------------------------------------------------#
+# # #        Structural processing: T2-FLAIR
+# -----------------------------------------------------------------------------------------------#
+if [ "$ALL" = "TRUE" ] || [ "$procFLAIR" = "TRUE" ]; then
+    log_file_str=$dir_logs/proc_flair_$(date +'%d-%m-%Y')
+
+    # Define UTILITIES directory
+    export scriptDir=${ZBRAINS}/functions
+
+    COMMAND="${scriptDir}/01_proc_flair.sh $BIDS $id $out $SES $nocleanup $threads $tmpDir"
+    # mica.q - Structural processing: T2-FLAIR
+    if [[ $micaq == "TRUE" ]]; then
+        Info "MICA qsub - Structural processing: T2-FLAIR"
+        Warning "This option only works on the MICA workstations"
+        export PROC="qsub-MICA"
+        # Info "Setting a warper to run on mica.q"
+        qsub -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_flair -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+             # all.q - Structural processing: T2-FLAIR
+    elif [[ $qall == "TRUE" ]]; then
+        Info "all.q qsub - Structural processing: T2-FLAIR"
+        Warning "This option only works on the McGill BIC network"
+        export PROC="qsub-all.q"
+        # Info "Setting a warper to run on all.q"
+        qsub -q all.q -pe all.pe $threads -l h_vmem=6G -N q${id}_flair -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+    else
+        #  LOCAL - Structural processing: T2-FLAIR
+        $COMMAND $PROC 2>&1 | tee -a ${log_file_str}.txt
+    fi
+fi
+
+# -----------------------------------------------------------------------------------------------#
+# # #        Structural processing: qT1
+# -----------------------------------------------------------------------------------------------#
+if [ "$ALL" = "TRUE" ] || [ "$procQT1" = "TRUE" ]; then
+    log_file_str=$dir_logs/proc_qt1_$(date +'%d-%m-%Y')
+
+    # Define UTILITIES directory
+    export scriptDir=${ZBRAINS}/functions
+
+    COMMAND="${scriptDir}/01_proc_qt1.sh $BIDS $id $out $SES $nocleanup $threads $tmpDir"
+    # mica.q - Structural processing: qT1
+    if [[ $micaq == "TRUE" ]]; then
+        Info "MICA qsub - Structural processing: qT1"
+        Warning "This option only works on the MICA workstations"
+        export PROC="qsub-MICA"
+        # Info "Setting a warper to run on mica.q"
+        qsub -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_qt1 -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+             # all.q - Structural processing: qT1
+    elif [[ $qall == "TRUE" ]]; then
+        Info "all.q qsub - Structural processing: qT1"
+        Warning "This option only works on the McGill BIC network"
+        export PROC="qsub-all.q"
+        # Info "Setting a warper to run on all.q"
+        qsub -q all.q -pe all.pe $threads -l h_vmem=6G -N q${id}_qt1 -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+    else
+        #  LOCAL - Structural processing: qT1
+        $COMMAND $PROC 2>&1 | tee -a ${log_file_str}.txt
+    fi
+fi
+
+# -----------------------------------------------------------------------------------------------#
+# # #        Diffusion post-processing: DWI
+# -----------------------------------------------------------------------------------------------#
+if [ "$ALL" = "TRUE" ] || [ "$postDWI" = "TRUE" ]; then
+    log_file_str=$dir_logs/post_dwi_$(date +'%d-%m-%Y')
+
+    # Define UTILITIES directory
+    export scriptDir=${ZBRAINS}/functions
+
+    COMMAND="${scriptDir}/01_post_dwi.sh $BIDS $id $out $SES $nocleanup $threads $tmpDir"
+    # mica.q - Diffusion post-processing: DWI
+    if [[ $micaq == "TRUE" ]]; then
+        Info "MICA qsub - Diffusion post-processing: DWI"
+        Warning "This option only works on the MICA workstations"
+        export PROC="qsub-MICA"
+        # Info "Setting a warper to run on mica.q"
+        qsub -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_dwi -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+             # all.q - Diffusion post-processing: DWI
+    elif [[ $qall == "TRUE" ]]; then
+        Info "all.q qsub - Diffusion post-processing: DWI"
+        Warning "This option only works on the McGill BIC network"
+        export PROC="qsub-all.q"
+        # Info "Setting a warper to run on all.q"
+        qsub -q all.q -pe all.pe $threads -l h_vmem=6G -N q${id}_dwi -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+    else
+        #  LOCAL - Structural processing: qT1
+        $COMMAND $PROC 2>&1 | tee -a ${log_file_str}.txt
+    fi
+fi
+
+# -----------------------------------------------------------------------------------------------#
+# # #        Multivariate analysis: REGIONAL Z
+# -----------------------------------------------------------------------------------------------#
+if [ "$ALL" = "TRUE" ] || [ "$REGZ" = "TRUE" ]; then
+    log_file_str=$dir_logs/regional_z_$(date +'%d-%m-%Y')
+
+    # Define UTILITIES directory
+    export scriptDir=${ZBRAINS}/functions
+
+    COMMAND="${scriptDir}/02_regional_analysis.sh $BIDS $id $out $SES $nocleanup $threads $tmpDir $thr $demo"
+    # mica.q - Multivariate analysis: REGIONAL Z
+    if [[ $micaq == "TRUE" ]]; then
+        Info "MICA qsub - Multivariate analysis: REGIONAL Z"
+        Warning "This option only works on the MICA workstations"
+        export PROC="qsub-MICA"
+        # Info "Setting a warper to run on mica.q"
+        qsub -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_regionZ -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+             # all.q - Multivariate analysis: REGIONAL Z
+    elif [[ $qall == "TRUE" ]]; then
+        Info "all.q qsub - Multivariate analysis: REGIONAL Z"
+        Warning "This option only works on the McGill BIC network"
+        export PROC="qsub-all.q"
+        # Info "Setting a warper to run on all.q"
+        qsub -q all.q -pe all.pe $threads -l h_vmem=6G -N q${id}_regionZ -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+    else
+        #  LOCAL - Multivariate analysis: REGIONAL Z
+        $COMMAND $PROC 2>&1 | tee -a ${log_file_str}.txt
+    fi
+fi
+
+# -----------------------------------------------------------------------------------------------#
+# # #        Multivariate analysis: ASYMMETRY
+# -----------------------------------------------------------------------------------------------#
+if [ "$ALL" = "TRUE" ] || [ "$ASYMMETRY" = "TRUE" ]; then
+    log_file_str=$dir_logs/asymmetry_$(date +'%d-%m-%Y')
+
+    # Define UTILITIES directory
+    export scriptDir=${ZBRAINS}/functions
+
+    COMMAND="${scriptDir}/02_asymmetry.sh $BIDS $id $out $SES $nocleanup $threads $tmpDir $thr $demo"
+    # mica.q - Multivariate analysis: ASYMMETRY
+    if [[ $micaq == "TRUE" ]]; then
+        Info "MICA qsub - Multivariate analysis: ASYMMETRY"
+        Warning "This option only works on the MICA workstations"
+        export PROC="qsub-MICA"
+        # Info "Setting a warper to run on mica.q"
+        qsub -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_asymmetry -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+             # all.q - Multivariate analysis: ASYMMETRY
+    elif [[ $qall == "TRUE" ]]; then
+        Info "all.q qsub - Multivariate analysis: ASYMMETRY"
+        Warning "This option only works on the McGill BIC network"
+        export PROC="qsub-all.q"
+        # Info "Setting a warper to run on all.q"
+        qsub -q all.q -pe all.pe $threads -l h_vmem=6G -N q${id}_asymmetry -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+    else
+        #  LOCAL - Multivariate analysis: ASYMMETRY
+        $COMMAND $PROC 2>&1 | tee -a ${log_file_str}.txt
+    fi
+fi
+
+: <<'END'
+END
+
+
+# -----------------------------------------------------------------------------------------------#
+#			 Total Running Time
+lopuu=$(date +%s)
+eri=$(echo "$lopuu - $aloita" | bc)
+eri=$(echo print $eri/60 | perl)
+
+# Cleanup if processing was local
+if [ $PROC == "LOCAL" ] || [ "$mica" = "TRUE" ]; then
+    cleanup "$tmpDir/*_micapipe*_${id}" "$nocleanup" "$here"
+fi
+Title "GLOBAL z-brains running time with $PROC processing:\033[38;5;220m $(printf "%0.3f\n" ${eri}) minutes \033[38;5;141m"

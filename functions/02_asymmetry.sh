@@ -1,8 +1,6 @@
 #!/bin/bash
 #
-# Asymmetry analysis:
-#
-# Generates a multivariate featuer asymmety report:
+# Asymmetry analysis: Generates a multivariate featuer asymmety report
 #
 # This workflow makes use of many outputs and custom python scripts
 #
@@ -45,7 +43,7 @@ source "$MICAPIPE/functions/utilities.sh"
 bids_variables "$BIDS" "$id" "$out" "$SES"
 
 #------------------------------------------------------------------------------#
-Title "asymmetry analysis\n\t\tmicapipe-van $Version, $PROC"
+Title "asymmetry analysis\n\t\tmicapipe-z $Version, $PROC"
 micapipe_software
 bids_print.variables-post
 Info "wb_command will use $OMP_NUM_THREADS threads"
@@ -102,7 +100,7 @@ if [[ "$demo" == '' ]]; then Note "No demographic file specified"; else
 Note "demo                  :" "$demo"; fi
 
 # Create script specific temp directory
-tmp="${tmpDir}/${RANDOM}_micapipe-van_asymmetry_${idBIDS}"
+tmp="${tmpDir}/${RANDOM}_micapipe-z_asymmetry_${idBIDS}"
 Do_cmd mkdir -p "$tmp"
 
 # TRAP in case the script fails
@@ -115,13 +113,13 @@ outDir="${out/micapipe/}/analysis/asymmetry/sub-${id}/${SES}/"
 
 #------------------------------------------------------------------------------#
 ### asymmetry analysis ###
-Do_cmd python "$UBCMNI"/functions/02_asymmetry.py "sub-$id" "$SES" "$out" "$hipDir" \
+Do_cmd python "$ZBRAINS"/functions/02_asymmetry.py "sub-$id" "$SES" "$out" "$hipDir" \
               "${demo}" "$thr" \
               --featList_ctx "${featList_ctx[@]}" --featList_sctx "${featList_sctx[@]}" \
               --featList_hipp "${featList_hipp[@]}"
 
 # Generate pdf report: asymmetry
-Do_cmd python "$UBCMNI"/functions/02_asymmetry-report.py "sub-$id" "$SES" "$out" \
+Do_cmd python "$ZBRAINS"/functions/02_asymmetry-report.py "sub-$id" "$SES" "$out" \
               "${demo}" "${thr}" \
               --featList_ctx "${featList_ctx[@]}" --featList_sctx "${featList_sctx[@]}" \
               --featList_hipp "${featList_hipp[@]}"
@@ -171,5 +169,5 @@ Title "asymmetry processing ended in \033[38;5;220m $(printf "%0.3f\n" "$eri") m
 \tSteps completed : $(printf "%02d" "$Nsteps")/02
 \tStatus          : ${status}
 \tCheck logs      : $(ls "${dir_logs}"/asymmetry_*.txt)"
-echo "${id}, ${SES/ses-/}, asymmetry, $status N=$(printf "%02d" "$Nsteps")/02, $(whoami), $(uname -n), $(date), $(printf "%0.3f\n" "$eri"), ${PROC}, ${Version}" >> "${out}/micapipe_processed_sub.csv"
+echo "${id}, ${SES/ses-/}, asymmetry, $status N=$(printf "%02d" "$Nsteps")/02, $(whoami), $(uname -n), $(date), $(printf "%0.3f\n" "$eri"), ${PROC}, ${Version}" >> "${out}/micapipez_processed_sub.csv"
 cleanup "$tmp" "$nocleanup" "$here"

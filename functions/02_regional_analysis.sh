@@ -1,12 +1,10 @@
 #!/bin/bash
 #
-# Regional analysis:
-#
-# Generates a multivariate feature regional changes report:
+# Regional analysis: Generates a multivariate feature regional changes report
 #
 # This workflow makes use of many outputs and custom python scripts
 #
-# Atlas an templates are avaliable from:
+# Atlases and templates are avaliable from:
 #
 # https://github.com/MICA-MNI/micapipe/tree/master/parcellations
 #
@@ -45,7 +43,7 @@ source "$MICAPIPE/functions/utilities.sh"
 bids_variables "$BIDS" "$id" "$out" "$SES"
 
 #------------------------------------------------------------------------------#
-Title "regional analysis\n\t\tmicapipe-van $Version, $PROC"
+Title "regional analysis\n\t\tmicapipe-z $Version, $PROC"
 micapipe_software
 bids_print.variables-post
 Info "wb_command will use $OMP_NUM_THREADS threads"
@@ -102,7 +100,7 @@ if [[ "$demo" == '' ]]; then Note "No demographic file specified"; else
 Note "demo                  :" "$demo"; fi
 
 # Create script specific temp directory
-tmp="${tmpDir}/${RANDOM}_micapipe-van_asymmetry_${idBIDS}"
+tmp="${tmpDir}/${RANDOM}_micapipe-z_asymmetry_${idBIDS}"
 Do_cmd mkdir -p "$tmp"
 
 # TRAP in case the script fails
@@ -115,13 +113,13 @@ outDir="${out/micapipe/}/analysis/regional/sub-${id}/${SES}/"
 
 #------------------------------------------------------------------------------#
 ### regional analysis ###
-Do_cmd python "$UBCMNI"/functions/02_regional_analysis.py "sub-$id" "$SES" "$out" "$hipDir" \
+Do_cmd python "$ZBRAINS"/functions/02_regional_analysis.py "sub-$id" "$SES" "$out" "$hipDir" \
               "${demo}" "$thr" \
               --featList_ctx "${featList_ctx[@]}" --featList_sctx "${featList_sctx[@]}" \
               --featList_hipp "${featList_hipp[@]}"
 
 # Generate pdf report
-Do_cmd python "$UBCMNI"/functions/02_regional_analysis_report.py "sub-$id" "$SES" "$out" \
+Do_cmd python "$ZBRAINS"/functions/02_regional_analysis_report.py "sub-$id" "$SES" "$out" \
               "${demo}" "${thr}" \
               --featList_ctx "${featList_ctx[@]}" --featList_sctx "${featList_sctx[@]}" \
               --featList_hipp "${featList_hipp[@]}"
@@ -173,6 +171,6 @@ if [ "$Nsteps" -eq 2 ]; then status="COMPLETED"; else status="ERROR regional ana
 Title "asymmetry processing ended in \033[38;5;220m $(printf "%0.3f\n" "$eri") minutes \033[38;5;141m.
 \tSteps completed : $(printf "%02d" "$Nsteps")/02
 \tStatus          : ${status}
-\tCheck logs      : $(ls "${dir_logs}"/regionalAnalysis_*.txt)"
-echo "${id}, ${SES/ses-/}, regional_analysis, $status N=$(printf "%02d" "$Nsteps")/02, $(whoami), $(uname -n), $(date), $(printf "%0.3f\n" "$eri"), ${PROC}, ${Version}" >> "${out}/micapipe_processed_sub.csv"
+\tCheck logs      : $(ls "${dir_logs}"/regional_z_*.txt)"
+echo "${id}, ${SES/ses-/}, regional_z, $status N=$(printf "%02d" "$Nsteps")/02, $(whoami), $(uname -n), $(date), $(printf "%0.3f\n" "$eri"), ${PROC}, ${Version}" >> "${out}/micapipez_processed_sub.csv"
 cleanup "$tmp" "$nocleanup" "$here"
