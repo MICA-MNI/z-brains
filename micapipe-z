@@ -56,7 +56,7 @@ echo -e "
 
 
 \033[38;5;141mUSAGE:\033[0m
-    \033[38;5;141m$(basename $0)\033[0m  \033[38;5;197m-sub\033[0m <idBIDS_id> \033[38;5;197m-out\033[0m <outputDirectory> \033[38;5;197m-bids\033[0m <BIDS-directory> \033[38;5;197m-post_freesurfer\033[0m
+    \033[38;5;141m$(basename $0)\033[0m  \033[38;5;197m-sub\033[0m <idBIDS_id> \033[38;5;197m-out\033[0m <outputDirectory> \033[38;5;197m-bids\033[0m <BIDS-directory> \033[38;5;197m-sctx_vol\033[0m
 
 
 \033[38;5;141mDEPENDENCIES:\033[0m
@@ -66,6 +66,7 @@ echo -e "
     > workbench   1.4.2   (https://www.humanconnectome.org/software/workbench-command)
     > python      3.7.6   (https://www.python.org) 
     > hippunfold  1.0.0   (https://github.com/khanlab/hippunfold)
+    > micapipe    0.1.5   (https://github.com/MICA-MNI/micapipe)
 
 
 McGill University, MNI, MICA lab, Feb 2023
