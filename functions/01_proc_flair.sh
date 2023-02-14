@@ -27,6 +27,7 @@ PROC=$8
 export OMP_NUM_THREADS=$threads
 here=$(pwd)
 
+
 #------------------------------------------------------------------------------#
 # qsub configuration
 if [ "$PROC" = "qsub-MICA" ] || [ "$PROC" = "qsub-all.q" ];then
@@ -45,6 +46,7 @@ if [ ! -f "$T1freesurfr" ]; then Error "T1 in freesurfer space not found for Sub
 
 # Check inputs: T2-FLAIR
 if [ ! -f "$bids_flair" ]; then Error "T2-flair not found for Subject $id : ${subject_bids}/anat/${idBIDS}*FLAIR.nii.gz"; exit; fi
+
 
 #------------------------------------------------------------------------------#
 Title "T2-FLAIR intensities\n\t\tmicapipe-z $Version, $PROC"
@@ -74,31 +76,114 @@ outDir="${proc_struct}/surfaces/flair"
 # Data location
 dataDir="${dir_freesurfer}/surf"
 
+
 #------------------------------------------------------------------------------#
-### T2-FlAIR intensity ###
+### FLAIR intensity correction ###
 mkdir "${proc_struct}/flair"
 
 # Bias field correction
-if [[ ! -f "${proc_struct}/flair/${idBIDS}_space-fsspace_desc-flair.nii.gz" ]]; then
-    Do_cmd N4BiasFieldCorrection -d 3 -i ${bids_flair} -r \
-                                -o "${proc_struct}/flair/${idBIDS}_space-flair_desc-flair_N4.nii.gz" -v
+flair_N4="${proc_struct}/flair/${idBIDS}_space-flair_desc-flair_N4.nii.gz"
+if [[ ! -f "$flair_N4" ]]; then
+    Do_cmd N4BiasFieldCorrection -d 3 -i "$bids_flair" -r \
+                                -o "$flair_N4" -v
+else
+    Info "Subject ${id} T2-FLAIR is N4 bias corrected"; Nsteps=$((Nsteps + 1))
+fi
+
+# Clamp and rescale intensities
+flair_clamp="${proc_struct}/flair/${idBIDS}_space-flair_desc-flair_N4_clamp.nii.gz"
+flair_rescale="${proc_struct}/flair/${idBIDS}_space-flair_desc-flair_N4_rescale.nii.gz"
+if [[ ! -f "$flair_rescale" ]]; then
+    # Clamp intensities
+    Do_cmd ImageMath 3 "$flair_clamp" TruncateImageIntensity "$flair_N4" 0.01 0.99 75
+
+    # Rescale intensity [0,100]
+    Do_cmd ImageMath 3 "$flair_rescale" RescaleImage "$flair_clamp" 0 100
+else
+    Info "Subject ${id} T2-FLAIR is intensity corrected"; Nsteps=$((Nsteps + 1))
+fi
+
+# Normalize intensities by GM/WM interface, uses 5ttgen
+flair_preproc="${proc_struct}/flair/${idBIDS}_space-flair_desc-flair_preproc.nii.gz"
+if [[ ! -f "$flair_gmwmi" ]]; then
+    # Get gm/wm interface mask
+    t1_gmwmi="${tmp}/${idBIDS}_space-nativepro_desc-gmwmi-mask.nii.gz"
+    t1_5tt="${tmp}/${idBIDS}_space-nativepro_t1w_5TT.nii.gz"
+    if [[ ! -f "$t1_gmwmi" ]]; then
+        Info "Calculating Gray matter White matter interface mask"
+        Do_cmd 5tt2gmwmi "$t1_5tt" "$t1_gmwmi"; ((Nsteps++))
+    else
+        Info "Subject ${id} has Gray matter White matter interface mask"; ((Nsteps++))
+    fi
+
+    # Register nativepro and flair
+    str_flair_affine="${dir_warp}/${idBIDS}_from-flair_to-nativepro_mode-image_desc-affine_"
+    Do_cmd antsRegistrationSyN.sh -d 3 -f "$T1nativepro_brain" -m "$flair_rescale" -o "$str_flair_affine" -t a -n "$threads" -p d
+    t1_gmwmi_in_flair="${tmp}/flair/${idBIDS}_space-flair_desc-gmwmi-mask.nii.gz"
+    Do_cmd antsApplyTransforms -d 3 -i "$t1_gmwmi" -r "$flair_rescale" -t ["$str_flair_affine"0GenericAffine.mat,1] -o "$t1_gmwmi_in_flair" -v -u float
+
+    # binarize mask
+    t1_gmwmi_in_flair_thr="${tmp}/flair/${idBIDS}_space-flair_desc-gmwmi-thr.nii.gz"
+    fslmaths "$t1_gmwmi_in_flair" -thr 0.5 -bin "$t1_gmwmi_in_flair_thr"
+
+    # compute mean flair intensity in non-zero voxels
+    gmwmi_mean=`fslstats "$flair_rescale" -M -k "$t1_gmwmi_in_flair_thr"`
+
+    # Normalize flair
+    fslmaths "$flair_rescale" -div $gmwmi_mean "$flair_preproc"
+else
+    Info "Subject ${id} T2-FLAIR is normalized by GM/WM interface"; Nsteps=$((Nsteps + 1))
+fi
+
+
+#------------------------------------------------------------------------------#
+### FLAIR registrations ###
+flair_fs="${proc_struct}/flair/${idBIDS}_space-fsspace_desc-flair_preproc.nii.gz"
+flair2fs="${dir_warp}/${idBIDS}_from-flair_to-fsnative_mode-image_desc-flair.dat"
+if [[ ! -f "$flair_fs" ]]; then
 
     # Register T2-FLAIR to fsspace
     Do_cmd bbregister --s "$idBIDS" \
-                      --mov "${proc_struct}/flair/${idBIDS}_space-flair_desc-flair_N4.nii.gz" \
-                      --reg "${dir_warp}/${idBIDS}_from-flair_to-fsnative_mode-image_desc-flair.dat" \
+                      --mov "$flair_preproc" \
+                      --reg "$flair2fs" \
                       --init-coreg --t2 \
-                      --o "${proc_struct}/flair/${idBIDS}_space-fsspace_desc-flair.nii.gz"
+                      --o "$flair_fs"
+
+    # Transform transform!
+    Do_cmd lta_convert --inreg "$flair2fs" \
+                       --outitk "${tmp}/${idBIDS}_from-flair_to-fsnative_mode-image_desc-flair.txt" \
+                       --src "$flair_fs" \
+                       --trg "${dir_freesurfer}/mri/orig.mgz"
+
+    Do_cmd antsApplyTransforms -d 3 \
+                               -t ["${dir_warp}/${idBIDS}_from-fsnative_to_nativepro_t1w_0GenericAffine.mat",1] \
+                               -t ["${tmp}/${idBIDS}_from-flair_to-fsnative_mode-image_desc-flair.txt",1] \
+                               -r "$flair_fs" \
+                               -o Linear["${dir_warp}/${idBIDS}_from-nativepro_t1w_to_flair_0GenericAffine.mat"] \
+                               -v -u float --float
+    
+    Do_cmd ConvertTransformFile 3 "${dir_warp}/${idBIDS}_from-nativepro_t1w_to_flair_0GenericAffine.mat" \
+	                        "${dir_warp}/${idBIDS}_from-nativepro_t1w_to_flair_0GenericAffine.txt"
+
+    Do_cmd lta_convert --initk "${dir_warp}/${idBIDS}_from-nativepro_t1w_to_flair_0GenericAffine.txt" \
+                       --outfsl "${dir_warp}/${idBIDS}_from-nativepro_t1w_to_flair_0GenericAffine.mat" \
+                       --src "$T1nativepro" \
+                       --trg "$flair_fs"
+
 else
-    Info "Subject ${id} T2-FLAIR is registered to fsspace"; Nsteps=$((Nsteps + 1))
+    Info "Subject ${id} T2-FLAIR is in fsspace"; Nsteps=$((Nsteps + 1))
 fi
+
+
+#------------------------------------------------------------------------------#
+### Map intensities to cortex, subcortex, and hippocampus ###
 
 # Map to surface (native) and register to fsa5 and apply 10mm smooth
 if [[ ! -f "${outDir}/${idBIDS}_space-fsaverage5_desc-rh_flair_10mm.mgh" ]]; then
     for hemi in lh rh; do
         # Volume to surface    
-        Do_cmd mri_vol2surf --mov "${proc_struct}/flair/${idBIDS}_space-flair_desc-flair_N4.nii.gz" \
-                            --reg "${dir_warp}/${idBIDS}_from-flair_to-fsnative_mode-image_desc-flair.dat" \
+        Do_cmd mri_vol2surf --mov "$flair_preproc" \
+                            --reg "$flair2fs" \
                             --surf white --trgsubject "$idBIDS" \
                             --interp trilinear --hemi "$hemi" \
                             --out "${outDir}/${idBIDS}_space-fsnative_desc-${hemi}_flair.mgh"
@@ -163,7 +248,7 @@ fi
 # Map flair intensities to subcortical structures
 if [[ ! -f "${outDir}/${idBIDS}_space-flair_subcortical-intensities.csv" ]]; then
     # Transform to flair space
-    Do_cmd mri_vol2vol --mov "${proc_struct}/flair/${idBIDS}_space-flair_desc-flair_N4.nii.gz" \
+    Do_cmd mri_vol2vol --mov "$flair_preproc" \
                        --targ "${dir_freesurfer}/mri/aseg.mgz" \
                        --reg "${dir_warp}/${idBIDS}_from-flair_to-fsnative_mode-image_desc-flair.dat" \
                        --o "${tmp}/${idBIDS}_space-flair_atlas-subcortical.nii.gz" \
@@ -188,7 +273,7 @@ if [[ ! -f "${outDir}/${idBIDS}_space-flair_subcortical-intensities.csv" ]]; the
                             --o "${tmp}/${idBIDS}_${sctxname}_mask.nii.gz"
 
         # Get flair intensities for subcortical mask
-        Do_cmd fslmaths "${proc_struct}/flair/${idBIDS}_space-flair_desc-flair_N4.nii.gz" \
+        Do_cmd fslmaths "$flair_preproc" \
                         -mul "${tmp}/${idBIDS}_${sctxname}_mask.nii.gz" \
                         "${tmp}/${idBIDS}_${sctxname}_masked-flair.nii.gz"
 
@@ -204,27 +289,7 @@ fi
 
 # Map flair intensities to hippocampal subfields
 dir_hip="${out/micapipe/}/hippunfold_v1.0.0/hippunfold/sub-${id}/"
-if [[ ! -f "${proc_struct}/surfaces/flair/${idBIDS}_hemi-rh_space-flair_desc-flair_N4_den-0p5mm_label-hipp_midthickness_10mm.func.gii" ]]; then
-    # Transform transform!
-    Do_cmd lta_convert --inreg "${dir_warp}/${idBIDS}_from-flair_to-fsnative_mode-image_desc-flair.dat" \
-                       --outitk "${tmp}/${idBIDS}_from-flair_to-fsnative_mode-image_desc-flair.txt" \
-                       --src "${proc_struct}/flair/${idBIDS}_space-flair_desc-flair_N4.nii.gz" \
-                       --trg "${dir_freesurfer}/mri/orig.mgz"
-
-    Do_cmd antsApplyTransforms -d 3 \
-                               -t ["${dir_warp}/${idBIDS}_from-fsnative_to_nativepro_t1w_0GenericAffine.mat",1] \
-                               -t ["${tmp}/${idBIDS}_from-flair_to-fsnative_mode-image_desc-flair.txt",1] \
-                               -r "${proc_struct}/flair/${idBIDS}_space-flair_desc-flair_N4.nii.gz" \
-                               -o Linear["${dir_warp}/${idBIDS}_from-nativepro_t1w_to_flair_0GenericAffine.mat"] \
-                               -v -u float --float                   
-    
-    Do_cmd ConvertTransformFile 3 "${dir_warp}/${idBIDS}_from-nativepro_t1w_to_flair_0GenericAffine.mat" \
-	                        "${dir_warp}/${idBIDS}_from-nativepro_t1w_to_flair_0GenericAffine.txt"
-
-    Do_cmd lta_convert --initk "${dir_warp}/${idBIDS}_from-nativepro_t1w_to_flair_0GenericAffine.txt" \
-                       --outfsl "${dir_warp}/${idBIDS}_from-nativepro_t1w_to_flair_0GenericAffine.mat" \
-                       --src "${proc_struct}/${idBIDS}_space-nativepro_t1w.nii.gz" \
-                       --trg "${proc_struct}/flair/${idBIDS}_space-flair_desc-flair_N4.nii.gz"
+if [[ ! -f "${proc_struct}/surfaces/flair/${idBIDS}_hemi-rh_space-flair_desc-flair_N4_den-0p5mm_label-hipp_midthickness_2mm.func.gii" ]]; then
 
     for hemi in lh rh; do
         [[ "$hemi" == lh ]] && hemisphere=l || hemisphere=r
@@ -233,19 +298,19 @@ if [[ ! -f "${proc_struct}/surfaces/flair/${idBIDS}_hemi-rh_space-flair_desc-fla
         Do_cmd wb_command -surface-apply-affine "${dir_hip}/surf/sub-${id}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
                           "${dir_warp}/${idBIDS}_from-nativepro_t1w_to_flair_0GenericAffine.mat" \
                           "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-flair_den-0p5mm_label-hipp_midthickness.surf.gii" \
-                          -flirt "${proc_struct}/${idBIDS}_space-nativepro_t1w.nii.gz" \
-                          "${proc_struct}/flair/${idBIDS}_space-flair_desc-flair_N4.nii.gz"
+                          -flirt "$T1nativepro" \
+                          "$flair_preproc"
 
-        Do_cmd wb_command -volume-to-surface-mapping "${proc_struct}/flair/${idBIDS}_space-flair_desc-flair_N4.nii.gz" \
+        Do_cmd wb_command -volume-to-surface-mapping "$flair_preproc" \
                           "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-flair_den-0p5mm_label-hipp_midthickness.surf.gii" \
                           "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-flair_desc-flair_N4_den-0p5mm_label-hipp_midthickness.func.gii" \
 			              -trilinear
 
         Do_cmd wb_command -metric-smoothing "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-flair_den-0p5mm_label-hipp_midthickness.surf.gii" \
                           "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-flair_desc-flair_N4_den-0p5mm_label-hipp_midthickness.func.gii" \
-                          10 "${proc_struct}/surfaces/flair/${idBIDS}_hemi-${hemi}_space-flair_desc-flair_N4_den-0p5mm_label-hipp_midthickness_10mm.func.gii" 
+                          2 "${proc_struct}/surfaces/flair/${idBIDS}_hemi-${hemi}_space-flair_desc-flair_N4_den-0p5mm_label-hipp_midthickness_2mm.func.gii" 
         
-        if [[ -f "${proc_struct}/surfaces/flair/${idBIDS}_hemi-${hemi}_space-flair_desc-flair_N4_den-0p5mm_label-hipp_midthickness_10mm.func.gii" ]]; then ((Nsteps++)); fi
+        if [[ -f "${proc_struct}/surfaces/flair/${idBIDS}_hemi-${hemi}_space-flair_desc-flair_N4_den-0p5mm_label-hipp_midthickness_2mm.func.gii" ]]; then ((Nsteps++)); fi
     done
 else
     Info "Subject ${idBIDS} T2-FLAIR is mapped to hippocampus"; Nsteps=$((Nsteps + 2))
