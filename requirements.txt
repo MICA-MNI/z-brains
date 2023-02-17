@@ -1,0 +1,5 @@
+h5py<3.2
+nibabel
+numpy>=1.21
+pandas
+xhtml2pdf
