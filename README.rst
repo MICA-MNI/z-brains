@@ -1,9 +1,22 @@
 .. image:: https://img.shields.io/badge/license-BSD-critical
    :target: https://opensource.org/licenses/BSD-3-Clause 
+
+.. image:: https://readthedocs.org/projects/z-brains/badge/?version=latest&color=brightgreen
+  :target: https://z-brains.readthedocs.io/en/latest/?badge=latest
+  :alt: Documentation Status
+
+.. image:: https://img.shields.io/github/stars/MICA-MNI/z-brains.svg?style=flat&label=%E2%9C%A8%EF%B8%8F%20be%20a%20stargazer&color=brightgreen
+  :target: https://github.com/MICA-MNI/z-brains/stargazers
+  :alt: GitHub stars
+
+.. image:: https://img.shields.io/github/issues/MICA-MNI/z-brains?color=brightgreen
+  :target: https://github.com/MICA-MNI/z-brains/issues
+  :alt: GitHub issues 
    
 .. image:: https://img.shields.io/github/stars/MICA-MNI/z-brains.svg?style=flat&label=%E2%9C%A8%EF%B8%8F%20be%20a%20stargazer&color=critical
-    :target: https://github.com/MICA-MNI/z-brains/stargazers   
-   
+    :target: https://github.com/MICA-MNI/z-brains/stargazers  
+
+    
 Multimodal lesion mapping in focal epilepsy with `z-brains`
 --------------------------------------------
 
