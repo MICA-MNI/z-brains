@@ -298,7 +298,7 @@ if [[ ! -f "${outDir}/${idBIDS}_hemi-rh_space-dwi_desc-dwi-ADC_den-0p5mm_label-h
             HEMICAP=$(echo $hemisphere | tr [:lower:] [:upper:])
             #hip_surf="${dir_hip}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" 
             hip_surf="${dir_hip}/surf/sub-${id}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" # Hippunfold surface
-            hippsurf_dwi="${outDir}/${idBIDS}_hemi-${HEMICAP}_space-dwi_den-0p5mm_label-hipp_midthickness.surf.gii" # HIppocampal surface in DWI space
+            hippsurf_dwi="${outDir}/${idBIDS}_hemi-${HEMICAP}_space-dwi_den-0p5mm_label-hipp_midthickness.surf.gii" # Hippocampal surface in DWI space
             if [[ ${mode} == "SyN" ]]; then
               Info "Apply ${mode} transformations to ${HEMICAP} surface"
 
@@ -328,13 +328,12 @@ if [[ ! -f "${outDir}/${idBIDS}_hemi-rh_space-dwi_desc-dwi-ADC_den-0p5mm_label-h
                             "${hippsurf_dwi}" \
                             "${map_on_surf}" \
                             -trilinear
-            #for smooth in 2 3 5 10; do
-            for smooth in 10; do
+
             Do_cmd wb_command -metric-smoothing "${hippsurf_dwi}" \
                             "${map_on_surf}" \
-                            "${smooth}" "${outDir}/${idBIDS}_hemi-${hemi}_space-dwi_desc-dwi-${map}_den-0p5mm_label-hipp_midthickness_${smooth}mm.func.gii"
-            done
-            if [[ -f "${outDir}/${idBIDS}_hemi-${hemi}_space-dwi_desc-dwi-${map}_den-0p5mm_label-hipp_midthickness_${smooth}mm.func.gii" ]]; then ((Nsteps++)); fi
+                            2 "${outDir}/${idBIDS}_hemi-${hemi}_space-dwi_desc-dwi-${map}_den-0p5mm_label-hipp_midthickness_2mm.func.gii"
+
+            if [[ -f "${outDir}/${idBIDS}_hemi-${hemi}_space-dwi_desc-dwi-${map}_den-0p5mm_label-hipp_midthickness_2mm.func.gii" ]]; then ((Nsteps++)); fi
         done
     done
 else

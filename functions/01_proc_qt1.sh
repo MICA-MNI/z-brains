@@ -248,9 +248,9 @@ if [[ ! -f "${proc_struct}/surfaces/qt1/${idBIDS}_hemi-rh_space-qt1_desc-qt1_den
 
         Do_cmd wb_command -metric-smoothing "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-qt1_den-0p5mm_label-hipp_midthickness.surf.gii" \
                           "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-qt1_desc-qt1_den-0p5mm_label-hipp_midthickness.func.gii" \
-                          10 "${proc_struct}/surfaces/qt1/${idBIDS}_hemi-${hemi}_space-qt1_desc-qt1_den-0p5mm_label-hipp_midthickness_10mm.func.gii" 
+                          2 "${proc_struct}/surfaces/qt1/${idBIDS}_hemi-${hemi}_space-qt1_desc-qt1_den-0p5mm_label-hipp_midthickness_2mm.func.gii" 
         
-        if [[ -f "${proc_struct}/surfaces/qt1/${idBIDS}_hemi-${hemi}_space-qt1_desc-qt1_den-0p5mm_label-hipp_midthickness_10mm.func.gii" ]]; then ((Nsteps++)); fi
+        if [[ -f "${proc_struct}/surfaces/qt1/${idBIDS}_hemi-${hemi}_space-qt1_desc-qt1_den-0p5mm_label-hipp_midthickness_2mm.func.gii" ]]; then ((Nsteps++)); fi
     done
 else
     Info "Subject ${idBIDS} qT1 is mapped to hippocampus"; Nsteps=$((Nsteps + 2))
