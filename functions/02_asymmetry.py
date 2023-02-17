@@ -52,10 +52,56 @@ featList_ctx = args.featList_ctx
 featList_sctx = args.featList_sctx
 featList_hipp = args.featList_hipp
 
+def new_gifti_image(data, intent=0, datatype=16, metadata=None):
+  """NiBabel wrapper to generate a gifti image with data array and metadata.
+  Parameters
+  ----------
+  data : ndarray
+    1-D ndarray containing one hemisphere surface data.
+  intent : int
+    Intent code for Gifti File. Defaults to 0 (Intent = NONE).
+    Available intent codes:
+      NIFTI_INTENT_NONE - 0
+      NIFTI_INTENT_CORREL - 2
+      NIFTI_INTENT_TTEST - 3
+      NIFTI_INTENT_ZSCORE - 5
+      NIFTI_INTENT_PVAL - 22
+      NIFTI_INTENT_LOGPVAL - 23
+      NIFTI_INTENT_LOG10PVAL - 24
+      NIFTI_INTENT_LABEL - 1002
+      NIFTI_INTENT_POINTSET - 1008
+      NIFTI_INTENT_TRIANGLE - 1009
+      NIFTI_INTENT_TIME_SERIES - 2001
+      NIFTI_INTENT_NODE_INDEX - 2002
+      NIFTI_INTENT_SHAPE - 2005
+    More intent codes can be found at: https://nifti.nimh.nih.gov/nifti-1/documentation/nifti1fields/nifti1fields_pages/group__NIFTI1__INTENT__CODES.html
+  datatype : int
+    Datatype for gifti image. Defaults to 16 (dtype = float32)
+    Available datatypes:
+      UINT8 - 2
+      INT32 - 8
+      FLOAT32 - 16
+  metadata : nibabel.gifti.gifti.GiftiMetaData
+    Metadata for gifti image.
+  Returns
+  -------
+  nibabel.gifti.gifti.GiftiImage
+    Gifti image with specified metadata and data array.
+  """
+  dtypes = {2: np.uint8, 8: np.int32, 16: np.float32}
+  data = data.astype(dtypes[datatype])
+  if metadata:
+    metadata = nib.gifti.GiftiMetaData(metadata)
+  gifti_data = nib.gifti.GiftiDataArray(data=data, intent=intent, datatype=datatype)
+  gifti_img = nib.gifti.GiftiImage(meta=metadata, darrays=[gifti_data])
+  return gifti_img
+
+
 def zscore(mtrx, TBL):
     grpk = TBL['grp']
     data_z = zscore_matrix(mtrx, grpk, 'HC')
     return data_z
+
 
 def matrix(area, path, filename, TBL):
     # Get number of vertices/structures
@@ -294,34 +340,40 @@ if __name__ == "__main__":
     rn = (TBL.loc[TBL['ID'] == subject].index).tolist()
 
     # Save and plot multivariate z-score | cortical
+    fname = os.path.join(os.path.dirname(out), "analysis", "asymmetry", subject, session, subject + "_ctx-mz-unthr_{}.gii")
     mv_c_half = mv_c_unthr[rn, :]
-    fname = os.path.join(os.path.dirname(out), "analysis", "asymmetry", subject, session, subject + "_ctx-mz-unthr_{}.mgh")
-    nib.freesurfer.mghformat.MGHImage(np.float32(mv_c_half[:, :mv_c_half.shape[1]//2].flatten()),
-                                      getaffine('conte69', 'lh')).to_filename(fname.format('lh'))
-    nib.freesurfer.mghformat.MGHImage(np.float32(mv_c_half[:, mv_c_half.shape[1]//2:].flatten()),
-                                      getaffine('conte69', 'rh')).to_filename(fname.format('rh'))
+    mv_h_lh = new_gifti_image(mv_c_half[:len(mv_c_half)//2])
+    mv_h_rh = new_gifti_image(mv_c_half[len(mv_c_half)//2:])
+    nib.save(mv_h_lh, fname.format('lh'))
+    nib.save(mv_h_rh, fname.format('rh'))
     
+    fname = os.path.join(os.path.dirname(out), "analysis", "asymmetry", subject, session, subject + "_ctx-mz_{}.gii")
     mv_c_half = mv_c[rn, :]
-    fname = os.path.join(os.path.dirname(out), "analysis", "asymmetry", subject, session, subject + "_ctx-mz_{}.mgh")
-    nib.freesurfer.mghformat.MGHImage(np.float32(mv_c_half[:, :mv_c_half.shape[1]//2].flatten()),
-                                      getaffine('conte69', 'lh')).to_filename(fname.format('lh'))
-    nib.freesurfer.mghformat.MGHImage(np.float32(mv_c_half[:, mv_c_half.shape[1]//2:].flatten()),
-                                      getaffine('conte69', 'rh')).to_filename(fname.format('rh'))
+    mv_h_lh = new_gifti_image(mv_c_half[:len(mv_c_half)//2])
+    mv_h_rh = new_gifti_image(mv_c_half[len(mv_c_half)//2:])
+    nib.save(mv_h_lh, fname.format('lh'))
+    nib.save(mv_h_rh, fname.format('rh'))
 
-    mv_c_half[:, :len(mv_c_half.flatten())//2] = np.nan
     fname = os.path.join(os.path.dirname(out), "analysis", "asymmetry", subject, session, subject + "_ctx-mz.png")
+    mv_c_half[:, :len(mv_c_half.flatten())//2] = np.nan
     plot_cortical(array_name=mv_c_half, surface_name='conte69', size=(800, 180), zoom=1.18, cmap='RdBu_r',
                   color_bar=True, color_range=(-3, 3), screenshot=True, view=['lateral', 'medial', 'medial', 'lateral'],
                   filename=fname)
 
     # Save and plot multivariate z-score | subcortical
+    fname = os.path.join(os.path.dirname(out), "analysis", "asymmetry", subject, session, subject + "_sctx-mz-unthr_{}.gii")
     mv_s_half = mv_s_unthr[rn, :].flatten()
-    np.savetxt(os.path.join(os.path.dirname(out), "analysis", "asymmetry", subject, session, subject + "_sctx-mz-unthr.txt"), 
-               mv_s_half, delimiter=",")
+    mv_h_lh = new_gifti_image(mv_s_half[:len(mv_s_half)//2])
+    mv_h_rh = new_gifti_image(mv_s_half[len(mv_s_half)//2:])
+    nib.save(mv_h_lh, fname.format('lh'))
+    nib.save(mv_h_rh, fname.format('rh'))
     
+    fname = os.path.join(os.path.dirname(out), "analysis", "asymmetry", subject, session, subject + "_sctx-mz_{}.gii")
     mv_s_half = mv_s[rn, :].flatten()
-    np.savetxt(os.path.join(os.path.dirname(out), "analysis", "asymmetry", subject, session, subject + "_sctx-mz.txt"), 
-               mv_s_half, delimiter=",")
+    mv_h_lh = new_gifti_image(mv_s_half[:len(mv_s_half)//2])
+    mv_h_rh = new_gifti_image(mv_s_half[len(mv_s_half)//2:])
+    nib.save(mv_h_lh, fname.format('lh'))
+    nib.save(mv_h_rh, fname.format('rh'))
     
     mv_s_half[:len(mv_s_half)//2] = np.nan
     fname = os.path.join(os.path.dirname(out), "analysis", "asymmetry", subject, session, subject + "_sctx-mz.png")
@@ -329,22 +381,19 @@ if __name__ == "__main__":
                   color_bar=True, color_range=(-3, 3), screenshot=True, view=['lateral', 'medial', 'medial', 'lateral'],
                   filename=fname)
 
-    # Save and plot multivariate z-score | hippocampal
-    mv_h_half = mv_h_unthr[rn, :].flatten()
-    mv_h_lh = nib.gifti.gifti.GiftiImage()
-    mv_h_lh.add_gifti_data_array(nib.gifti.gifti.GiftiDataArray(data=mv_h_half[:len(mv_h_half)//2]))
-    mv_h_rh = nib.gifti.gifti.GiftiImage()
-    mv_h_rh.add_gifti_data_array(nib.gifti.gifti.GiftiDataArray(data=mv_h_half[len(mv_h_half)//2:]))
+    # Save and plot multivariate z-score | hippocampal unthresholded
     fname = os.path.join(os.path.dirname(out), "analysis", "asymmetry", subject, session, subject + "_hipp-mz-unthr_{}.gii")
+    mv_h_half = mv_h_unthr[rn, :].flatten()
+    mv_h_lh = new_gifti_image(mv_h_half[:len(mv_h_half)//2])
+    mv_h_rh = new_gifti_image(mv_h_half[len(mv_h_half)//2:])
     nib.save(mv_h_lh, fname.format('lh'))
     nib.save(mv_h_rh, fname.format('rh'))
 
-    mv_h_half = mv_h[rn, :].flatten()
-    mv_h_lh = nib.gifti.gifti.GiftiImage()
-    mv_h_lh.add_gifti_data_array(nib.gifti.gifti.GiftiDataArray(data=mv_h_half[:len(mv_h_half)//2]))
-    mv_h_rh = nib.gifti.gifti.GiftiImage()
-    mv_h_rh.add_gifti_data_array(nib.gifti.gifti.GiftiDataArray(data=mv_h_half[len(mv_h_half)//2:]))
+    # Save and plot multivariate z-score | hippocampal thresholded
     fname = os.path.join(os.path.dirname(out), "analysis", "asymmetry", subject, session, subject + "_hipp-mz_{}.gii")
+    mv_h_half = mv_h[rn, :].flatten()
+    mv_h_lh = new_gifti_image(mv_h_half[:len(mv_h_half)//2])
+    mv_h_rh = new_gifti_image(mv_h_half[len(mv_h_half)//2:])
     nib.save(mv_h_lh, fname.format('lh'))
     nib.save(mv_h_rh, fname.format('rh'))
 
@@ -361,43 +410,49 @@ if __name__ == "__main__":
     # ================================================================
     # Plot univariate z-score | cortical
     for (_, mvName) in enumerate(mvdic_c):
+        fname = os.path.join(os.path.dirname(out), "analysis", "asymmetry", subject, session, subject + "_ctx-{}-unthr_{}.gii")
         mv_tmp = np.loadtxt(os.path.join(os.path.dirname(out), "analysis", "asymmetry", "allSubjects_ctx-{}.csv".
                                     format(str(mvName))), delimiter=",")[rn, :]
+       
+        mv_h_lh = new_gifti_image(mv_tmp[:len(mv_tmp)//2])
+        mv_h_rh = new_gifti_image(mv_tmp[len(mv_tmp)//2:])
+        nib.save(mv_h_lh, fname.format(str(mvName), 'lh'))
+        nib.save(mv_h_rh, fname.format(str(mvName), 'rh'))
+
         mv_tmp[:, :len(mv_c_half.flatten())//2] = np.nan
         plot_cortical(array_name=mv_tmp, surface_name='conte69', size=(800, 180), zoom=1.18, cmap='RdBu_r',
                   color_bar=True, color_range=(-3, 3), screenshot=True, view=['lateral', 'medial', 'medial', 'lateral'],
                   filename=os.path.join(os.path.dirname(out), "analysis", "asymmetry", subject, session, subject + "_ctx-{}.png".
-                  format(str(mvName))))
-        
-        mv_tmp = np.loadtxt(os.path.join(os.path.dirname(out), "analysis", "asymmetry", "allSubjects_unthr_ctx-{}.csv".
-                                    format(str(mvName))), delimiter=",")[rn, :]
-        fname = os.path.join(os.path.dirname(out), "analysis", "asymmetry", subject, session, subject + "_ctx-{}-unthr_{}.mgh")
-        nib.freesurfer.mghformat.MGHImage(np.float32(mv_tmp.flatten()),
-                                          getaffine('conte69', 'lh')).to_filename(fname.format(str(mvName), 'lh'))
-        nib.freesurfer.mghformat.MGHImage(np.float32(mv_tmp.flatten()),
-                                          getaffine('conte69', 'rh')).to_filename(fname.format(str(mvName), 'rh'))
-
+                  format(str(mvName))))      
 
     # Plot univariate z-score | subcortical
     for (_, mvName) in enumerate(mvdic_s):
+        fname = os.path.join(os.path.dirname(out), "analysis", "asymmetry", subject, session, subject + "_sctx-{}-unthr.gii")
         mv_tmp = np.loadtxt(os.path.join(os.path.dirname(out), "analysis", "asymmetry", "allSubjects_sctx-{}.csv".
                                     format(str(mvName))), delimiter=",")[rn, :].flatten()
+        
+        mv_h_lh = new_gifti_image(mv_tmp[:len(mv_tmp)//2])
+        mv_h_rh = new_gifti_image(mv_tmp[len(mv_tmp)//2:])
+        nib.save(mv_h_lh, fname.format(str(mvName), 'lh'))
+        nib.save(mv_h_rh, fname.format(str(mvName), 'rh'))
+
         mv_tmp[:len(mv_tmp)//2] = np.nan
         plot_subcortical(array_name=mv_tmp, ventricles=False, size=(800, 180), zoom=1.18, cmap='RdBu_r',
                   color_bar=True, color_range=(-3, 3), screenshot=True, view=['lateral', 'medial', 'medial', 'lateral'],
                   filename=os.path.join(os.path.dirname(out), "analysis", "asymmetry", subject,
                                         session, subject + "_sctx-{}.png".format(str(mvName))))
-        
-        mv_tmp = np.loadtxt(os.path.join(os.path.dirname(out), "analysis", "asymmetry", "allSubjects_unthr_sctx-{}.csv").
-                                    format(str(mvName)), delimiter=",")[rn, :].flatten()
-        np.savetxt(os.path.join(os.path.dirname(out), "analysis", "asymmetry", subject, session, subject + "_sctx-{}-unthr.txt").
-                                    format(str(mvName)), mv_tmp, delimiter=",")
-        
 
     # Plot univariate z-score | hippocampal
     for (_, mvName) in enumerate(mvdic_h):
+        fname = os.path.join(os.path.dirname(out), "analysis", "asymmetry", subject, session, subject + "_hipp-{}-unthr_{}.gii")
         mv_tmp = np.loadtxt(os.path.join(os.path.dirname(out), "analysis", "asymmetry", "allSubjects_hipp-{}.csv".
                                     format(str(mvName))), delimiter=",")[rn, :].flatten()
+        
+        mv_h_lh = new_gifti_image(mv_tmp[:len(mv_tmp)//2])
+        mv_h_rh = new_gifti_image(mv_tmp[len(mv_tmp)//2:])
+        nib.save(mv_h_lh, fname.format(str(mvName), 'lh'))
+        nib.save(mv_h_rh, fname.format(str(mvName), 'rh'))
+
         mv_tmp[:len(mv_tmp) // 2] = np.nan
         plot_hippocampal(array_name=mv_tmp, size=(800, 180), zoom=1.18, cmap='RdBu_r',
                      color_bar=True, color_range=(-3, 3), screenshot=True,
@@ -405,14 +460,3 @@ if __name__ == "__main__":
                      filename=os.path.join(os.path.dirname(out), "analysis", "asymmetry", subject,
                                            session, subject + "_hipp-{}.png".format(str(mvName))))
         
-        mv_tmp = np.loadtxt(os.path.join(os.path.dirname(out), "analysis", "asymmetry", "allSubjects_unthr_hipp-{}.csv".
-                    format(str(mvName))), delimiter=",")[rn, :].flatten()
-        mv_h_lh = nib.gifti.gifti.GiftiImage()
-        mv_h_lh.add_gifti_data_array(nib.gifti.gifti.GiftiDataArray(data=mv_tmp))
-        mv_h_rh = nib.gifti.gifti.GiftiImage()
-        mv_h_rh.add_gifti_data_array(nib.gifti.gifti.GiftiDataArray(data=mv_tmp))
-        fname = os.path.join(os.path.dirname(out), "analysis", "asymmetry", subject, session, subject + "_hipp-{}-unthr_{}.gii")
-        nib.save(mv_h_lh, fname.format(str(mvName), 'lh'))
-        nib.save(mv_h_rh, fname.format(str(mvName), 'rh'))
-    
-    
