@@ -5,4 +5,5 @@ sphinx-gallery
 plotly
 wordcloud
 jinja2<3.1
+https://github.com/djungelorm/sphinx-tabs/releases/download/v1.1.11/sphinx-tabs-1.1.11.tar.gz
 -r ../requirements.txt
