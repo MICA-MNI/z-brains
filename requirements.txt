@@ -3,3 +3,4 @@ nibabel
 numpy>=1.21
 pandas
 xhtml2pdf
+#enigma toolbox (https://enigma-toolbox.readthedocs.io/en/latest/pages/01.install/index.html)

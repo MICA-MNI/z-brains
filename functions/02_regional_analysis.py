@@ -369,7 +369,7 @@ if __name__ == "__main__":
 
 
     # Plot univariate z-score | subcortical
-    for (_, mvName) in enumerate(mvdic_s):
+    for (_, mvName) in enumerate(mvFullDic_s):
         mv_tmp = np.loadtxt(os.path.join(os.path.dirname(out), "analysis", "regional", "allSubjects_sctx-{}.csv".
                                     format(str(mvName))), delimiter=",")[rn, :].flatten()
         plot_subcortical(array_name=mv_tmp, ventricles=False, size=(800, 180), zoom=1.18, cmap='RdBu_r',
@@ -384,7 +384,7 @@ if __name__ == "__main__":
         
 
     # Plot univariate z-score | hippocampal
-    for (_, mvName) in enumerate(mvdic_h):
+    for (_, mvName) in enumerate(mvFullDic_h):
         mv_tmp = np.loadtxt(os.path.join(os.path.dirname(out), "analysis", "regional", "allSubjects_hipp-{}.csv".
                                     format(str(mvName))), delimiter=",")[rn, :].flatten()
         plot_hippocampal(array_name=mv_tmp, size=(800, 180), zoom=1.18, cmap='RdBu_r',

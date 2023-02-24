@@ -72,7 +72,7 @@ dataDir="${dir_freesurfer}/stats/"
 
 #------------------------------------------------------------------------------#
 ### subcortical volume ###
-mkdir "${proc_struct}/surfaces/morphology/sctx_volume/"
+mkdir -p "${proc_struct}/surfaces/morphology/sctx_volume/"
 
 # Create file header
 echo "SubjID,Laccumb,Lamyg,Lcaud,Lhippo,Lpal,Lput,Lthal,Raccumb,Ramyg,Rcaud,Rhippo,Rpal,Rput,Rthal,ICV" > \
