@@ -138,7 +138,7 @@ if [[ ! -f "$flair_gmwmi" ]]; then
     gmwmi_mean=`fslstats "$tmp/${idBIDS}_space-nativepro_flair.nii.gz" -M -k "$t1_gmwmi_in_flair_thr"`
 
     # Normalize flair
-    fslmaths "$flair_rescale" -div $gmwmi_mean "$flair_preproc"
+    fslmaths $tmp/${idBIDS}_space-nativepro_flair.nii.gz -div $gmwmi_mean "$flair_preproc"
 else
     Info "Subject ${id} T2-FLAIR is normalized by GM/WM interface"; Nsteps=$((Nsteps + 1))
 fi
@@ -170,11 +170,11 @@ else
 fi
 
 # Map flair intensities to subcortical structures
-if [[ ! -f "${outDir}/${idBIDS}_space-flair_subcortical-intensities.csv" ]]; then
+if [[ ! -f "${outDir}/${idBIDS}_subcortical-flair.csv" ]]; then
     
     echo "SubjID,Laccumb,Lamyg,Lcaud,Lhippo,Lpal,Lput,Lthal,Raccumb,Ramyg,Rcaud,Rhippo,Rpal,Rput,Rthal" > \
-            "${outDir}/${idBIDS}_space-flair_subcortical-intensities.csv"
-    printf "%s,"  "${idBIDS}" >> "${outDir}/${idBIDS}_space-flair_subcortical-intensities.csv"
+            "${outDir}/${idBIDS}_subcortical-flair.csv"
+    printf "%s,"  "${idBIDS}" >> "${outDir}/${idBIDS}_subcortical-flair.csv"
 
     for sub in 26 18 11 17 13 12 10 58 54 50 53 52 51 49; do
         if [[ ${sub} == 26 ]]; then sctxname="Left-Accumbens-area"; elif [[ ${sub} == 18 ]]; then sctxname="Left-Amygdala"; \
@@ -197,10 +197,10 @@ if [[ ! -f "${outDir}/${idBIDS}_space-flair_subcortical-intensities.csv" ]]; the
 
         # Input values in .csv file
         printf "%g," `fslstats "${tmp}/${idBIDS}_${sctxname}_masked-flair.nii.gz" -M` >> \
-            "${outDir}/${idBIDS}_space-flair_subcortical-intensities.csv"
-        if [[ -f "${outDir}/${idBIDS}_space-flair_subcortical-intensities.csv" ]]; then ((Nsteps++)); fi
+            "${outDir}/${idBIDS}_subcortical-flair.csv"
+        if [[ -f "${outDir}/${idBIDS}_subcortical-flair.csv" ]]; then ((Nsteps++)); fi
     done
-    echo "" >> "${outDir}/${idBIDS}_space-flair_subcortical-intensities.csv"
+    echo "" >> "${outDir}/${idBIDS}_subcortical-flair.csv"
 else
     Info "Subject ${idBIDS} T2-FLAIR is mapped to subcortical areas"; Nsteps=$((Nsteps + 14))
 fi
