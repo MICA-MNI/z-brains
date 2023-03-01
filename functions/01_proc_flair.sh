@@ -41,9 +41,6 @@ source $MICAPIPE/functions/utilities.sh
 # Assigns variables names
 bids_variables "$BIDS" "$id" "$out" "$SES"
 
-# Check inputs: Freesurfer space T1
-if [ ! -f "$T1freesurfr" ]; then Error "T1 in freesurfer space not found for Subject $id : <SUBJECTS_DIR>/${id}/mri/T1.mgz"; exit; fi
-
 # Check inputs: T2-FLAIR
 if [ ! -f "$bids_flair" ]; then Error "T2-flair not found for Subject $id : ${subject_bids}/anat/${idBIDS}*FLAIR.nii.gz"; exit; fi
 
@@ -73,9 +70,6 @@ trap 'cleanup $tmp $nocleanup $here' SIGINT SIGTERM
 outDir="${out//micapipe/}/analysis/scene-nativepro/${idBIDS}"
 [[ ! -d "$outDir" ]] && Do_cmd mkdir -p "$outDir"
 
-# Data location
-dataDir="${dir_freesurfer}/surf"
-
 
 #------------------------------------------------------------------------------#
 ### FLAIR intensity correction ###
@@ -84,7 +78,7 @@ mkdir "${proc_struct}/flair"
 # Bias field correction
 flair_N4="${proc_struct}/flair/${idBIDS}_space-flair_desc-flair_N4.nii.gz"
 if [[ ! -f "$flair_N4" ]]; then
-    Do_cmd N4BiasFieldCorrection -d 3 -i "$bids_flair" -r \
+    Do_cmd N4BiasFieldCorrection -d 3 -i "$echo $" -r \
                                 -o "$flair_N4" -v
 else
     Info "Subject ${id} T2-FLAIR is N4 bias corrected"; Nsteps=$((Nsteps + 1))
@@ -103,12 +97,32 @@ else
     Info "Subject ${id} T2-FLAIR is intensity corrected"; Nsteps=$((Nsteps + 1))
 fi
 
+
+#------------------------------------------------------------------------------#
+### FLAIR registrations ###
+
+if [[ ! -f ${dir_warp}/${idBIDS}_from-flair_to-nativepro_mode-image_desc-affine_0GenericAffine.mat ]]; then
+    Info "Subject ${id} T2-FLAIR registration to nativepro not found. Trying antsQuickRigid"
+Do_cmd antsRegistrationSyNQuick.sh -d 3 -t r \
+                -f ${outDir}/${idBIDS}_space-nativepro_t1w.nii.gz \
+                -m $flair_rescale \
+                -o ${dir_warp}/${idBIDS}_from-flair_to-nativepro_mode-image_desc-affine_ 
+fi
+
+
+Do_cmd antsApplyTransforms -d 3 -v \
+                -i $flair_rescale \
+                -r ${outDir}/${idBIDS}_space-nativepro_t1w.nii.gz \
+                -t ${dir_warp}/${idBIDS}_from-flair_to-nativepro_mode-image_desc-affine_0GenericAffine.mat \
+                -o $tmp/${idBIDS}_space-nativepro_flair.nii.gz
+
+
 # Normalize intensities by GM/WM interface, uses 5ttgen
-flair_preproc="${proc_struct}/flair/${idBIDS}_space-flair_desc-flair_preproc.nii.gz"
+flair_preproc="$outDir/${idBIDS}_space-nativepro_flair.nii.gz"
 if [[ ! -f "$flair_gmwmi" ]]; then
     # Get gm/wm interface mask
     t1_gmwmi="${tmp}/${idBIDS}_space-nativepro_desc-gmwmi-mask.nii.gz"
-    t1_5tt="${tmp}/${idBIDS}_space-nativepro_t1w_5TT.nii.gz"
+    t1_5tt="${proc_struct}/${idBIDS}_space-nativepro_t1w_5TT.nii.gz"
     if [[ ! -f "$t1_gmwmi" ]]; then
         Info "Calculating Gray matter White matter interface mask"
         Do_cmd 5tt2gmwmi "$t1_5tt" "$t1_gmwmi"; ((Nsteps++))
@@ -116,34 +130,18 @@ if [[ ! -f "$flair_gmwmi" ]]; then
         Info "Subject ${id} has Gray matter White matter interface mask"; ((Nsteps++))
     fi
 
-    # Register nativepro and flair
-    str_flair_affine="${dir_warp}/${idBIDS}_from-flair_to-nativepro_mode-image_desc-affine_"
-    Do_cmd antsRegistrationSyN.sh -d 3 -f "$T1nativepro_brain" -m "$flair_rescale" -o "$str_flair_affine" -t a -n "$threads" -p d
-    t1_gmwmi_in_flair="${tmp}/flair/${idBIDS}_space-flair_desc-gmwmi-mask.nii.gz"
-    Do_cmd antsApplyTransforms -d 3 -i "$t1_gmwmi" -r "$flair_rescale" -t ["$str_flair_affine"0GenericAffine.mat,1] -o "$t1_gmwmi_in_flair" -v -u float
-
     # binarize mask
-    t1_gmwmi_in_flair_thr="${tmp}/flair/${idBIDS}_space-flair_desc-gmwmi-thr.nii.gz"
-    fslmaths "$t1_gmwmi_in_flair" -thr 0.5 -bin "$t1_gmwmi_in_flair_thr"
+    t1_gmwmi_in_flair_thr="${tmp}/${idBIDS}_space-flair_desc-gmwmi-thr.nii.gz"
+    fslmaths "$t1_gmwmi" -thr 0.5 -bin "$t1_gmwmi_in_flair_thr"
 
     # compute mean flair intensity in non-zero voxels
-    gmwmi_mean=`fslstats "$flair_rescale" -M -k "$t1_gmwmi_in_flair_thr"`
+    gmwmi_mean=`fslstats "$tmp/${idBIDS}_space-nativepro_flair.nii.gz" -M -k "$t1_gmwmi_in_flair_thr"`
 
     # Normalize flair
     fslmaths "$flair_rescale" -div $gmwmi_mean "$flair_preproc"
 else
     Info "Subject ${id} T2-FLAIR is normalized by GM/WM interface"; Nsteps=$((Nsteps + 1))
 fi
-
-
-#------------------------------------------------------------------------------#
-### FLAIR registrations ###
-
-antsApplyTransforms -d 3 \
-                -i $flair_preproc \
-                -r $flair_preproc \
-                -t ${dir_warp}/${idBIDS}_from-flair_to-nativepro_mode-image_desc-affine_0GenericAffine.mat \
-                -o $outDir/${idBIDS}_space-nativepro_flair.nii.gz
 
 #------------------------------------------------------------------------------#
 ### Map intensities to cortex, subcortex, and hippocampus ###
