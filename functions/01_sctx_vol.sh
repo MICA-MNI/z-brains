@@ -64,7 +64,7 @@ Do_cmd mkdir -p "$tmp"
 trap 'cleanup $tmp $nocleanup $here' SIGINT SIGTERM
 
 # Make output directory
-outDir="${proc_struct}/surfaces/morphology/sctx_volume/"
+outDir="${out//micapipe/}/analysis/scene-nativepro/${idBIDS}"
 [[ ! -d "$outDir" ]] && Do_cmd mkdir -p "$outDir"
 
 # Data location
@@ -72,7 +72,6 @@ dataDir="${dir_freesurfer}/stats/"
 
 #------------------------------------------------------------------------------#
 ### subcortical volume ###
-mkdir "${proc_struct}/surfaces/morphology/sctx_volume/"
 
 # Create file header
 echo "SubjID,Laccumb,Lamyg,Lcaud,Lhippo,Lpal,Lput,Lthal,Raccumb,Ramyg,Rcaud,Rhippo,Rpal,Rput,Rthal,ICV" > \

@@ -207,16 +207,16 @@ fi
 
 # Map flair intensities to hippocampal subfields
 dir_hip="${out/micapipe/}/hippunfold_v1.0.0/hippunfold/sub-${id}/"
-if [[ ! -f "$outDir/${idBIDS}_space-hipp_hemi-${hemi}_midthickness_desc-flair_2mm.func.gii" ]]; then
+if [[ ! -f "$outDir/${idBIDS}_space-hipp_hemi-rh_midthickness_desc-flair_2mm.func.gii" ]]; then
     for hemi in lh rh; do
         Do_cmd wb_command -volume-to-surface-mapping "$flair_preproc" \
                           $outDir/${idBIDS}_space-nativepro_desc-hipp_hemi-${hemi}_midthickness.surf.gii \
-                          "${tmp}/${idBIDS}_hemi-${hemi}_space-flair_desc-flair_N4_den-0p5mm_label-hipp_midthickness.func.gii" \
+                          "${tmp}/${idBIDS}_hemi-${hemi}_desc-flair_N4_den-0p5mm_label-hipp_midthickness.func.gii" \
 			              -trilinear
 
         Do_cmd wb_command -metric-smoothing \
                            $outDir/${idBIDS}_space-nativepro_desc-hipp_hemi-${hemi}_midthickness.surf.gii \
-                          "${tmp}/${idBIDS}_hemi-${hemi}_space-flair_desc-flair_N4_den-0p5mm_label-hipp_midthickness.func.gii" \
+                          "${tmp}/${idBIDS}_hemi-${hemi}_desc-flair_N4_den-0p5mm_label-hipp_midthickness.func.gii" \
                           2 \
                           $outDir/${idBIDS}_space-hipp_hemi-${hemi}_midthickness_desc-flair_2mm.func.gii
         
