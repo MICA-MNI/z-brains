@@ -80,6 +80,16 @@ dataDir="${dir_freesurfer}/surf"
 
 #------------------------------------------------------------------------------#
 ### qT1 intensity ###
+
+# NOTE this is missing sometimes! it shouldn't be, but it is..
+if [[ ! -f ${dir_warp}/${idBIDS}_from-nativepro_t1w_to_qt1_0GenericAffine.txt ]]; then
+    Info "Subject ${id} qt1 registration to nativepro not found. Trying antsQuickRigid"
+Do_cmd antsRegistrationSyNQuick.sh -d 3 -t r \
+                -m ${outDir}/${idBIDS}_space-nativepro_t1w.nii.gz \
+                -f ${proc_struct}/qt1/${idBIDS}_space-qt1_desc-qt1_brain.nii.gz \
+                -o ${dir_warp}/${idBIDS}_from-nativepro_t1w_to_qt1_
+fi
+
 mkdir "${proc_struct}/qt1"
 
 # Mask t1map with inv2 image
