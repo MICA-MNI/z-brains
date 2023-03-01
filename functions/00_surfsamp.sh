@@ -99,7 +99,14 @@ for hemi in lh rh
 
 ##### resample relevant images #####
 
-Do_cmd cp ${proc_struct}/${idBIDS}_space-nativepro_t1w.nii.gz $clene/
+Do_cmd cp ${proc_struct}/${idBIDS}_space-nativepro_t1w.nii.gz $outDir/${idBIDS}_space-nativepro_t1w.nii.gz
+Do_cmd mri_convert /${dir_freesurfer}/mri/aseg.mgz $tmp/aseg.nii.gz
+Do_cmd antsApplyTransforms -d 3 -n MultiLabel \
+    -i $tmp/aseg.nii.gz \
+    -r ${outDir}/${idBIDS}_space-nativepro_t1w.nii.gz \
+    -t ${dir_warp}/${idBIDS}_from-fsnative_to_nativepro_t1w_0GenericAffine.mat \
+    -o ${outDir}/${idBIDS}_space-nativepro_aseg.nii.gz
+
 
 ##### hippocampal surfaces #####
 
