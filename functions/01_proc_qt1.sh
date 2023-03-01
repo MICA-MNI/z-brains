@@ -2,7 +2,7 @@
 #
 # qT1 processing:
 #
-# Generates vertexwise qT1 intensities (native, fsa5, and conte69) outputs:
+# Generates vertexwise qT1 intensities (nativepro and conte69) outputs:
 #
 # This workflow makes use of freesurfer outputs and custom python scripts
 #
@@ -105,10 +105,10 @@ if [[ ! -f "$outDir/${idBIDS}_space-nativepro_qt1.nii.gz" ]]; then
                 -t [${dir_warp}/${idBIDS}_from-nativepro_t1w_to_qt1_0GenericAffine.txt,1] \
                 -o $outDir/${idBIDS}_space-nativepro_qt1.nii.gz
 else
-    Info "idBIDS ${id} qT1 is registered to fsspace"; Nsteps=$((Nsteps + 1))
+    Info "idBIDS ${id} qT1 is registered to nativepro"; Nsteps=$((Nsteps + 1))
 fi
 
-# Map to surface (native) and register to fsa5 and apply 10mm smooth
+# Map to surface and apply 10mm smooth
 if [[ ! -f "$outDir/${idBIDS}_space-conte69_hemi-rh_midthickness_desc-qt1_10mm.func.gii" ]]; then
     for hemi in lh rh; do
         # Volume to surface    
@@ -126,7 +126,7 @@ if [[ ! -f "$outDir/${idBIDS}_space-conte69_hemi-rh_midthickness_desc-qt1_10mm.f
 
 
 
-        if [[ -f "${outDir}/${idBIDS}_space-fsaverage5_desc-${hemi}_qt1_10mm.mgh" ]]; then ((Nsteps++)); fi
+        if [[ -f "$outDir/${idBIDS}_space-conte69_hemi-${hemi}_midthickness_desc-qt1_10mm.func.gii" ]]; then ((Nsteps++)); fi
     done
 else
     Info "idBIDS ${idBIDS} qT1 is registered to conte69"; Nsteps=$((Nsteps + 2))

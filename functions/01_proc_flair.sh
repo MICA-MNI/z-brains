@@ -2,7 +2,7 @@
 #
 # T2-FLAIR processing:
 #
-# Generates vertexwise T2-FLAIR intensities (native, fsa5, and conte69) outputs:
+# Generates vertexwise T2-FLAIR intensities (nativepro and conte69) outputs:
 #
 # This workflow makes use of freesurfer outputs and custom python scripts
 #
@@ -101,6 +101,7 @@ fi
 #------------------------------------------------------------------------------#
 ### FLAIR registrations ###
 
+# NOTE this is missing sometimes! it shouldn't be, but it is..
 if [[ ! -f ${dir_warp}/${idBIDS}_from-flair_to-nativepro_mode-image_desc-affine_0GenericAffine.mat ]]; then
     Info "Subject ${id} T2-FLAIR registration to nativepro not found. Trying antsQuickRigid"
 Do_cmd antsRegistrationSyNQuick.sh -d 3 -t r \

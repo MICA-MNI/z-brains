@@ -2,7 +2,7 @@
 #
 # DWI post-processing:
 #
-# Generates vertexwise DWI FA and ADC (native, fsa5, and conte69) outputs:
+# Generates vertexwise DWI FA and ADC (nativepro and conte69) outputs:
 #
 # This workflow makes use of freesurfer outputs and custom python scripts
 #
@@ -78,7 +78,7 @@ outDir="${out//micapipe/}/analysis/scene-nativepro/${idBIDS}"
 dataDir="${dir_freesurfer}/surf"
 
 #------------------------------------------------------------------------------#
-# Register DWI space to T1fsnative
+# Register DWI space to nativepro
 Note "Out directory" "$outDir"
 # First set all the variables
 mat_dwi_affine="${dir_warp}/${idBIDS}_space-dwi_from-dwi_to-nativepro_mode-image_desc-affine_0GenericAffine.mat"
@@ -115,7 +115,7 @@ function transform_dwi2nativepro() {
                         -o "$output" -v
   if [[ -f "${output}" ]]; then ((Nsteps++)); fi
   else
-    Info "Subject ${id} DWI ${2} is registered to fsspace"; ((Nsteps++))
+    Info "Subject ${id} DWI ${2} is registered to nativepro"; ((Nsteps++))
   fi
 }
 # Create niftis if they don't exist
@@ -125,6 +125,9 @@ function transform_dwi2nativepro() {
 # Apply transformations to a NIFTI file!!!
 transform_dwi2nativepro ${dti_FA/mif/nii.gz} "FA"
 transform_dwi2nativepro ${dti_ADC/mif/nii.gz} "ADC"
+
+#------------------------------------------------------------------------------#
+### Map intensities to cortex, subcortex, and hippocampus ###
 
 Info "Map to surface and apply 10mm smooth"
 if [[ ! -f "$outDir/${idBIDS}_space-conte69_hemi-rh_midthickness_desc-${map}_10mm.func.gii" ]]; then
@@ -150,6 +153,7 @@ else
     Info "Subject ${id} DWI FA and ADC are registered to nativepro"; Nsteps=$((Nsteps + 4))
 fi
 
+# Map intensities to subcortical structures
 Info "Map FA/MD to subcortical structures"
 if [[ ! -f "${outDir}/${idBIDS}_subcortical-ADC.csv" ]]; then
 
@@ -188,6 +192,7 @@ else
     Info "Subject ${idBIDS} FA/ADC are mapped to subcortical structures"; Nsteps=$((Nsteps + 28))
 fi
 
+# Map intensities to hippocampal subfields
 Info "Map FA/MD to hippocampal subfields"
 dir_hip="${out/micapipe/}/hippunfold_v1.0.0/hippunfold/sub-${id}"
 #dir_hip="${out/micapipe/}/hippunfold_v1.0.0/hippunfold/${idBIDS/_//}"
