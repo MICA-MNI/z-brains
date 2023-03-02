@@ -57,7 +57,7 @@ except:
     age = 'Not defined'
 
 # Path to figures
-figPath = os.path.join(os.path.dirname(out), "z-brains", "vertexwise", subject, session) + "/" + subject
+figPath = os.path.join(os.path.dirname(out), "z-brains", "regional", subject, session) + "/" + subject
 
 def report_block_template(figPath, subject='', session='', sex='', age='', featList_ctx='', featList_sctx='', featList_hipp=''):
     ctx_block = ('<p style="text-align:left;margin-left=0px;"> <a href="{figPath}_ctx-mz.png" target="_blank">'
@@ -268,5 +268,5 @@ def convert_html_to_pdf(source_html, output_filename):
     # return True on success and False on errors
     return pisa_status.err
 
-convert_html_to_pdf(static_report, figPath + '_regionZ_Report.pdf')
+convert_html_to_pdf(static_report, figPath + '_regional_Report.pdf')
 

@@ -124,39 +124,37 @@ def matrix(area, filename, TBL):
     if area == "ctx":
         for i in range(nSub):
             try:
-                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}_{session}/"
+                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}_{session}/{sub[i]}_{session}"
                 d = []
                 for _, h in enumerate(['lh', 'rh']):
-                    d = np.append(d, nib.load(dpath + sub[i] + '_' + session +
-                                            filename.format(h)).get_fdata().squeeze())
+                    d = np.append(d, nib.load(dpath + filename.format(h)).darrays[0].data)
                 mtrx[i, :] = d
             except:
-                print(sub[i] + " : NO " + filename)
+                print(sub[i] + " : NO " + dpath + filename.format(h))
                 pass
     
     # Subcortical feature matrix
     elif area == "sctx":
         for i in range(nSub):
             try:
-                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}_{session}/"
-                mtrx[i] = np.loadtxt(dpath + sub[i] + "_" + session + filename, 
+                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}_{session}/{sub[i]}_{session}"
+                mtrx[i] = np.loadtxt(dpath + filename, 
                                     delimiter=",", skiprows=1, usecols=range(1,15))
             except:
-                print(sub[i] + " : NO " + filename)
+                print(sub[i] + " : NO " + dpath + filename)
                 pass
 
     # Hippocampal feature matrix
     elif area == "hipp":
         for i in range(nSub):
             try:
-                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}_{session}/"
+                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}_{session}/{sub[i]}_{session}"
                 d = []
-                for _, h in enumerate(['L', 'R']):
-                    d = np.append(d, nib.load(dpath + sub[i] +
-                                            filename.format(h)).darrays[0].data)
+                for _, h in enumerate(['lh', 'rh']):
+                    d = np.append(d, nib.load(dpath + filename.format(h)).darrays[0].data)
                 mtrx[i] = d
             except:
-                print(sub[i] + " : NO " + filename)
+                print(sub[i] + " : NO " + dpath + filename.format(h))
                 pass
     
     # Compute asymmetry
@@ -243,7 +241,7 @@ if __name__ == "__main__":
         mv_s.append(adcz_s.values)
         mvDic_s.update({'adc': adcz_s})
     if "thickness" in featList_sctx:
-        ctz_s = matrix("sctx", '_subcortical-thickness.csv', TBL)
+        ctz_s = matrix("sctx", '_subcortical-volume.csv', TBL)
         ctz_s = ctz_s * -1
         mv_s.append(ctz_s.values)
         mvDic_s.update({'thickness': ctz_s})
@@ -291,25 +289,6 @@ if __name__ == "__main__":
         mvDic_h.update({'adc': adcz_h})
     if "thickness" in featList_hipp:
         ctz_h = matrix("hipp", '_space-hipp_hemi-{}_desc-thickness_2mm.func.gii', TBL)
-        ctz_h = ctz_h * -1
-        mv_h.append(ctz_h.values)
-        mvDic_h.update({'thickness': ctz_h})
-
-
-    if "flair" in featList_hipp:
-        t2z_h = matrix("hipp", '/anat/surfaces/flair/', '_hemi-{}_space-flair_desc-flair_N4_den-0p5mm_label-hipp_midthickness_10mm.func.gii', TBL)
-        mv_h.append(t2z_h.values)
-        mvDic_h.update({'flair': t2z_h})
-    if "qt1" in featList_hipp:
-        qt1z_h = matrix("hipp", '/anat/surfaces/qt1/', '_hemi-{}_space-qt1_desc-qt1_den-0p5mm_label-hipp_midthickness_10mm.func.gii', TBL)
-        mv_h.append(qt1z_h.values)
-        mvDic_h.update({'qt1': qt1z_h})
-    if "adc" in featList_hipp:
-        adcz_h = matrix("hipp", '/dwi/surfaces/', '_hemi-{}_space-dwi_desc-dwi-ADC_den-0p5mm_label-hipp_midthickness_10mm.func.gii', TBL)
-        mv_h.append(adcz_h.values)
-        mvDic_h.update({'adc': adcz_h})
-    if "thickness" in featList_hipp:
-        ctz_h = matrix("hipp", '/surf/', '_hemi-{}_space-T1w_den-0p5mm_label-hipp_thickness.shape.gii', TBL)
         ctz_h = ctz_h * -1
         mv_h.append(ctz_h.values)
         mvDic_h.update({'thickness': ctz_h})

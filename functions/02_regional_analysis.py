@@ -78,39 +78,37 @@ def matrix(area, filename, TBL):
     if area == "ctx":
         for i in range(nSub):
             try:
-                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}_{session}/"
+                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}_{session}/{sub[i]}_{session}"
                 d = []
                 for _, h in enumerate(['lh', 'rh']):
-                    d = np.append(d, nib.load(dpath + sub[i] + '_' + session +
-                                            filename.format(h)).get_fdata().squeeze())
+                    d = np.append(d, nib.load(dpath + filename.format(h)).darrays[0].data)
                 mtrx[i, :] = d
             except:
-                print(sub[i] + " : NO " + filename)
+                print(sub[i] + " : NO " + dpath + filename.format(h))
                 pass
     
     # Subcortical feature matrix
     elif area == "sctx":
         for i in range(nSub):
             try:
-                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}_{session}/"
-                mtrx[i] = np.loadtxt(dpath + sub[i] + "_" + session + filename, 
+                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}_{session}/{sub[i]}_{session}"
+                mtrx[i] = np.loadtxt(dpath + filename, 
                                     delimiter=",", skiprows=1, usecols=range(1,15))
             except:
-                print(sub[i] + " : NO " + filename)
+                print(sub[i] + " : NO " + dpath + filename)
                 pass
 
     # Hippocampal feature matrix
     elif area == "hipp":
         for i in range(nSub):
             try:
-                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}_{session}/"
+                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}_{session}/{sub[i]}_{session}"
                 d = []
-                for _, h in enumerate(['L', 'R']):
-                    d = np.append(d, nib.load(dpath + sub[i] +
-                                            filename.format(h)).darrays[0].data)
+                for _, h in enumerate(['lh', 'rh']):
+                    d = np.append(d, nib.load(dpath + filename.format(h)).darrays[0].data)
                 mtrx[i] = d
             except:
-                print(sub[i] + " : NO " + filename)
+                print(sub[i] + " : NO " + dpath + filename.format(h))
                 pass
     
     # Get vertexwise z-scores
@@ -147,7 +145,6 @@ if __name__ == "__main__":
         ctzFull_c = ctzFull_c * -1
         mvFull_c.append(ctzFull_c.values)
         mvFullDic_c.update({'thickness': ctzFull_c})
-
 
     if mvFull_c:
         mvFull_c = np.nanmean(mvFull_c, axis=0)
@@ -192,11 +189,10 @@ if __name__ == "__main__":
         mvFull_s.append(adczFull_s.values)
         mvFullDic_s.update({'adc': adczFull_s})
     if "thickness" in featList_sctx:
-        ctzFull_s = matrix("sctx", '_subcortical-thickness.csv', TBL)
+        ctzFull_s = matrix("sctx", '_subcortical-volume.csv', TBL)
         ctzFull_s = ctzFull_s * -1
         mvFull_s.append(ctzFull_s.values)
         mvFullDic_s.update({'thickness': ctzFull_s})
-
 
     if mvFull_s:
         mvFull_s = np.nanmean(mvFull_s, axis=0)
@@ -242,7 +238,7 @@ if __name__ == "__main__":
         ctzFull_h = ctzFull_h * -1
         mvFull_h.append(ctzFull_h.values)
         mvFullDic_h.update({'thickness': ctzFull_h})
-        
+
     if mvFull_h:
         mvFull_h = np.nanmean(mvFull_h, axis=0)
         mvFull_h_unthr = mvFull_h
@@ -355,7 +351,7 @@ if __name__ == "__main__":
 
 
     # Plot univariate z-score | subcortical
-    for (_, mvName) in enumerate(mvdic_s):
+    for (_, mvName) in enumerate(mvFullDic_s):
         mv_tmp = np.loadtxt(os.path.join(os.path.dirname(out), "z-brains", "regional", "allSubjects_sctx-{}.csv".
                                     format(str(mvName))), delimiter=",")[rn, :].flatten()
         plot_subcortical(array_name=mv_tmp, ventricles=False, size=(800, 180), zoom=1.18, cmap='RdBu_r',
@@ -370,7 +366,7 @@ if __name__ == "__main__":
         
 
     # Plot univariate z-score | hippocampal
-    for (_, mvName) in enumerate(mvdic_h):
+    for (_, mvName) in enumerate(mvFullDic_h):
         mv_tmp = np.loadtxt(os.path.join(os.path.dirname(out), "z-brains", "regional", "allSubjects_hipp-{}.csv".
                                     format(str(mvName))), delimiter=",")[rn, :].flatten()
         plot_hippocampal(array_name=mv_tmp, size=(800, 180), zoom=1.18, cmap='RdBu_r',
