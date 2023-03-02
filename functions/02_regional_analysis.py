@@ -31,12 +31,12 @@ CLI.add_argument(
   "--featList_sctx",
   nargs="*",
   type=str,  # any type/callable can be used here
-  default=[])
+  default=['flair', 'qt1', 'adc', 'thickness'])
 CLI.add_argument(
   "--featList_hipp",
   nargs="*",
   type=str,  # any type/callable can be used here
-  default=[])
+  default=['flair', 'qt1', 'adc', 'thickness'])
 
 # parse the command line
 args = CLI.parse_args()
@@ -57,7 +57,7 @@ def zscore(mtrx, TBL):
     data_z = zscore_matrix(mtrx, grpk, 'HC')
     return data_z
 
-def matrix(area, path, filename, TBL):
+def matrix(area, filename, TBL):
     # Get number of vertices/structures
     if area == "ctx":
         nvert = 64984
@@ -78,7 +78,7 @@ def matrix(area, path, filename, TBL):
     if area == "ctx":
         for i in range(nSub):
             try:
-                dpath = out + "/" + sub[i] + "/" + session + "/" + path
+                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}_{session}/"
                 d = []
                 for _, h in enumerate(['lh', 'rh']):
                     d = np.append(d, nib.load(dpath + sub[i] + '_' + session +
@@ -92,7 +92,7 @@ def matrix(area, path, filename, TBL):
     elif area == "sctx":
         for i in range(nSub):
             try:
-                dpath = out + "/" + sub[i] + "/" + session + "/" + path
+                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}_{session}/"
                 mtrx[i] = np.loadtxt(dpath + sub[i] + "_" + session + filename, 
                                     delimiter=",", skiprows=1, usecols=range(1,15))
             except:
@@ -100,27 +100,13 @@ def matrix(area, path, filename, TBL):
                 pass
 
     # Hippocampal feature matrix
-    elif area == "hipp" and "_thickness" in filename:
+    elif area == "hipp":
         for i in range(nSub):
             try:
-                dpath = hipDir + "/" + sub[i] + "/" + path
+                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}_{session}/"
                 d = []
                 for _, h in enumerate(['L', 'R']):
                     d = np.append(d, nib.load(dpath + sub[i] +
-                                            filename.format(h)).darrays[0].data)
-                mtrx[i] = d
-            except:
-                print(sub[i] + " : NO " + filename)
-                pass
-
-
-    elif area == "hipp" and "_thickness" not in filename:
-        for i in range(nSub):
-            try:
-                dpath = out + "/" + sub[i] + "/" + session + "/" + path
-                d = []
-                for _, h in enumerate(['lh', 'rh']):
-                    d = np.append(d, nib.load(dpath + sub[i] + '_' + session +
                                             filename.format(h)).darrays[0].data)
                 mtrx[i] = d
             except:
@@ -145,19 +131,19 @@ if __name__ == "__main__":
     mvFull_c = []
     mvFullDic_c = {}
     if "flair" in featList_ctx:
-        t2zFull_c = matrix("ctx", '/anat/surfaces/flair/', '_space-conte69-32k_desc-{}_flair_10mm.mgh', TBL)
+        t2zFull_c = matrix("ctx", "_space-conte69_hemi-{}_midthickness_desc-flair_10mm.func.gii", TBL)
         mvFull_c.append(t2zFull_c.values)
         mvFullDic_c.update({'flair': t2zFull_c})
     if "qt1" in featList_ctx:
-        qt1zFull_c = matrix("ctx", '/anat/surfaces/qt1/', '_space-conte69-32k_desc-{}_qt1_10mm.mgh', TBL)
+        qt1zFull_c = matrix("ctx", "_space-conte69_hemi-{}_midthickness_desc-qt1_10mm.func.gii", TBL)
         mvFull_c.append(qt1zFull_c.values)
         mvFullDic_c.update({'qt1': qt1zFull_c})
     if "adc" in featList_ctx:
-        adczFull_c = matrix("ctx", '/dwi/surfaces/', '_space-conte69-32k_desc-{}_model-DTI_map-ADC_10mm.mgh', TBL)
+        adczFull_c = matrix("ctx", "_space-conte69_hemi-{}_midthickness_desc-ADC_10mm.func.gii", TBL)
         mvFull_c.append(adczFull_c.values)
         mvFullDic_c.update({'adc': adczFull_c})
     if "thickness" in featList_ctx:
-        ctzFull_c = matrix("ctx", '/anat/surfaces/morphology/', '_space-conte69-32k_desc-{}_thickness_10mm.mgh', TBL)
+        ctzFull_c = matrix("ctx", "_space-conte69_hemi-{}_desc-thickness_10mm.func.gii", TBL)
         ctzFull_c = ctzFull_c * -1
         mvFull_c.append(ctzFull_c.values)
         mvFullDic_c.update({'thickness': ctzFull_c})
@@ -170,19 +156,19 @@ if __name__ == "__main__":
         m = load_mask(surface_name="conte69", join=True).astype(int)
         mv_c_orig = mvFull_c * m
         mvFull_c_unthr = mv_c_orig
-        np.savetxt(os.path.join(os.path.dirname(out), "analysis", "regional", "allSubjects_unthr_ctx-z.csv"),
+        np.savetxt(os.path.join(os.path.dirname(out), "z-brains", "regional", "allSubjects_unthr_ctx-z.csv"),
                    mv_c_orig, delimiter=",")
         mvFull_c[(mvFull_c > -thr) & (mvFull_c < thr)] = 0
-        np.savetxt(os.path.join(os.path.dirname(out), "analysis", "regional", "allSubjects_ctx-z.csv"),
+        np.savetxt(os.path.join(os.path.dirname(out), "z-brains", "regional", "allSubjects_ctx-z.csv"),
                    mvFull_c, delimiter=",")
 
         # Save individual features (unthresholded and thresholded)
         for (_, mvName) in enumerate(mvFullDic_c):
             mv = mvFullDic_c[mvName]
-            np.savetxt(os.path.join(os.path.dirname(out), "analysis", "regional", "allSubjects_unthr_ctx-{}.csv".
+            np.savetxt(os.path.join(os.path.dirname(out), "z-brains", "regional", "allSubjects_unthr_ctx-{}.csv".
                                     format(str(mvName))), mv, delimiter=",")
             mv[(mv > -thr) & (mv < thr)] = 0
-            np.savetxt(os.path.join(os.path.dirname(out), "analysis", "regional", "allSubjects_ctx-{}.csv".
+            np.savetxt(os.path.join(os.path.dirname(out), "z-brains", "regional", "allSubjects_ctx-{}.csv".
                                     format(str(mvName))), mv, delimiter=",")
 
 
@@ -194,19 +180,19 @@ if __name__ == "__main__":
     mvFull_s = []
     mvFullDic_s = {}
     if "flair" in featList_sctx:
-        t2zFull_s = matrix("sctx", '/anat/surfaces/flair/', '_space-flair_subcortical-intensities.csv', TBL)
+        t2zFull_s = matrix("sctx", '_subcortical-flair.csv', TBL)
         mvFull_s.append(t2zFull_s.values)
         mvFullDic_s.update({'flair': t2zFull_s})
     if "qt1" in featList_sctx:
-        qt1zFull_s = matrix("sctx", '/anat/surfaces/qt1/', '_space-qt1_subcortical-intensities.csv', TBL)
+        qt1zFull_s = matrix("sctx", '_subcortical-qt1.csv', TBL)
         mvFull_s.append(qt1zFull_s.values)
         mvFullDic_s.update({'qt1': qt1zFull_s})
     if "adc" in featList_sctx:
-        adczFull_s = matrix("sctx", '/dwi/surfaces/', '_space-dwi_subcortical-ADC.csv', TBL)
+        adczFull_s = matrix("sctx", '_subcortical-ADC.csv', TBL)
         mvFull_s.append(adczFull_s.values)
         mvFullDic_s.update({'adc': adczFull_s})
     if "thickness" in featList_sctx:
-        ctzFull_s = matrix("sctx", '/anat/surfaces/morphology/sctx_volume/', '_sctx_volume.csv', TBL)
+        ctzFull_s = matrix("sctx", '_subcortical-thickness.csv', TBL)
         ctzFull_s = ctzFull_s * -1
         mvFull_s.append(ctzFull_s.values)
         mvFullDic_s.update({'thickness': ctzFull_s})
@@ -217,19 +203,19 @@ if __name__ == "__main__":
         mvFull_s_unthr = mvFull_s
 
         # Save unthrehsolded map, then filter out noise or non-significant findings and save
-        np.savetxt(os.path.join(os.path.dirname(out), "analysis", "regional", "allSubjects_unthr_sctx-z.csv"),
+        np.savetxt(os.path.join(os.path.dirname(out), "z-brains", "regional", "allSubjects_unthr_sctx-z.csv"),
                    mvFull_s_unthr, delimiter=",")
         mvFull_s[(mvFull_s > -thr) & (mvFull_s < thr)] = 0
-        np.savetxt(os.path.join(os.path.dirname(out), "analysis", "regional", "allSubjects_sctx-z.csv"),
+        np.savetxt(os.path.join(os.path.dirname(out), "z-brains", "regional", "allSubjects_sctx-z.csv"),
                    mvFull_s, delimiter=",")
 
         # Save individual features (unthresholded and thresholded)
         for (_, mvName) in enumerate(mvFullDic_s):
             mv = mvFullDic_s[mvName]
-            np.savetxt(os.path.join(os.path.dirname(out), "analysis", "regional", "allSubjects_unthr_sctx-{}.csv".
+            np.savetxt(os.path.join(os.path.dirname(out), "z-brains", "regional", "allSubjects_unthr_sctx-{}.csv".
                                     format(str(mvName))), mv, delimiter=",")
             mv[(mv > -thr) & (mv < thr)] = 0
-            np.savetxt(os.path.join(os.path.dirname(out), "analysis", "regional", "allSubjects_sctx-{}.csv".
+            np.savetxt(os.path.join(os.path.dirname(out), "z-brains", "regional", "allSubjects_sctx-{}.csv".
                                     format(str(mvName))), mv, delimiter=",")
     
     
@@ -240,19 +226,19 @@ if __name__ == "__main__":
     mvFull_h = []
     mvFullDic_h = {}
     if "flair" in featList_hipp:
-        t2zFull_h = matrix("hipp", '/anat/surfaces/flair/', '_hemi-{}_space-flair_desc-flair_N4_den-0p5mm_label-hipp_midthickness_10mm.func.gii', TBL)
+        t2zFull_h = matrix("hipp", '_space-hipp_hemi-{}_midthickness_desc-flair_2mm.func.gii', TBL)
         mvFull_h.append(t2zFull_h.values)
         mvFullDic_h.update({'flair': t2zFull_h})
     if "qt1" in featList_hipp:
-        qt1zFull_h = matrix("hipp", '/anat/surfaces/qt1/', '_hemi-{}_space-qt1_desc-qt1_den-0p5mm_label-hipp_midthickness_10mm.func.gii', TBL)
+        qt1zFull_h = matrix("hipp", '_space-hipp_hemi-{}_midthickness_desc-qt1_2mm.func.gii', TBL)
         mvFull_h.append(qt1zFull_h.values)
         mvFullDic_h.update({'qt1': qt1zFull_h})
     if "adc" in featList_hipp:
-        adczFull_h = matrix("hipp", '/dwi/surfaces/', '_hemi-{}_space-dwi_desc-dwi-ADC_den-0p5mm_label-hipp_midthickness_10mm.func.gii', TBL)
+        adczFull_h = matrix("hipp", '_space-hipp_hemi-{}_midthickness_desc-ADC_2mm.func.gii', TBL)
         mvFull_h.append(adczFull_h.values)
         mvFullDic_h.update({'adc': adczFull_h})
     if "thickness" in featList_hipp:
-        ctzFull_h = matrix("hipp", '/surf/', '_hemi-{}_space-T1w_den-0p5mm_label-hipp_thickness.shape.gii', TBL)
+        ctzFull_h = matrix("hipp", '_space-hipp_hemi-{}_desc-thickness_2mm.func.gii', TBL)
         ctzFull_h = ctzFull_h * -1
         mvFull_h.append(ctzFull_h.values)
         mvFullDic_h.update({'thickness': ctzFull_h})
@@ -262,19 +248,19 @@ if __name__ == "__main__":
         mvFull_h_unthr = mvFull_h
 
         # Save unthrehsolded map, then filter out noise or non-significant findings and save
-        np.savetxt(os.path.join(os.path.dirname(out), "analysis", "regional", "allSubjects_unthr_hipp-z.csv"),
+        np.savetxt(os.path.join(os.path.dirname(out), "z-brains", "regional", "allSubjects_unthr_hipp-z.csv"),
                    mvFull_h_unthr, delimiter=",")
         mvFull_h[(mvFull_h > -thr) & (mvFull_h < thr)] = 0
-        np.savetxt(os.path.join(os.path.dirname(out), "analysis", "regional", "allSubjects_hipp-z.csv"),
+        np.savetxt(os.path.join(os.path.dirname(out), "z-brains", "regional", "allSubjects_hipp-z.csv"),
                    mvFull_h, delimiter=",")
 
         # Save individual features (unthresholded and thresholded)
         for (_, mvName) in enumerate(mvFullDic_h):
             mv = mvFullDic_h[mvName]
-            np.savetxt(os.path.join(os.path.dirname(out), "analysis", "regional", "allSubjects_unthr_hipp-{}.csv".
+            np.savetxt(os.path.join(os.path.dirname(out), "z-brains", "regional", "allSubjects_unthr_hipp-{}.csv".
                                     format(str(mvName))), mv, delimiter=",")
             mv[(mv > -thr) & (mv < thr)] = 0
-            np.savetxt(os.path.join(os.path.dirname(out), "analysis", "regional", "allSubjects_hipp-{}.csv".
+            np.savetxt(os.path.join(os.path.dirname(out), "z-brains", "regional", "allSubjects_hipp-{}.csv".
                                     format(str(mvName))), mv, delimiter=",")
     
     
@@ -287,47 +273,47 @@ if __name__ == "__main__":
 
     # Save and plot multivariate z-score | cortical
     mv_c_full = mvFull_c_unthr[rn, :]
-    fname = os.path.join(os.path.dirname(out), "analysis", "regional", subject, session, subject + "_ctx-mz-unthr_{}.mgh")
+    fname = os.path.join(os.path.dirname(out), "z-brains", "regional", subject, session, subject + "_ctx-mz-unthr_{}.mgh")
     nib.freesurfer.mghformat.MGHImage(np.float32(mv_c_full[:, :mv_c_full.shape[1]//2].flatten()),
                                       getaffine('conte69', 'lh')).to_filename(fname.format('lh'))
     nib.freesurfer.mghformat.MGHImage(np.float32(mv_c_full[:, mv_c_full.shape[1]//2:].flatten()),
                                       getaffine('conte69', 'rh')).to_filename(fname.format('rh'))
     
     mv_c_full = mvFull_c[rn, :]
-    fname = os.path.join(os.path.dirname(out), "analysis", "regional", subject, session, subject + "_ctx-mz_{}.mgh")
+    fname = os.path.join(os.path.dirname(out), "z-brains", "regional", subject, session, subject + "_ctx-mz_{}.mgh")
     nib.freesurfer.mghformat.MGHImage(np.float32(mv_c_full[:, :mv_c_full.shape[1]//2].flatten()),
                                       getaffine('conte69', 'lh')).to_filename(fname.format('lh'))
     nib.freesurfer.mghformat.MGHImage(np.float32(mv_c_full[:, mv_c_full.shape[1]//2:].flatten()),
                                       getaffine('conte69', 'rh')).to_filename(fname.format('rh'))
 
-    fname = os.path.join(os.path.dirname(out), "analysis", "regional", subject, session, subject + "_ctx-mz.png")
+    fname = os.path.join(os.path.dirname(out), "z-brains", "regional", subject, session, subject + "_ctx-mz.png")
     plot_cortical(array_name=mv_c_full, surface_name='conte69', size=(800, 180), zoom=1.18, cmap='RdBu_r',
                   color_bar=True, color_range=(-3, 3), screenshot=True, view=['lateral', 'medial', 'medial', 'lateral'],
                   filename=fname)
 
     # Save and plot multivariate z-score | subcortical
-    mv_tmp = np.loadtxt(os.path.join(os.path.dirname(out), "analysis", "regional", "allSubjects_unthr_sctx-z.csv"),
+    mv_tmp = np.loadtxt(os.path.join(os.path.dirname(out), "z-brains", "regional", "allSubjects_unthr_sctx-z.csv"),
                             delimiter=",")[rn, :].flatten()
-    np.savetxt(os.path.join(os.path.dirname(out), "analysis", "regional", subject, session, subject + "_sctx-mz-unthr.txt"), 
+    np.savetxt(os.path.join(os.path.dirname(out), "z-brains", "regional", subject, session, subject + "_sctx-mz-unthr.txt"), 
                mv_tmp, delimiter=",")
     
     mv_s_full = mvFull_s[rn, :].flatten()
-    np.savetxt(os.path.join(os.path.dirname(out), "analysis", "regional", subject, session, subject + "_sctx-mz.txt"), 
+    np.savetxt(os.path.join(os.path.dirname(out), "z-brains", "regional", subject, session, subject + "_sctx-mz.txt"), 
                mv_s_full, delimiter=",")
     
-    fname = os.path.join(os.path.dirname(out), "analysis", "regional", subject, session, subject + "_sctx-mz.png")
+    fname = os.path.join(os.path.dirname(out), "z-brains", "regional", subject, session, subject + "_sctx-mz.png")
     plot_subcortical(array_name=mv_s_full, ventricles=False, size=(800, 180), zoom=1.18, cmap='RdBu_r',
                   color_bar=True, color_range=(-3, 3), screenshot=True, view=['lateral', 'medial', 'medial', 'lateral'],
                   filename=fname)
 
     # Save and plot multivariate z-score | hippocampal
-    mv_h_full = np.loadtxt(os.path.join(os.path.dirname(out), "analysis", "regional", "allSubjects_unthr_hipp-z.csv"),
+    mv_h_full = np.loadtxt(os.path.join(os.path.dirname(out), "z-brains", "regional", "allSubjects_unthr_hipp-z.csv"),
                             delimiter=",")[rn, :].flatten()
     mv_h_lh = nib.gifti.gifti.GiftiImage()
     mv_h_lh.add_gifti_data_array(nib.gifti.gifti.GiftiDataArray(data=mv_h_full[:len(mv_h_full)//2]))
     mv_h_rh = nib.gifti.gifti.GiftiImage()
     mv_h_rh.add_gifti_data_array(nib.gifti.gifti.GiftiDataArray(data=mv_h_full[len(mv_h_full)//2:]))
-    fname = os.path.join(os.path.dirname(out), "analysis", "regional", subject, session, subject + "_hipp-mz-unthr_{}.gii")
+    fname = os.path.join(os.path.dirname(out), "z-brains", "regional", subject, session, subject + "_hipp-mz-unthr_{}.gii")
     nib.save(mv_h_lh, fname.format('lh'))
     nib.save(mv_h_rh, fname.format('rh'))
 
@@ -336,11 +322,11 @@ if __name__ == "__main__":
     mv_h_lh.add_gifti_data_array(nib.gifti.gifti.GiftiDataArray(data=mv_h_full[:len(mv_h_full)//2]))
     mv_h_rh = nib.gifti.gifti.GiftiImage()
     mv_h_rh.add_gifti_data_array(nib.gifti.gifti.GiftiDataArray(data=mv_h_full[len(mv_h_full)//2:]))
-    fname = os.path.join(os.path.dirname(out), "analysis", "regional", subject, session, subject + "_hipp-mz_{}.gii")
+    fname = os.path.join(os.path.dirname(out), "z-brains", "regional", subject, session, subject + "_hipp-mz_{}.gii")
     nib.save(mv_h_lh, fname.format('lh'))
     nib.save(mv_h_rh, fname.format('rh'))
 
-    fname = os.path.join(os.path.dirname(out), "analysis", "regional", subject, session, subject + "_hipp-mz.png")
+    fname = os.path.join(os.path.dirname(out), "z-brains", "regional", subject, session, subject + "_hipp-mz.png")
     plot_hippocampal(array_name=mv_h_full, size=(800, 180), zoom=1.18, cmap='RdBu_r',
                      color_bar=True, color_range=(-3, 3), screenshot=True,
                      view=['lateral', 'ventral', 'dorsal', 'medial'], filename=fname)
@@ -352,16 +338,16 @@ if __name__ == "__main__":
     # ======================================================================
     # Plot univariate z-score | cortical
     for (_, mvName) in enumerate(mvFullDic_c):
-        mv_tmp = np.loadtxt(os.path.join(os.path.dirname(out), "analysis", "regional", "allSubjects_ctx-{}.csv".
+        mv_tmp = np.loadtxt(os.path.join(os.path.dirname(out), "z-brains", "regional", "allSubjects_ctx-{}.csv".
                                     format(str(mvName))), delimiter=",")[rn, :]
         plot_cortical(array_name=mv_tmp, surface_name='conte69', size=(800, 180), zoom=1.18, cmap='RdBu_r',
                   color_bar=True, color_range=(-3, 3), screenshot=True, view=['lateral', 'medial', 'medial', 'lateral'],
-                  filename=os.path.join(os.path.dirname(out), "analysis", "regional", subject, session, subject + "_ctx-{}.png".
+                  filename=os.path.join(os.path.dirname(out), "z-brains", "regional", subject, session, subject + "_ctx-{}.png".
                   format(str(mvName))))
         
-        mv_tmp = np.loadtxt(os.path.join(os.path.dirname(out), "analysis", "regional", "allSubjects_unthr_ctx-{}.csv".
+        mv_tmp = np.loadtxt(os.path.join(os.path.dirname(out), "z-brains", "regional", "allSubjects_unthr_ctx-{}.csv".
                                     format(str(mvName))), delimiter=",")[rn, :]
-        fname = os.path.join(os.path.dirname(out), "analysis", "regional", subject, session, subject + "_ctx-{}-unthr_{}.mgh")
+        fname = os.path.join(os.path.dirname(out), "z-brains", "regional", subject, session, subject + "_ctx-{}-unthr_{}.mgh")
         nib.freesurfer.mghformat.MGHImage(np.float32(mv_tmp[:, :mv_tmp.shape[1]//2].flatten()),
                                           getaffine('conte69', 'lh')).to_filename(fname.format(str(mvName), 'lh'))
         nib.freesurfer.mghformat.MGHImage(np.float32(mv_tmp[:, mv_tmp.shape[1]//2:].flatten()),
@@ -370,35 +356,35 @@ if __name__ == "__main__":
 
     # Plot univariate z-score | subcortical
     for (_, mvName) in enumerate(mvdic_s):
-        mv_tmp = np.loadtxt(os.path.join(os.path.dirname(out), "analysis", "regional", "allSubjects_sctx-{}.csv".
+        mv_tmp = np.loadtxt(os.path.join(os.path.dirname(out), "z-brains", "regional", "allSubjects_sctx-{}.csv".
                                     format(str(mvName))), delimiter=",")[rn, :].flatten()
         plot_subcortical(array_name=mv_tmp, ventricles=False, size=(800, 180), zoom=1.18, cmap='RdBu_r',
                   color_bar=True, color_range=(-3, 3), screenshot=True, view=['lateral', 'medial', 'medial', 'lateral'],
-                  filename=os.path.join(os.path.dirname(out), "analysis", "regional", subject,
+                  filename=os.path.join(os.path.dirname(out), "z-brains", "regional", subject,
                                         session, subject + "_sctx-{}.png".format(str(mvName))))
         
-        mv_tmp = np.loadtxt(os.path.join(os.path.dirname(out), "analysis", "regional", "allSubjects_unthr_sctx-{}.csv").
+        mv_tmp = np.loadtxt(os.path.join(os.path.dirname(out), "z-brains", "regional", "allSubjects_unthr_sctx-{}.csv").
                                     format(str(mvName)), delimiter=",")[rn, :].flatten()
-        np.savetxt(os.path.join(os.path.dirname(out), "analysis", "regional", subject, session, subject + "_sctx-{}-unthr.txt").
+        np.savetxt(os.path.join(os.path.dirname(out), "z-brains", "regional", subject, session, subject + "_sctx-{}-unthr.txt").
                                     format(str(mvName)), mv_tmp, delimiter=",")
         
 
     # Plot univariate z-score | hippocampal
     for (_, mvName) in enumerate(mvdic_h):
-        mv_tmp = np.loadtxt(os.path.join(os.path.dirname(out), "analysis", "regional", "allSubjects_hipp-{}.csv".
+        mv_tmp = np.loadtxt(os.path.join(os.path.dirname(out), "z-brains", "regional", "allSubjects_hipp-{}.csv".
                                     format(str(mvName))), delimiter=",")[rn, :].flatten()
         plot_hippocampal(array_name=mv_tmp, size=(800, 180), zoom=1.18, cmap='RdBu_r',
                      color_bar=True, color_range=(-3, 3), screenshot=True,
                      view=['lateral', 'ventral', 'dorsal', 'medial'],
-                     filename=os.path.join(os.path.dirname(out), "analysis", "regional", subject,
+                     filename=os.path.join(os.path.dirname(out), "z-brains", "regional", subject,
                                            session, subject + "_hipp-{}.png".format(str(mvName))))
         
-        mv_tmp = np.loadtxt(os.path.join(os.path.dirname(out), "analysis", "regional", "allSubjects_unthr_hipp-{}.csv".
+        mv_tmp = np.loadtxt(os.path.join(os.path.dirname(out), "z-brains", "regional", "allSubjects_unthr_hipp-{}.csv".
                     format(str(mvName))), delimiter=",")[rn, :].flatten()
         mv_h_lh = nib.gifti.gifti.GiftiImage()
         mv_h_lh.add_gifti_data_array(nib.gifti.gifti.GiftiDataArray(data=mv_tmp[:len(mv_tmp)//2]))
         mv_h_rh = nib.gifti.gifti.GiftiImage()
         mv_h_rh.add_gifti_data_array(nib.gifti.gifti.GiftiDataArray(data=mv_tmp[len(mv_tmp)//2:]))
-        fname = os.path.join(os.path.dirname(out), "analysis", "regional", subject, session, subject + "_hipp-{}-unthr_{}.gii")
+        fname = os.path.join(os.path.dirname(out), "z-brains", "regional", subject, session, subject + "_hipp-{}-unthr_{}.gii")
         nib.save(mv_h_lh, fname.format(str(mvName), 'lh'))
         nib.save(mv_h_rh, fname.format(str(mvName), 'rh'))

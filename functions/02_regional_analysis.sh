@@ -61,35 +61,35 @@ export SUBJECTS_DIR=${dir_surf}
 
 # Check CORTICAL input features (flair, qt1, thickness, adc); if missing a feature, skip this module
 featList_ctx=()
-if [ -f "${proc_struct}/surfaces/flair/${idBIDS}_space-conte69-32k_desc-rh_flair_10mm.mgh" ]; then
+if [ -f "${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}_space-conte69_hemi-rh_midthickness_desc-flair_10mm.func.gii" ]; then
     featList_ctx+=("flair"); fi
-if [ -f "${proc_struct}/surfaces/qt1/${idBIDS}_space-conte69-32k_desc-rh_qt1_10mm.mgh" ]; then
+if [ -f "${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}_space-conte69_hemi-rh_midthickness_desc-qt1_10mm.func.gii" ]; then
     featList_ctx+=("qt1"); fi
-if [ -f "${proc_dwi}/surfaces/${idBIDS}_space-conte69-32k_desc-rh_model-DTI_map-ADC_10mm.mgh" ]; then
+if [ -f "${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}_space-conte69_hemi-rh_midthickness_desc-ADC_10mm.func.gii" ]; then
     featList_ctx+=("adc"); fi
-if [ -f "${proc_struct}/surfaces/morphology/${idBIDS}_space-conte69-32k_desc-rh_thickness_10mm.mgh" ]; then
+if [ -f "${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}_space-conte69_hemi-rh_desc-thickness_10mm.func.gii" ]; then
     featList_ctx+=("thickness"); fi
 
 # Check SUBCORTICAL input features (flair, qt1, thickness, adc); if missing a feature, skip this module
 featList_sctx=()
-if [ -f "${proc_struct}/surfaces/flair/${idBIDS}_space-flair_subcortical-intensities.csv" ]; then
+if [ -f "${out//micapipe/}/${idBIDS}_subcortical-flair.csv" ]; then
     featList_sctx+=("flair"); fi
-if [ -f "${proc_struct}/surfaces/qt1/${idBIDS}_space-qt1_subcortical-intensities.csv" ]; then
+if [ -f "${out//micapipe/}/${idBIDS}_subcortical-qt1.csv" ]; then
     featList_sctx+=("qt1"); fi
-if [ -f "${proc_dwi}/surfaces/${idBIDS}_space-dwi_subcortical-ADC.csv" ]; then
+if [ -f "${out//micapipe/}/${idBIDS}_subcortical-ADC.csv" ]; then
     featList_sctx+=("adc"); fi
-if [ -f "${proc_struct}/surfaces/morphology/sctx_volume/${idBIDS}_sctx_volume.csv" ]; then
+if [ -f "${out//micapipe/}/${idBIDS}_subcortical-volume.csv" ]; then
     featList_sctx+=("thickness"); fi
 
 # Check HIPPOCAMPAL input features (flair, qt1, thickness, adc); if missing a feature, skip this module
 featList_hipp=()
-if [ -f "${proc_struct}/surfaces/flair/${idBIDS}_hemi-rh_space-flair_desc-flair_N4_den-0p5mm_label-hipp_midthickness_2mm.func.gii" ]; then
+if [ -f "${out//micapipe/}/${idBIDS}_space-hipp_hemi-rh_midthickness_desc-flair_2mm.func.gii" ]; then
     featList_hipp+=("flair"); fi
-if [ -f "${proc_struct}/surfaces/qt1/${idBIDS}_hemi-rh_space-qt1_desc-qt1_den-0p5mm_label-hipp_midthickness_2mm.func.gii" ]; then
+if [ -f "${out//micapipe/}/${idBIDS}_space-hipp_hemi-rh_midthickness_desc-qt1_2mm.func.gii" ]; then
     featList_hipp+=("qt1"); fi
-if [ -f "${proc_dwi}/surfaces/${idBIDS}_hemi-rh_space-dwi_desc-dwi-ADC_den-0p5mm_label-hipp_midthickness_2mm.func.gii" ]; then
+if [ -f "${out//micapipe/}/${idBIDS}_space-hipp_hemi-rh_midthickness_desc-ADC_2mm.func.gii" ]; then
     featList_hipp+=("adc"); fi
-if [ -f "${hipDir}/sub-${id}/surf/sub-${id}_hemi-R_space-T1w_den-0p5mm_label-hipp_thickness.shape.gii" ]; then
+if [ -f "${out//micapipe/}/${idBIDS}_space-hipp_hemi-rh_desc-thickness_2mm.func.gii" ]; then
     featList_hipp+=("thickness"); fi
 
 # Check input feature
@@ -107,7 +107,7 @@ Do_cmd mkdir -p "$tmp"
 trap 'cleanup $tmp $nocleanup $here' SIGINT SIGTERM
 
 # Make output directory
-outDir="${out/micapipe/}/analysis/regional/sub-${id}/${SES}/"
+outDir="${out/micapipe/}/z-brains/regional/sub-${id}/${SES}/"
 [[ ! -d "$outDir" ]] && Do_cmd mkdir -p "$outDir"
 
 
