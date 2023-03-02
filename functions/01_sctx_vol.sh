@@ -92,6 +92,42 @@ echo "" >> "${outDir}/${idBIDS}_sctx_volume.csv"
 if [[ -f "${outDir}/${idBIDS}_sctx_volume.csv" ]]; then ((Nsteps++)); fi
 
 #------------------------------------------------------------------------------#
+### cortical (and hippocampal) thickness ###
+
+# cortex
+if [[ ! -f "$outDir/${idBIDS}_space-conte69_hemi-rh_desc-thickness_10mm.func.gii" ]]; then
+    for hemi in lh rh; do
+
+        Do_cmd mris_convert -c \
+            ${proc_struct}/surfaces/morphology/${idBIDS}_space-conte69-32k_desc-${hemi}_thickness_10mm.mgh \
+            ${proc_struct}/surfaces/conte69/${idBIDS}_space-conte69-32k_desc-${hemi}_midthickness.surf.gii \
+            $outDir/${idBIDS}_space-conte69_hemi-${hemi}_desc-thickness_10mm.func.gii
+
+        if [[ -f "$outDir/${idBIDS}_space-conte69_hemi-${hemi}_desc-thickness_10mm.func.gii" ]]; then ((Nsteps++)); fi
+    done
+else
+    Info "Subject ${id} thickness to nativepro"; Nsteps=$((Nsteps + 2))
+fi
+
+# hippocampal subfields
+dir_hip="${out/micapipe/}/hippunfold_v1.0.0/hippunfold/sub-${id}/"
+if [[ ! -f "$outDir/${idBIDS}_space-hipp_hemi-rh_desc-thickness_2mm.func.gii" ]]; then
+    for hemi in lh rh; do
+        [[ "$hemi" == lh ]] && hemisphere=l || hemisphere=r
+        HEMICAP=$(echo $hemisphere | tr [:lower:] [:upper:])
+        Do_cmd wb_command -metric-smoothing \
+                          $outDir/${idBIDS}_space-nativepro_desc-hipp_hemi-${hemi}_midthickness.surf.gii \
+                          $dir_hip/surf/sub-${id}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_thickness.shape.gii \
+                          2 \
+                          $outDir/${idBIDS}_space-hipp_hemi-${hemi}_desc-thickness_2mm.func.gii
+        
+        if [[ -f "$outDir/${idBIDS}_space-hipp_hemi-${hemi}_desc-thickness_2mm.func.gii" ]]; then ((Nsteps++)); fi
+    done
+else
+    Info "Subject ${idBIDS} hippocampal thickness to nativepro"; Nsteps=$((Nsteps + 2))
+fi
+
+#------------------------------------------------------------------------------#
 # QC notification of completition
 lopuu=$(date +%s)
 eri=$(echo "$lopuu - $aloita" | bc)
@@ -105,3 +141,5 @@ Title "sctx_vol processing ended in \033[38;5;220m $(printf "%0.3f\n" "$eri") mi
 \tCheck logs      : $(ls "${dir_logs}"/sctx_vol_*.txt)"
 echo "${id}, ${SES/ses-/}, sctx_vol, $status N=$(printf "%02d" "$Nsteps")/08, $(whoami), $(uname -n), $(date), $(printf "%0.3f\n" "$eri"), ${PROC}, ${Version}" >> "${out}/micapipez_processed_sub.csv"
 cleanup "$tmp" "$nocleanup" "$here"
+
+
