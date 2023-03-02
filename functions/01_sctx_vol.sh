@@ -64,7 +64,7 @@ Do_cmd mkdir -p "$tmp"
 trap 'cleanup $tmp $nocleanup $here' SIGINT SIGTERM
 
 # Make output directory
-outDir="${out//micapipe/}/analysis/scene-nativepro/${idBIDS}"
+outDir="${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}"
 [[ ! -d "$outDir" ]] && Do_cmd mkdir -p "$outDir"
 
 # Data location
@@ -75,21 +75,21 @@ dataDir="${dir_freesurfer}/stats/"
 
 # Create file header
 echo "SubjID,Laccumb,Lamyg,Lcaud,Lhippo,Lpal,Lput,Lthal,Raccumb,Ramyg,Rcaud,Rhippo,Rpal,Rput,Rthal,ICV" > \
-     "${outDir}/${idBIDS}_sctx_volume.csv"
-printf "%s,"  "${idBIDS}" >> "${outDir}/${idBIDS}_sctx_volume.csv"
+     "${outDir}/${idBIDS}_subcortical-volume.csv"
+printf "%s,"  "${idBIDS}" >> "${outDir}/${idBIDS}_subcortical-volume.csv"
 
 for sub in Left-Accumbens-area Left-Amygdala Left-Caudate Left-Hippocampus Left-Pallidum \
          Left-Putamen Left-Thalamus-Proper Right-Accumbens-area Right-Amygdala \
          Right-Caudate Right-Hippocampus Right-Pallidum Right-Putamen Right-Thalamus-Proper; do
     printf "%g," `grep  ${sub} ${dataDir}/aseg.stats | awk '{print $4}'` >> \
-         "${outDir}/${idBIDS}_sctx_volume.csv"
+         "${outDir}/${idBIDS}_subcortical-volume.csv"
 done
     
 printf "%g" `cat ${dataDir}/aseg.stats | grep IntraCranialVol | awk -F, '{print $4}'` >> \
-     "${outDir}/${idBIDS}_sctx_volume.csv"
-echo "" >> "${outDir}/${idBIDS}_sctx_volume.csv"
+     "${outDir}/${idBIDS}_subcortical-volume.csv"
+echo "" >> "${outDir}/${idBIDS}_subcortical-volume.csv"
 
-if [[ -f "${outDir}/${idBIDS}_sctx_volume.csv" ]]; then ((Nsteps++)); fi
+if [[ -f "${outDir}/${idBIDS}_subcortical-volume.csv" ]]; then ((Nsteps++)); fi
 
 #------------------------------------------------------------------------------#
 ### cortical (and hippocampal) thickness ###

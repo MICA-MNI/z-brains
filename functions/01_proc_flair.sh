@@ -67,7 +67,7 @@ Do_cmd mkdir -p "$tmp"
 trap 'cleanup $tmp $nocleanup $here' SIGINT SIGTERM
 
 # Make output directory
-outDir="${out//micapipe/}/analysis/scene-nativepro/${idBIDS}"
+outDir="${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}"
 [[ ! -d "$outDir" ]] && Do_cmd mkdir -p "$outDir"
 
 
@@ -167,7 +167,7 @@ if [[ ! -f "$outDir/${idBIDS}_space-conte69_hemi-${hemi}_midthickness_desc-flair
         if [[ -f "$outDir/${idBIDS}_space-conte69_hemi-${hemi}_midthickness_desc-flair_10mm.func.gii" ]]; then ((Nsteps++)); fi
     done
 else
-    Info "Subject ${id} T2-FLAIR is registered to fsa5"; Nsteps=$((Nsteps + 2))
+    Info "Subject ${id} T2-FLAIR to nativepro"; Nsteps=$((Nsteps + 2))
 fi
 
 # Map flair intensities to subcortical structures

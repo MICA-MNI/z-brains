@@ -57,7 +57,7 @@ except:
     age = 'Not defined'
 
 # Path to figures
-figPath = os.path.join(os.path.dirname(out), "analysis", "vertexwise", subject, session) + "/" + subject
+figPath = os.path.join(os.path.dirname(out), "z-brains", "vertexwise", subject, session) + "/" + subject
 
 def report_block_template(figPath, subject='', session='', sex='', age='', featList_ctx='', featList_sctx='', featList_hipp=''):
     ctx_block = ('<p style="text-align:left;margin-left=0px;"> <a href="{figPath}_ctx-mz.png" target="_blank">'
