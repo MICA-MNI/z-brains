@@ -84,10 +84,11 @@ dataDir="${dir_freesurfer}/surf"
 # NOTE this is missing sometimes! it shouldn't be, but it is..
 if [[ ! -f ${dir_warp}/${idBIDS}_from-nativepro_t1w_to_qt1_0GenericAffine.txt ]]; then
     Info "Subject ${id} qt1 registration to nativepro not found. Trying antsQuickRigid"
-Do_cmd antsRegistrationSyNQuick.sh -d 3 -t r \
-                -m ${outDir}/${idBIDS}_space-nativepro_t1w.nii.gz \
-                -f ${proc_struct}/qt1/${idBIDS}_space-qt1_desc-qt1_brain.nii.gz \
-                -o ${dir_warp}/${idBIDS}_from-nativepro_t1w_to_qt1_
+    Do_cmd antsRegistrationSyNQuick.sh -d 3 -t r \
+                    -m ${outDir}/${idBIDS}_space-nativepro_t1w.nii.gz \
+                    -f ${proc_struct}/qt1/${idBIDS}_space-qt1_desc-qt1_brain.nii.gz \
+                    -o ${dir_warp}/${idBIDS}_from-nativepro_t1w_to_qt1_
+    if [[ -f "${dir_warp}/${idBIDS}_from-nativepro_t1w_to_qt1_0GenericAffine.txt" ]]; then ((Nsteps++)); fi
 fi
 
 mkdir "${proc_struct}/qt1"
@@ -104,6 +105,7 @@ if [[ ! -f "$outDir/${idBIDS}_space-nativepro_qt1.nii.gz" ]]; then
                 -r ${outDir}/${idBIDS}_space-nativepro_t1w.nii.gz \
                 -t [${dir_warp}/${idBIDS}_from-nativepro_t1w_to_qt1_0GenericAffine.txt,1] \
                 -o $outDir/${idBIDS}_space-nativepro_qt1.nii.gz
+    if [[ -f "$outDir/${idBIDS}_space-nativepro_qt1.nii.gz" ]]; then ((Nsteps++)); fi
 else
     Info "idBIDS ${id} qT1 is registered to nativepro"; Nsteps=$((Nsteps + 1))
 fi
@@ -123,8 +125,6 @@ if [[ ! -f "$outDir/${idBIDS}_space-conte69_hemi-rh_midthickness_desc-qt1_10mm.f
                              $outDir/${idBIDS}_space-conte69_hemi-${hemi}_midthickness_desc-qt1.func.gii \
                              10 \
                              $outDir/${idBIDS}_space-conte69_hemi-${hemi}_midthickness_desc-qt1_10mm.func.gii \
-
-
 
         if [[ -f "$outDir/${idBIDS}_space-conte69_hemi-${hemi}_midthickness_desc-qt1_10mm.func.gii" ]]; then ((Nsteps++)); fi
     done
@@ -196,10 +196,10 @@ eri=$(echo "$lopuu - $aloita" | bc)
 eri=$(echo print "$eri"/60 | perl)
 
 # Notification of completition
-if [ "$Nsteps" -eq 21 ]; then status="COMPLETED"; else status="ERROR qT1 is missing a processing step"; fi
+if [ "$Nsteps" -eq 19 ]; then status="COMPLETED"; else status="ERROR qT1 is missing a processing step OR if an extra step was run then registration to nativepro was run de-novo"; fi
 Title "proc-qt1 processing ended in \033[38;5;220m $(printf "%0.3f\n" "$eri") minutes \033[38;5;141m.
-\tSteps completed : $(printf "%02d" "$Nsteps")/21
+\tSteps completed : $(printf "%02d" "$Nsteps")/19
 \tStatus          : ${status}
 \tCheck logs      : $(ls "${dir_logs}"/proc_qt1_*.txt)"
-echo "${id}, ${SES/ses-/}, qT1, $status N=$(printf "%02d" "$Nsteps")/21, $(whoami), $(uname -n), $(date), $(printf "%0.3f\n" "$eri"), ${PROC}, ${Version}" >> "${out}/micapipez_processed_sub.csv"
+echo "${id}, ${SES/ses-/}, qT1, $status N=$(printf "%02d" "$Nsteps")/19, $(whoami), $(uname -n), $(date), $(printf "%0.3f\n" "$eri"), ${PROC}, ${Version}" >> "${out}/micapipez_processed_sub.csv"
 cleanup "$tmp" "$nocleanup" "$here"

@@ -80,6 +80,7 @@ flair_N4="${proc_struct}/flair/${idBIDS}_space-flair_desc-flair_N4.nii.gz"
 if [[ ! -f "$flair_N4" ]]; then
     Do_cmd N4BiasFieldCorrection -d 3 -i "$echo $" -r \
                                 -o "$flair_N4" -v
+    if [[ -f "$flair_N4" ]]; then ((Nsteps++)); fi
 else
     Info "Subject ${id} T2-FLAIR is N4 bias corrected"; Nsteps=$((Nsteps + 1))
 fi
@@ -93,6 +94,7 @@ if [[ ! -f "$flair_rescale" ]]; then
 
     # Rescale intensity [0,100]
     Do_cmd ImageMath 3 "$flair_rescale" RescaleImage "$flair_clamp" 0 100
+    if [[ -f "$flair_rescale" ]]; then ((Nsteps++)); fi
 else
     Info "Subject ${id} T2-FLAIR is intensity corrected"; Nsteps=$((Nsteps + 1))
 fi
@@ -104,19 +106,23 @@ fi
 # NOTE this is missing sometimes! it shouldn't be, but it is..
 if [[ ! -f ${dir_warp}/${idBIDS}_from-flair_to-nativepro_mode-image_desc-affine_0GenericAffine.mat ]]; then
     Info "Subject ${id} T2-FLAIR registration to nativepro not found. Trying antsQuickRigid"
-Do_cmd antsRegistrationSyNQuick.sh -d 3 -t r \
+    Do_cmd antsRegistrationSyNQuick.sh -d 3 -t r \
                 -f ${outDir}/${idBIDS}_space-nativepro_t1w.nii.gz \
                 -m $flair_rescale \
                 -o ${dir_warp}/${idBIDS}_from-flair_to-nativepro_mode-image_desc-affine_ 
+    if [[ -f "${dir_warp}/${idBIDS}_from-flair_to-nativepro_mode-image_desc-affine_0GenericAffine.mat" ]]; then ((Nsteps++)); fi
 fi
 
-
-Do_cmd antsApplyTransforms -d 3 -v \
+if [[ ! -f "$tmp/${idBIDS}_space-nativepro_flair.nii.gz" ]]; then
+    Do_cmd antsApplyTransforms -d 3 -v \
                 -i $flair_rescale \
                 -r ${outDir}/${idBIDS}_space-nativepro_t1w.nii.gz \
                 -t ${dir_warp}/${idBIDS}_from-flair_to-nativepro_mode-image_desc-affine_0GenericAffine.mat \
                 -o $tmp/${idBIDS}_space-nativepro_flair.nii.gz
-
+    if [[ -f "$tmp/${idBIDS}_space-nativepro_flair.nii.gz" ]]; then ((Nsteps++)); fi
+else
+    Info "Subject ${id} mapped to nativepro"; Nsteps=$((Nsteps + 1))
+fi
 
 # Normalize intensities by GM/WM interface, uses 5ttgen
 flair_preproc="$outDir/${idBIDS}_space-nativepro_flair.nii.gz"
@@ -140,6 +146,8 @@ if [[ ! -f "$flair_gmwmi" ]]; then
 
     # Normalize flair
     fslmaths $tmp/${idBIDS}_space-nativepro_flair.nii.gz -div $gmwmi_mean "$flair_preproc"
+
+    if [[ -f "$flair_preproc" ]]; then ((Nsteps++)); fi
 else
     Info "Subject ${id} T2-FLAIR is normalized by GM/WM interface"; Nsteps=$((Nsteps + 1))
 fi
@@ -234,10 +242,10 @@ eri=$(echo "$lopuu - $aloita" | bc)
 eri=$(echo print "$eri"/60 | perl)
 
 # Notification of completition
-if [ "$Nsteps" -eq 21 ]; then status="COMPLETED"; else status="ERROR T2-FLAIR is missing a processing step"; fi
+if [ "$Nsteps" -eq 23 ]; then status="COMPLETED"; else status="ERROR T2-FLAIR is missing a processing step OR if an extra step was run then registration to nativepro was run de-novo"; fi
 Title "proc-flair processing ended in \033[38;5;220m $(printf "%0.3f\n" "$eri") minutes \033[38;5;141m.
-\tSteps completed : $(printf "%02d" "$Nsteps")/21
+\tSteps completed : $(printf "%02d" "$Nsteps")/23
 \tStatus          : ${status}
 \tCheck logs      : $(ls "${dir_logs}"/proc_flair_*.txt)"
-echo "${id}, ${SES/ses-/}, T2-FLAIR, $status N=$(printf "%02d" "$Nsteps")/21, $(whoami), $(uname -n), $(date), $(printf "%0.3f\n" "$eri"), ${PROC}, ${Version}" >> "${out}/micapipez_processed_sub.csv"
+echo "${id}, ${SES/ses-/}, T2-FLAIR, $status N=$(printf "%02d" "$Nsteps")/23, $(whoami), $(uname -n), $(date), $(printf "%0.3f\n" "$eri"), ${PROC}, ${Version}" >> "${out}/micapipez_processed_sub.csv"
 cleanup "$tmp" "$nocleanup" "$here"

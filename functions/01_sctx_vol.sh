@@ -134,12 +134,12 @@ eri=$(echo "$lopuu - $aloita" | bc)
 eri=$(echo print "$eri"/60 | perl)
 
 # Notification of completition
-if [ "$Nsteps" -eq 1 ]; then status="COMPLETED"; else status="ERROR sctx_vol is missing a processing step"; fi
+if [ "$Nsteps" -eq 05 ]; then status="COMPLETED"; else status="ERROR sctx_vol is missing a processing step"; fi
 Title "sctx_vol processing ended in \033[38;5;220m $(printf "%0.3f\n" "$eri") minutes \033[38;5;141m.
-\tSteps completed : $(printf "%02d" "$Nsteps")/01
+\tSteps completed : $(printf "%02d" "$Nsteps")/05
 \tStatus          : ${status}
 \tCheck logs      : $(ls "${dir_logs}"/sctx_vol_*.txt)"
-echo "${id}, ${SES/ses-/}, sctx_vol, $status N=$(printf "%02d" "$Nsteps")/08, $(whoami), $(uname -n), $(date), $(printf "%0.3f\n" "$eri"), ${PROC}, ${Version}" >> "${out}/micapipez_processed_sub.csv"
+echo "${id}, ${SES/ses-/}, sctx_vol, $status N=$(printf "%02d" "$Nsteps")/05, $(whoami), $(uname -n), $(date), $(printf "%0.3f\n" "$eri"), ${PROC}, ${Version}" >> "${out}/micapipez_processed_sub.csv"
 cleanup "$tmp" "$nocleanup" "$here"
 
 

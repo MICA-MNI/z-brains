@@ -29,6 +29,8 @@ echo -e "
 \t\t           ( micapipe requirements: -proc_structural, -proc_freesurfer, and -post_structural )
 \t\033[38;5;197m-post_dwi\033[0m        : DWI post-processing
 \t\t           ( micapipe requirements: -proc_structural, -proc_freesurfer, -post_structural, and proc_dwi )
+\t\033[38;5;197m-all_proc\033[0m        : all of the above
+\t\t           ( micapipe requirements: -proc_structural, -proc_freesurfer, -post_structural, and proc_dwi )
 \t\033[38;5;197m-regional_z\033[0m      : Multivariate regional analysis
 \t\t           ( micapipe requirements: -proc_structural, -proc_freesurfer and -post_structural )
 \t\t\033[38;5;120m-thr\033[0m           : Z-score threshold for regional maps
@@ -134,6 +136,10 @@ do
     postDWI=TRUE
     shift
   ;;
+  -all_proc)
+    ALL_proc=TRUE
+    shift
+  ;;
   -regional_z)
     REGZ=TRUE
     shift
@@ -206,7 +212,7 @@ Error "One or more mandatory arguments are missing:
                -out  : $out
                -bids : $BIDS"
 help; exit 1; fi
-runs=($ALL $surfsamp $sctxVOL $procQT1 $procFLAIR $postDWI $REGZ $ASYMMETRY)
+runs=($ALL $surfsamp $sctxVOL $procQT1 $procFLAIR $postDWI $ALL_proc $REGZ $ASYMMETRY)
 if [ "${#runs[@]}" -lt 1 ]; then
 Error "A processing flag is missing:
                     -surfsamp
@@ -214,6 +220,7 @@ Error "A processing flag is missing:
                     -proc_flair
                     -proc_qt1
                     -post_dwi
+                    -all_proc
                     -regional_z
                     -asymmetry"
 help; exit 1; fi
@@ -272,6 +279,8 @@ else
     if [[ -z $(which antsRegistration) ]]; then Error "ANTs was not found"; exit 1; fi
     # workbench
     if [[ -z $(which wb_command) ]]; then Error "WorkBench was not found"; exit 1; fi
+    # Convert33D
+    if [[ -z $(which c3d) ]]; then Error "Convert3D was not found. http://www.itksnap.org/pmwiki/pmwiki.php?n=Downloads.C3D"; exit 1; fi
 fi
 
 # Processing
@@ -322,7 +331,7 @@ micapipe_json
 # -----------------------------------------------------------------------------------------------#
 # # #        Structural processing: Surfaces to space-nativepro
 # -----------------------------------------------------------------------------------------------#
-if [ "$ALL" = "TRUE" ] || [ "$surfsamp" = "TRUE" ]; then
+if [ "$ALL" = "TRUE" ] || [ "$surfsamp" = "TRUE" ] || [ "$ALL_proc" = "TRUE" ]; then
     log_file_str=$dir_logs/surfsamp_$(date +'%d-%m-%Y')
 
     # Define UTILITIES directory
@@ -352,7 +361,7 @@ fi
 # -----------------------------------------------------------------------------------------------#
 # # #        Structural processing: Subcortical volume
 # -----------------------------------------------------------------------------------------------#
-if [ "$ALL" = "TRUE" ] || [ "$sctxVOL" = "TRUE" ]; then
+if [ "$ALL" = "TRUE" ] || [ "$sctxVOL" = "TRUE" ] || [ "$ALL_proc" = "TRUE" ]; then
     log_file_str=$dir_logs/sctx_vol_$(date +'%d-%m-%Y')
 
     # Define UTILITIES directory
@@ -382,7 +391,7 @@ fi
 # -----------------------------------------------------------------------------------------------#
 # # #        Structural processing: T2-FLAIR
 # -----------------------------------------------------------------------------------------------#
-if [ "$ALL" = "TRUE" ] || [ "$procFLAIR" = "TRUE" ]; then
+if [ "$ALL" = "TRUE" ] || [ "$procFLAIR" = "TRUE" ] || [ "$ALL_proc" = "TRUE" ]; then
     log_file_str=$dir_logs/proc_flair_$(date +'%d-%m-%Y')
 
     # Define UTILITIES directory
@@ -412,7 +421,7 @@ fi
 # -----------------------------------------------------------------------------------------------#
 # # #        Structural processing: qT1
 # -----------------------------------------------------------------------------------------------#
-if [ "$ALL" = "TRUE" ] || [ "$procQT1" = "TRUE" ]; then
+if [ "$ALL" = "TRUE" ] || [ "$procQT1" = "TRUE" ] || [ "$ALL_proc" = "TRUE" ]; then
     log_file_str=$dir_logs/proc_qt1_$(date +'%d-%m-%Y')
 
     # Define UTILITIES directory
@@ -442,7 +451,7 @@ fi
 # -----------------------------------------------------------------------------------------------#
 # # #        Diffusion post-processing: DWI
 # -----------------------------------------------------------------------------------------------#
-if [ "$ALL" = "TRUE" ] || [ "$postDWI" = "TRUE" ]; then
+if [ "$ALL" = "TRUE" ] || [ "$postDWI" = "TRUE" ] || [ "$ALL_proc" = "TRUE" ]; then
     log_file_str=$dir_logs/post_dwi_$(date +'%d-%m-%Y')
 
     # Define UTILITIES directory

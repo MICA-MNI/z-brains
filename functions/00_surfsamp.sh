@@ -72,51 +72,92 @@ Do_cmd mkdir -p "$outDir"
 #------------------------------------------------------------------------------#
 ### resample each surface intensity correction ###
 
-for hemi in lh rh
-    do
-    # remove offset-to-origin from any gifti surface derived from FS
-    Do_cmd python "$ZBRAINS"/functions/removeFSoffset.py ${dir_freesurfer}/surf/${hemi}.midthickness.surf.gii $tmp/no_offset.surf.gii
+if [[ ! -f "$outDir/${idBIDS}_space-nativepro_desc-conte69_hemi-rh_white.surf.gii" ]]; then
+    for hemi in lh rh
+        do
+        # remove offset-to-origin from any gifti surface derived from FS
+        Do_cmd python "$ZBRAINS"/functions/removeFSoffset.py \
+            ${dir_freesurfer}/surf/${hemi}.midthickness.surf.gii \
+            $tmp/no_offset.surf.gii
 
-    # now match target surface to the original fssurf bounding box
-    Do_cmd wb_command -surface-match $tmp/no_offset.surf.gii ${dir_conte69}/${idBIDS}_space-conte69-32k_desc-${hemi}_midthickness.surf.gii $tmp/conte69_space-fsnative.surf.gii
-    # note: this works because the conte69 surface still has (nearly) exactly the same shape as the fssurface, just different vertices. The more vertices get removed, the more the shape degrades and the exact bounding box may no longer match. With 32k vertices though, the bounding box stays the same to within <0.01mm
+        # now match target surface to the original fssurf bounding box
+        Do_cmd wb_command -surface-match \
+            $tmp/no_offset.surf.gii \
+            ${dir_conte69}/${idBIDS}_space-conte69-32k_desc-${hemi}_midthickness.surf.gii \
+            $tmp/conte69_space-fsnative.surf.gii
+        # note: this only works because the conte69 surface still has (nearly) exactly the same shape as the fssurface, just different vertices. The more vertices get removed, the more the shape degrades and the exact bounding box may no longer match. With 32k vertices though, the bounding box stays the same to within <0.01mm
 
-    # apply registration to nativepro
-    Do_cmd c3d_affine_tool -itk ${dir_warp}/${idBIDS}_from-fsnative_to_nativepro_t1w_0GenericAffine.mat -inv -o $tmp/aff_fsspacetonativepro.mat
-    wb_command -surface-apply-affine $tmp/conte69_space-fsnative.surf.gii $tmp/aff_fsspacetonativepro.mat $outDir/${idBIDS}_space-nativepro_desc-conte69_hemi-${hemi}_midthickness.surf.gii
+        # apply registration to nativepro
+        Do_cmd c3d_affine_tool \
+            -itk ${dir_warp}/${idBIDS}_from-fsnative_to_nativepro_t1w_0GenericAffine.mat -inv \
+            -o $tmp/aff_fsspacetonativepro.mat
 
-    ## also apply to pial and white
-    Do_cmd mris_convert ${dir_freesurfer}/surf/${hemi}.pial $tmp/${hemi}_pial.surf.gii
-    Do_cmd python "$ZBRAINS"/functions/removeFSoffset.py $tmp/${hemi}_pial.surf.gii $tmp/no_offset_pial.surf.gii 
-    Do_cmd wb_command -surface-match $tmp/no_offset_pial.surf.gii ${dir_conte69}/${idBIDS}_space-conte69-32k_desc-${hemi}_pial.surf.gii $tmp/conte69_space-fsnative_pial.surf.gii
-    Do_cmd wb_command -surface-apply-affine $tmp/conte69_space-fsnative_pial.surf.gii $tmp/aff_fsspacetonativepro.mat $outDir/${idBIDS}_space-nativepro_desc-conte69_hemi-${hemi}_pial.surf.gii
+        wb_command -surface-apply-affine \
+            $tmp/conte69_space-fsnative.surf.gii \
+            $tmp/aff_fsspacetonativepro.mat $outDir/${idBIDS}_space-nativepro_desc-conte69_hemi-${hemi}_midthickness.surf.gii
 
-    Do_cmd mris_convert ${dir_freesurfer}/surf/${hemi}.white $tmp/${hemi}_white.surf.gii
-    Do_cmd python "$ZBRAINS"/functions/removeFSoffset.py $tmp/${hemi}_white.surf.gii $tmp/no_offset_white.surf.gii 
-    Do_cmd wb_command -surface-match $tmp/no_offset_white.surf.gii ${dir_conte69}/${idBIDS}_space-conte69-32k_desc-${hemi}_white.surf.gii $tmp/conte69_space-fsnative_white.surf.gii
-    Do_cmd wb_command -surface-apply-affine $tmp/conte69_space-fsnative_white.surf.gii $tmp/aff_fsspacetonativepro.mat $outDir/${idBIDS}_space-nativepro_desc-conte69_hemi-${hemi}_white.surf.gii
+        ## also apply to pial and white
+        Do_cmd mris_convert ${dir_freesurfer}/surf/${hemi}.pial $tmp/${hemi}_pial.surf.gii
+        Do_cmd python "$ZBRAINS"/functions/removeFSoffset.py \
+            $tmp/${hemi}_pial.surf.gii \
+            $tmp/no_offset_pial.surf.gii 
+        Do_cmd wb_command -surface-match \
+            $tmp/no_offset_pial.surf.gii \
+            ${dir_conte69}/${idBIDS}_space-conte69-32k_desc-${hemi}_pial.surf.gii \
+            $tmp/conte69_space-fsnative_pial.surf.gii
+        Do_cmd wb_command -surface-apply-affine \
+            $tmp/conte69_space-fsnative_pial.surf.gii \
+            $tmp/aff_fsspacetonativepro.mat $outDir/${idBIDS}_space-nativepro_desc-conte69_hemi-${hemi}_pial.surf.gii
+
+        Do_cmd mris_convert ${dir_freesurfer}/surf/${hemi}.white $tmp/${hemi}_white.surf.gii
+        Do_cmd python "$ZBRAINS"/functions/removeFSoffset.py \
+            $tmp/${hemi}_white.surf.gii \
+            $tmp/no_offset_white.surf.gii 
+        Do_cmd wb_command -surface-match \
+            $tmp/no_offset_white.surf.gii \
+            ${dir_conte69}/${idBIDS}_space-conte69-32k_desc-${hemi}_white.surf.gii \
+            $tmp/conte69_space-fsnative_white.surf.gii
+        Do_cmd wb_command -surface-apply-affine \
+            $tmp/conte69_space-fsnative_white.surf.gii \
+            $tmp/aff_fsspacetonativepro.mat \
+            $outDir/${idBIDS}_space-nativepro_desc-conte69_hemi-${hemi}_white.surf.gii
+
+        if [[ -f "$outDir/${idBIDS}_space-nativepro_desc-conte69_hemi-${hemi}_white.surf.gii" ]]; then ((Nsteps++)); fi
     done
+else
+    Info "Subject ${idBIDS} conte69 surfaces transformed to nativepro"; Nsteps=$((Nsteps + 2))
+fi
 
 ##### resample relevant images #####
 
-Do_cmd cp ${proc_struct}/${idBIDS}_space-nativepro_t1w.nii.gz $outDir/${idBIDS}_space-nativepro_t1w.nii.gz
-Do_cmd mri_convert /${dir_freesurfer}/mri/aseg.mgz $tmp/aseg.nii.gz
-Do_cmd antsApplyTransforms -d 3 -n MultiLabel \
-    -i $tmp/aseg.nii.gz \
-    -r ${outDir}/${idBIDS}_space-nativepro_t1w.nii.gz \
-    -t ${dir_warp}/${idBIDS}_from-fsnative_to_nativepro_t1w_0GenericAffine.mat \
-    -o ${outDir}/${idBIDS}_space-nativepro_aseg.nii.gz
-
+if [[ ! -f "${outDir}/${idBIDS}_space-nativepro_aseg.nii.gz" ]]; then
+    Do_cmd cp ${proc_struct}/${idBIDS}_space-nativepro_t1w.nii.gz $outDir/${idBIDS}_space-nativepro_t1w.nii.gz
+    Do_cmd mri_convert /${dir_freesurfer}/mri/aseg.mgz $tmp/aseg.nii.gz
+    Do_cmd antsApplyTransforms -d 3 -n MultiLabel \
+        -i $tmp/aseg.nii.gz \
+        -r ${outDir}/${idBIDS}_space-nativepro_t1w.nii.gz \
+        -t ${dir_warp}/${idBIDS}_from-fsnative_to_nativepro_t1w_0GenericAffine.mat \
+        -o ${outDir}/${idBIDS}_space-nativepro_aseg.nii.gz
+    if [[ -f "${outDir}/${idBIDS}_space-nativepro_aseg.nii.gz" ]]; then ((Nsteps++)); fi
+else
+    Info "Subject ${idBIDS} aseg to nativepro"; Nsteps=$((Nsteps + 1))
+fi
 
 ##### hippocampal surfaces #####
 
 dir_hip="${out/micapipe/}/hippunfold_v1.0.0/hippunfold/sub-${id}"
-
-for hemi in lh rh; do
-    [[ "$hemi" == lh ]] && hemisphere=l || hemisphere=r
-    HEMICAP=$(echo $hemisphere | tr [:lower:] [:upper:])
-    Do_cmd  cp ${dir_hip}/surf/sub-${id}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii $outDir/${idBIDS}_space-nativepro_desc-hipp_hemi-${hemi}_midthickness.surf.gii
+if [[ ! -f "$outDir/${idBIDS}_space-nativepro_desc-hipp_hemi-rh_midthickness.surf.gii" ]]; then
+    for hemi in lh rh; do
+        [[ "$hemi" == lh ]] && hemisphere=l || hemisphere=r
+        HEMICAP=$(echo $hemisphere | tr [:lower:] [:upper:])
+        Do_cmd  cp \
+                ${dir_hip}/surf/sub-${id}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii \
+                $outDir/${idBIDS}_space-nativepro_desc-hipp_hemi-${hemi}_midthickness.surf.gii
+        if [[ -f "$outDir/${idBIDS}_space-nativepro_desc-hipp_hemi-${hemi}_midthickness.surf.gii" ]]; then ((Nsteps++)); fi
     done
+else
+    Info "Subject ${idBIDS} hippocampal surfaces to nativepro"; Nsteps=$((Nsteps + 2))
+fi
 
 #------------------------------------------------------------------------------#
 # QC notification of completition
@@ -125,12 +166,12 @@ eri=$(echo "$lopuu - $aloita" | bc)
 eri=$(echo print "$eri"/60 | perl)
 
 # Notification of completition
-if [ "$Nsteps" -eq 27 ]; then status="COMPLETED"; else status="ERROR surfsamp is missing a processing step"; fi
+if [ "$Nsteps" -eq 05 ]; then status="COMPLETED"; else status="ERROR surfsamp is missing a processing step"; fi
 Title "surfsamp processing ended in \033[38;5;220m $(printf "%0.3f\n" "$eri") minutes \033[38;5;141m.
-\tSteps completed : $(printf "%02d" "$Nsteps")/27
+\tSteps completed : $(printf "%02d" "$Nsteps")/05
 \tStatus          : ${status}
 \tCheck logs      : $(ls "${dir_logs}"/surfsamp_*.txt)"
-echo "${id}, ${SES/ses-/}, surfsamp, $status N=$(printf "%02d" "$Nsteps")/21, $(whoami), $(uname -n), $(date), $(printf "%0.3f\n" "$eri"), ${PROC}, ${Version}" >> "${out}/micapipez_processed_sub.csv"
+echo "${id}, ${SES/ses-/}, surfsamp, $status N=$(printf "%02d" "$Nsteps")/05, $(whoami), $(uname -n), $(date), $(printf "%0.3f\n" "$eri"), ${PROC}, ${Version}" >> "${out}/micapipez_processed_sub.csv"
 cleanup "$tmp" "$nocleanup" "$here"
 
 
