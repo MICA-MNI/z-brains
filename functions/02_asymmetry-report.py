@@ -268,5 +268,5 @@ def convert_html_to_pdf(source_html, output_filename):
     # return True on success and False on errors
     return pisa_status.err
 
-convert_html_to_pdf(static_report, figPath + '_asymmetryReport.pdf')
+convert_html_to_pdf(static_report, figPath + '_asymmetry_Report.pdf')
 
