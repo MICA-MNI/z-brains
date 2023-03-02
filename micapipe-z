@@ -328,6 +328,8 @@ fi
 # Pipeline description json
 micapipe_json
 
+dir_logs="${out//micapipe/}/z-brains/logs/${idBIDS}"
+Do_cmd mkdir -p "$dir_logs"
 # -----------------------------------------------------------------------------------------------#
 # # #        Structural processing: Surfaces to space-nativepro
 # -----------------------------------------------------------------------------------------------#
@@ -340,23 +342,24 @@ if [ "$ALL" = "TRUE" ] || [ "$surfsamp" = "TRUE" ] || [ "$ALL_proc" = "TRUE" ]; 
     COMMAND="${scriptDir}/00_surfsamp.sh $BIDS $id $out $SES $nocleanup $threads $tmpDir"
     # mica.q - Structural processing: Subcortical volume
     if [[ $micaq == "TRUE" ]]; then
-        Info "MICA qsub - Structural processing: Subcortical volume"
+        Info "MICA qsub - Structural processing: Surfaces to space-nativepro"
         Warning "This option only works on the MICA workstations"
         export PROC="qsub-MICA"
         # Info "Setting a warper to run on mica.q"
-        qsub -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_surfsamp -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+        qsub -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_surfsamp -e ${log_file_str}.e -o ${log_file_str}.txt -v ZBRAINS=$ZBRAINS -v PATH=$PATH $COMMAND $PROC
              # all.q - Structural processing: Subcortical volume
     elif [[ $qall == "TRUE" ]]; then
-        Info "all.q qsub - Structural processing: Subcortical volume"
+        Info "all.q qsub - Structural processing: Surfaces to space-nativepro"
         Warning "This option only works on the McGill BIC network"
         export PROC="qsub-all.q"
         # Info "Setting a warper to run on all.q"
-        qsub -q all.q -pe all.pe $threads -l h_vmem=6G -N q${id}_surfsamp -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+        qsub -q all.q -pe all.pe $threads -l h_vmem=6G -N q${id}_surfsamp -e ${log_file_str}.e -o ${log_file_str}.txt -v ZBRAINS=$ZBRAINS $COMMAND $PROC
     else
         #  LOCAL - Structural processing: Subcortical volume
         $COMMAND $PROC 2>&1 | tee -a ${log_file_str}.txt
     fi
 fi
+if [ "$ALL_proc" = "TRUE" ]; then dep="-hold_jid q${id}_surfsamp "; else dep=""; fi
 
 # -----------------------------------------------------------------------------------------------#
 # # #        Structural processing: Subcortical volume
@@ -374,14 +377,14 @@ if [ "$ALL" = "TRUE" ] || [ "$sctxVOL" = "TRUE" ] || [ "$ALL_proc" = "TRUE" ]; t
         Warning "This option only works on the MICA workstations"
         export PROC="qsub-MICA"
         # Info "Setting a warper to run on mica.q"
-        qsub -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_sctx_vol -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+        qsub $dep -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_sctx_vol -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
              # all.q - Structural processing: Subcortical volume
     elif [[ $qall == "TRUE" ]]; then
         Info "all.q qsub - Structural processing: Subcortical volume"
         Warning "This option only works on the McGill BIC network"
         export PROC="qsub-all.q"
         # Info "Setting a warper to run on all.q"
-        qsub -q all.q -pe all.pe $threads -l h_vmem=6G -N q${id}_sctx_vol -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+        qsub $dep -q all.q -pe all.pe $threads -l h_vmem=6G -N q${id}_sctx_vol -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
     else
         #  LOCAL - Structural processing: Subcortical volume
         $COMMAND $PROC 2>&1 | tee -a ${log_file_str}.txt
@@ -404,14 +407,14 @@ if [ "$ALL" = "TRUE" ] || [ "$procFLAIR" = "TRUE" ] || [ "$ALL_proc" = "TRUE" ];
         Warning "This option only works on the MICA workstations"
         export PROC="qsub-MICA"
         # Info "Setting a warper to run on mica.q"
-        qsub -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_flair -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+        qsub $dep -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_flair -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
              # all.q - Structural processing: T2-FLAIR
     elif [[ $qall == "TRUE" ]]; then
         Info "all.q qsub - Structural processing: T2-FLAIR"
         Warning "This option only works on the McGill BIC network"
         export PROC="qsub-all.q"
         # Info "Setting a warper to run on all.q"
-        qsub -q all.q -pe all.pe $threads -l h_vmem=6G -N q${id}_flair -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+        qsub $dep -q all.q -pe all.pe $threads -l h_vmem=6G -N q${id}_flair -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
     else
         #  LOCAL - Structural processing: T2-FLAIR
         $COMMAND $PROC 2>&1 | tee -a ${log_file_str}.txt
@@ -434,14 +437,14 @@ if [ "$ALL" = "TRUE" ] || [ "$procQT1" = "TRUE" ] || [ "$ALL_proc" = "TRUE" ]; t
         Warning "This option only works on the MICA workstations"
         export PROC="qsub-MICA"
         # Info "Setting a warper to run on mica.q"
-        qsub -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_qt1 -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+        qsub $dep -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_qt1 -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
              # all.q - Structural processing: qT1
     elif [[ $qall == "TRUE" ]]; then
         Info "all.q qsub - Structural processing: qT1"
         Warning "This option only works on the McGill BIC network"
         export PROC="qsub-all.q"
         # Info "Setting a warper to run on all.q"
-        qsub -q all.q -pe all.pe $threads -l h_vmem=6G -N q${id}_qt1 -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+        qsub $dep -q all.q -pe all.pe $threads -l h_vmem=6G -N q${id}_qt1 -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
     else
         #  LOCAL - Structural processing: qT1
         $COMMAND $PROC 2>&1 | tee -a ${log_file_str}.txt
@@ -464,14 +467,14 @@ if [ "$ALL" = "TRUE" ] || [ "$postDWI" = "TRUE" ] || [ "$ALL_proc" = "TRUE" ]; t
         Warning "This option only works on the MICA workstations"
         export PROC="qsub-MICA"
         # Info "Setting a warper to run on mica.q"
-        qsub -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_dwi -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+        qsub $dep -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_dwi -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
              # all.q - Diffusion post-processing: DWI
     elif [[ $qall == "TRUE" ]]; then
         Info "all.q qsub - Diffusion post-processing: DWI"
         Warning "This option only works on the McGill BIC network"
         export PROC="qsub-all.q"
         # Info "Setting a warper to run on all.q"
-        qsub -q all.q -pe all.pe $threads -l h_vmem=6G -N q${id}_dwi -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+        qsub -$dep q all.q -pe all.pe $threads -l h_vmem=6G -N q${id}_dwi -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
     else
         #  LOCAL - Structural processing: qT1
         $COMMAND $PROC 2>&1 | tee -a ${log_file_str}.txt
