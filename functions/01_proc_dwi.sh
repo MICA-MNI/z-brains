@@ -234,6 +234,6 @@ if [ "$Nsteps" -eq 38 ]; then status="COMPLETED"; else status="ERROR POST-DWI is
 Title "post-dwi processing ended in \033[38;5;220m $(printf "%0.3f\n" "$eri") minutes \033[38;5;141m.
 \tSteps completed : $(printf "%02d" "$Nsteps")/38
 \tStatus          : ${status}
-\tCheck logs      : $(ls "${dir_logs}"/post_dwi_*.txt)"
+\tCheck logs      : $(ls "${dir_logs}"/proc_dwi_*.txt)"
 echo "${id}, ${SES/ses-/}, POST-DWI, $status N=$(printf "%02d" "$Nsteps")/38, $(whoami), $(uname -n), $(date), $(printf "%0.3f\n" "$eri"), ${PROC}, ${Version}" >> "${out}/micapipez_processed_sub.csv"
 cleanup "$tmp" "$nocleanup" "$here"

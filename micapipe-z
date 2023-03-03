@@ -19,15 +19,15 @@ echo -e "
 \t\033[38;5;120m-ses\033[0m             : OPTIONAL flag that indicates the session name (if omitted will manage as SINGLE session)
 
    Flags for second stages of structural processing:
-\t\033[38;5;197m-surfsamp\033[0m        : Resample surfaces to space-nativepro
+\t\033[38;5;197m-surf_samp\033[0m        : Resample surfaces to space-nativepro
 \t\t           ( micapipe requirements: -proc_structural, -proc_freesurfer, and -post_structural )
-\t\033[38;5;197m-sctx_vol\033[0m        : Subcortical volume
+\t\033[38;5;197m-proc_morph\033[0m        : Subcortical volume
 \t\t           ( micapipe requirements: -proc_freesurfer )
 \t\033[38;5;197m-proc_flair\033[0m      : T2-FLAIR processing
 \t\t           ( micapipe requirements: -proc_structural, -proc_freesurfer, and -post_structural )
 \t\033[38;5;197m-proc_qt1\033[0m        : qT1 processing
 \t\t           ( micapipe requirements: -proc_structural, -proc_freesurfer, and -post_structural )
-\t\033[38;5;197m-post_dwi\033[0m        : DWI post-processing
+\t\033[38;5;197m-proc_dwi\033[0m        : DWI post-processing
 \t\t           ( micapipe requirements: -proc_structural, -proc_freesurfer, -post_structural, and proc_dwi )
 \t\033[38;5;197m-all_proc\033[0m        : all of the above
 \t\t           ( micapipe requirements: -proc_structural, -proc_freesurfer, -post_structural, and proc_dwi )
@@ -60,7 +60,7 @@ echo -e "
 
 
 \033[38;5;141mUSAGE:\033[0m
-    \033[38;5;141m$(basename $0)\033[0m  \033[38;5;197m-sub\033[0m <idBIDS_id> \033[38;5;197m-out\033[0m <outputDirectory> \033[38;5;197m-bids\033[0m <BIDS-directory> \033[38;5;197m-sctx_vol\033[0m
+    \033[38;5;141m$(basename $0)\033[0m  \033[38;5;197m-sub\033[0m <idBIDS_id> \033[38;5;197m-out\033[0m <outputDirectory> \033[38;5;197m-bids\033[0m <BIDS-directory> \033[38;5;197m-proc_morph\033[0m
 
 
 \033[38;5;141mDEPENDENCIES:\033[0m
@@ -116,12 +116,12 @@ do
     SES=$2
     shift;shift
   ;;
-  -surfsamp)
-    surfsamp=TRUE
+  -surf_samp)
+    surfSAMP=TRUE
     shift
   ;;
-  -sctx_vol)
-    sctxVOL=TRUE
+  -proc_morph)
+    procMORPH=TRUE
     shift
   ;;
   -proc_flair)
@@ -132,8 +132,8 @@ do
     procQT1=TRUE
     shift
   ;;
-  -post_dwi)
-    postDWI=TRUE
+  -proc_dwi)
+    procDWI=TRUE
     shift
   ;;
   -all_proc)
@@ -212,14 +212,14 @@ Error "One or more mandatory arguments are missing:
                -out  : $out
                -bids : $BIDS"
 help; exit 1; fi
-runs=($ALL $surfsamp $sctxVOL $procQT1 $procFLAIR $postDWI $ALL_proc $REGZ $ASYMMETRY)
+runs=($ALL $surfSAMP $procMORPH $procQT1 $procFLAIR $procDWI $ALL_proc $REGZ $ASYMMETRY)
 if [ "${#runs[@]}" -lt 1 ]; then
 Error "A processing flag is missing:
-                    -surfsamp
-                    -sctx_vol
+                    -surf_samp
+                    -proc_morph
                     -proc_flair
                     -proc_qt1
-                    -post_dwi
+                    -proc_dwi
                     -all_proc
                     -regional_z
                     -asymmetry"
@@ -333,58 +333,58 @@ Do_cmd mkdir -p "$dir_logs"
 # -----------------------------------------------------------------------------------------------#
 # # #        Structural processing: Surfaces to space-nativepro
 # -----------------------------------------------------------------------------------------------#
-if [ "$ALL" = "TRUE" ] || [ "$surfsamp" = "TRUE" ] || [ "$ALL_proc" = "TRUE" ]; then
-    log_file_str=$dir_logs/surfsamp_$(date +'%d-%m-%Y')
+if [ "$ALL" = "TRUE" ] || [ "$surfSAMP" = "TRUE" ] || [ "$ALL_proc" = "TRUE" ]; then
+    log_file_str=$dir_logs/surf_samp_$(date +'%d-%m-%Y')
 
     # Define UTILITIES directory
     export scriptDir=${ZBRAINS}/functions
 
-    COMMAND="${scriptDir}/00_surfsamp.sh $BIDS $id $out $SES $nocleanup $threads $tmpDir"
+    COMMAND="${scriptDir}/00_surf_samp.sh $BIDS $id $out $SES $nocleanup $threads $tmpDir"
     # mica.q - Structural processing: Subcortical volume
     if [[ $micaq == "TRUE" ]]; then
         Info "MICA qsub - Structural processing: Surfaces to space-nativepro"
         Warning "This option only works on the MICA workstations"
         export PROC="qsub-MICA"
         # Info "Setting a warper to run on mica.q"
-        qsub -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_surfsamp -e ${log_file_str}.e -o ${log_file_str}.txt -v ZBRAINS=$ZBRAINS -v PATH=$PATH $COMMAND $PROC
+        qsub -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_surf_samp -e ${log_file_str}.e -o ${log_file_str}.txt -v ZBRAINS=$ZBRAINS -v PATH=$PATH $COMMAND $PROC
              # all.q - Structural processing: Subcortical volume
     elif [[ $qall == "TRUE" ]]; then
         Info "all.q qsub - Structural processing: Surfaces to space-nativepro"
         Warning "This option only works on the McGill BIC network"
         export PROC="qsub-all.q"
         # Info "Setting a warper to run on all.q"
-        qsub -q all.q -pe all.pe $threads -l h_vmem=6G -N q${id}_surfsamp -e ${log_file_str}.e -o ${log_file_str}.txt -v ZBRAINS=$ZBRAINS $COMMAND $PROC
+        qsub -q all.q -pe all.pe $threads -l h_vmem=6G -N q${id}_surf_samp -e ${log_file_str}.e -o ${log_file_str}.txt -v ZBRAINS=$ZBRAINS $COMMAND $PROC
     else
         #  LOCAL - Structural processing: Subcortical volume
         $COMMAND $PROC 2>&1 | tee -a ${log_file_str}.txt
     fi
 fi
-if [ "$ALL_proc" = "TRUE" ]; then dep="-hold_jid q${id}_surfsamp "; else dep=""; fi
+if [ "$ALL_proc" = "TRUE" ]; then dep="-hold_jid q${id}_surf_samp "; else dep=""; fi
 
 # -----------------------------------------------------------------------------------------------#
 # # #        Structural processing: Subcortical volume
 # -----------------------------------------------------------------------------------------------#
-if [ "$ALL" = "TRUE" ] || [ "$sctxVOL" = "TRUE" ] || [ "$ALL_proc" = "TRUE" ]; then
-    log_file_str=$dir_logs/sctx_vol_$(date +'%d-%m-%Y')
+if [ "$ALL" = "TRUE" ] || [ "$procMORPH" = "TRUE" ] || [ "$ALL_proc" = "TRUE" ]; then
+    log_file_str=$dir_logs/proc_morph_$(date +'%d-%m-%Y')
 
     # Define UTILITIES directory
     export scriptDir=${ZBRAINS}/functions
 
-    COMMAND="${scriptDir}/01_sctx_vol.sh $BIDS $id $out $SES $nocleanup $threads $tmpDir"
+    COMMAND="${scriptDir}/01_proc_morph.sh $BIDS $id $out $SES $nocleanup $threads $tmpDir"
     # mica.q - Structural processing: Subcortical volume
     if [[ $micaq == "TRUE" ]]; then
         Info "MICA qsub - Structural processing: Subcortical volume"
         Warning "This option only works on the MICA workstations"
         export PROC="qsub-MICA"
         # Info "Setting a warper to run on mica.q"
-        qsub $dep -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_sctx_vol -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+        qsub $dep -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_proc_morph -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
              # all.q - Structural processing: Subcortical volume
     elif [[ $qall == "TRUE" ]]; then
         Info "all.q qsub - Structural processing: Subcortical volume"
         Warning "This option only works on the McGill BIC network"
         export PROC="qsub-all.q"
         # Info "Setting a warper to run on all.q"
-        qsub $dep -q all.q -pe all.pe $threads -l h_vmem=6G -N q${id}_sctx_vol -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+        qsub $dep -q all.q -pe all.pe $threads -l h_vmem=6G -N q${id}_proc_morph -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
     else
         #  LOCAL - Structural processing: Subcortical volume
         $COMMAND $PROC 2>&1 | tee -a ${log_file_str}.txt
@@ -454,13 +454,13 @@ fi
 # -----------------------------------------------------------------------------------------------#
 # # #        Diffusion post-processing: DWI
 # -----------------------------------------------------------------------------------------------#
-if [ "$ALL" = "TRUE" ] || [ "$postDWI" = "TRUE" ] || [ "$ALL_proc" = "TRUE" ]; then
-    log_file_str=$dir_logs/post_dwi_$(date +'%d-%m-%Y')
+if [ "$ALL" = "TRUE" ] || [ "$procDWI" = "TRUE" ] || [ "$ALL_proc" = "TRUE" ]; then
+    log_file_str=$dir_logs/proc_dwi_$(date +'%d-%m-%Y')
 
     # Define UTILITIES directory
     export scriptDir=${ZBRAINS}/functions
 
-    COMMAND="${scriptDir}/01_post_dwi.sh $BIDS $id $out $SES $nocleanup $threads $tmpDir"
+    COMMAND="${scriptDir}/01_proc_dwi.sh $BIDS $id $out $SES $nocleanup $threads $tmpDir"
     # mica.q - Diffusion post-processing: DWI
     if [[ $micaq == "TRUE" ]]; then
         Info "MICA qsub - Diffusion post-processing: DWI"
