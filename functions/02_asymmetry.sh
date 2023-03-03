@@ -72,13 +72,13 @@ if [ -f "${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}/${idBIDS}_space-co
 
 # Check SUBCORTICAL input features (flair, qt1, thickness, adc); if missing a feature, skip this module
 featList_sctx=()
-if [ -f "${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}/${idBIDS}_subcortical-flair.csv" ]; then
+if [ -f "${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}/${idBIDS}_space-nativepro_desc-subcortical-flair.csv" ]; then
     featList_sctx+=("flair"); fi
-if [ -f "${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}/${idBIDS}_subcortical-qt1.csv" ]; then
+if [ -f "${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}/${idBIDS}_space-nativepro_desc-subcortical-qt1.csv" ]; then
     featList_sctx+=("qt1"); fi
-if [ -f "${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}/${idBIDS}_subcortical-ADC.csv" ]; then
+if [ -f "${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}/${idBIDS}_space-nativepro_desc-subcortical-ADC.csv" ]; then
     featList_sctx+=("adc"); fi
-if [ -f "${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}/${idBIDS}_subcortical-volume.csv" ]; then
+if [ -f "${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}/${idBIDS}_space-nativepro_desc-subcortical-volume.csv" ]; then
     featList_sctx+=("thickness"); fi
 
 # Check HIPPOCAMPAL input features (flair, qt1, thickness, adc); if missing a feature, skip this module

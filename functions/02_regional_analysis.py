@@ -177,19 +177,19 @@ if __name__ == "__main__":
     mvFull_s = []
     mvFullDic_s = {}
     if "flair" in featList_sctx:
-        t2zFull_s = matrix("sctx", '_subcortical-flair.csv', TBL)
+        t2zFull_s = matrix("sctx", '_space-nativepro_desc-subcortical-flair.csv', TBL)
         mvFull_s.append(t2zFull_s.values)
         mvFullDic_s.update({'flair': t2zFull_s})
     if "qt1" in featList_sctx:
-        qt1zFull_s = matrix("sctx", '_subcortical-qt1.csv', TBL)
+        qt1zFull_s = matrix("sctx", '_space-nativepro_desc-subcortical-qt1.csv', TBL)
         mvFull_s.append(qt1zFull_s.values)
         mvFullDic_s.update({'qt1': qt1zFull_s})
     if "adc" in featList_sctx:
-        adczFull_s = matrix("sctx", '_subcortical-ADC.csv', TBL)
+        adczFull_s = matrix("sctx", '_space-nativepro_desc-subcortical-ADC.csv', TBL)
         mvFull_s.append(adczFull_s.values)
         mvFullDic_s.update({'adc': adczFull_s})
     if "thickness" in featList_sctx:
-        ctzFull_s = matrix("sctx", '_subcortical-volume.csv', TBL)
+        ctzFull_s = matrix("sctx", '_space-nativepro_desc-subcortical-volume.csv', TBL)
         ctzFull_s = ctzFull_s * -1
         mvFull_s.append(ctzFull_s.values)
         mvFullDic_s.update({'thickness': ctzFull_s})

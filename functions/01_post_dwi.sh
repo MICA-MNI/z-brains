@@ -155,12 +155,12 @@ fi
 
 # Map intensities to subcortical structures
 Info "Map FA/MD to subcortical structures"
-if [[ ! -f "${outDir}/${idBIDS}_subcortical-ADC.csv" ]]; then
+if [[ ! -f "${outDir}/${idBIDS}_space-nativepro_desc-subcortical-ADC.csv" ]]; then
 
     for map in FA ADC; do
         echo "SubjID,Laccumb,Lamyg,Lcaud,Lhippo,Lpal,Lput,Lthal,Raccumb,Ramyg,Rcaud,Rhippo,Rpal,Rput,Rthal" > \
-                "${outDir}/${idBIDS}_subcortical-${map}.csv"
-        printf "%s,"  "${idBIDS}" >> "${outDir}/${idBIDS}_subcortical-${map}.csv"
+                "${outDir}/${idBIDS}_space-nativepro_desc-subcortical-${map}.csv"
+        printf "%s,"  "${idBIDS}" >> "${outDir}/${idBIDS}_space-nativepro_desc-subcortical-${map}.csv"
 
         for sub in 26 18 11 17 13 12 10 58 54 50 53 52 51 49; do
             if [[ ${sub} == 26 ]]; then sctxname="Left-Accumbens-area"; elif [[ ${sub} == 18 ]]; then sctxname="Left-Amygdala"; \
@@ -183,10 +183,10 @@ if [[ ! -f "${outDir}/${idBIDS}_subcortical-ADC.csv" ]]; then
 
             # Input values in .csv file
             printf "%g," `fslstats "${tmp}/${idBIDS}_${sctxname}_masked-dwi.nii.gz" -M` >> \
-                "${outDir}/${idBIDS}_subcortical-${map}.csv"
-            if [[ -f "${outDir}/${idBIDS}_subcortical-${map}.csv" ]]; then ((Nsteps++)); fi
+                "${outDir}/${idBIDS}_space-nativepro_desc-subcortical-${map}.csv"
+            if [[ -f "${outDir}/${idBIDS}_space-nativepro_desc-subcortical-${map}.csv" ]]; then ((Nsteps++)); fi
         done
-        echo "" >> "${outDir}/${idBIDS}_subcortical-${map}.csv"
+        echo "" >> "${outDir}/${idBIDS}_space-nativepro_desc-subcortical-${map}.csv"
     done
 else
     Info "Subject ${idBIDS} FA/ADC are mapped to subcortical structures"; Nsteps=$((Nsteps + 28))

@@ -133,11 +133,11 @@ else
 fi
 
 # Map qt1 intensities to subcortical structures
-if [[ ! -f "${outDir}/${idBIDS}_subcortical-qt1.csv" ]]; then
+if [[ ! -f "${outDir}/${idBIDS}_space-nativepro_desc-subcortical-qt1.csv" ]]; then
     
     echo "SubjID,Laccumb,Lamyg,Lcaud,Lhippo,Lpal,Lput,Lthal,Raccumb,Ramyg,Rcaud,Rhippo,Rpal,Rput,Rthal" > \
-            "${outDir}/${idBIDS}_subcortical-qt1.csv"
-    printf "%s,"  "${idBIDS}" >> "${outDir}/${idBIDS}_subcortical-qt1.csv"
+            "${outDir}/${idBIDS}_space-nativepro_desc-subcortical-qt1.csv"
+    printf "%s,"  "${idBIDS}" >> "${outDir}/${idBIDS}_space-nativepro_desc-subcortical-qt1.csv"
 
     for sub in 26 18 11 17 13 12 10 58 54 50 53 52 51 49; do
         if [[ ${sub} == 26 ]]; then sctxname="Left-Accumbens-area"; elif [[ ${sub} == 18 ]]; then sctxname="Left-Amygdala"; \
@@ -160,10 +160,10 @@ if [[ ! -f "${outDir}/${idBIDS}_subcortical-qt1.csv" ]]; then
 
         # Input values in .csv file
         printf "%g," `fslstats "${tmp}/${idBIDS}_${sctxname}_masked-qt1.nii.gz" -M` >> \
-            "${outDir}/${idBIDS}_subcortical-qt1.csv"
-        if [[ -f "${outDir}/${idBIDS}_subcortical-qt1.csv" ]]; then ((Nsteps++)); fi
+            "${outDir}/${idBIDS}_space-nativepro_desc-subcortical-qt1.csv"
+        if [[ -f "${outDir}/${idBIDS}_space-nativepro_desc-subcortical-qt1.csv" ]]; then ((Nsteps++)); fi
     done
-    echo "" >> "${outDir}/${idBIDS}_subcortical-qt1.csv"
+    echo "" >> "${outDir}/${idBIDS}_space-nativepro_desc-subcortical-qt1.csv"
 else
     Info "Subject ${idBIDS} qt1 is registered to conte69"; Nsteps=$((Nsteps + 14))
 fi
