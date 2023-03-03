@@ -72,7 +72,7 @@ Do_cmd mkdir -p "$tmp"
 trap 'cleanup $tmp $nocleanup $here' SIGINT SIGTERM
 
 # Make output directory
-outDir="${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}"
+outDir="${out//micapipe/}/z-brains/scene-nativepro/sub-${id}/${SES}"
 [[ ! -d "$outDir" ]] && Do_cmd mkdir -p "$outDir"
 
 # Data location
@@ -117,12 +117,12 @@ if [[ ! -f "$outDir/${idBIDS}_space-conte69_hemi-rh_midthickness_desc-qt1_10mm.f
         Do_cmd wb_command -volume-to-surface-mapping \
                              $outDir/${idBIDS}_space-nativepro_qt1.nii.gz \
                              $outDir/${idBIDS}_space-nativepro_desc-conte69_hemi-${hemi}_midthickness.surf.gii \
-                             $outDir/${idBIDS}_space-conte69_hemi-${hemi}_midthickness_desc-qt1.func.gii \
+                             $tmp/${idBIDS}_space-conte69_hemi-${hemi}_midthickness_desc-qt1.func.gii \
                              -trilinear
 
         Do_cmd wb_command -metric-smoothing \
                              $outDir/${idBIDS}_space-nativepro_desc-conte69_hemi-${hemi}_midthickness.surf.gii \
-                             $outDir/${idBIDS}_space-conte69_hemi-${hemi}_midthickness_desc-qt1.func.gii \
+                             $tmp/${idBIDS}_space-conte69_hemi-${hemi}_midthickness_desc-qt1.func.gii \
                              10 \
                              $outDir/${idBIDS}_space-conte69_hemi-${hemi}_midthickness_desc-qt1_10mm.func.gii \
 

@@ -64,7 +64,7 @@ Do_cmd mkdir -p "$tmp"
 trap 'cleanup $tmp $nocleanup $here' SIGINT SIGTERM
 
 # Make output directory
-outDir="${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}"
+outDir="${out//micapipe/}/z-brains/scene-nativepro/sub-${id}/${SES}"
 [[ ! -d "$outDir" ]] && Do_cmd mkdir -p "$outDir"
 
 # Data location

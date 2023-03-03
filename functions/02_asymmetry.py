@@ -19,7 +19,6 @@ CLI=argparse.ArgumentParser()
 CLI.add_argument("subject", nargs=1, type=str, default="")
 CLI.add_argument("session", nargs=1, type=str, default="")
 CLI.add_argument("out", nargs=1, type=str, default="")
-CLI.add_argument("hipDir", nargs=1, type=str, default="")
 CLI.add_argument("demo", nargs=1, type=str, default="")
 CLI.add_argument("thr", nargs=1, type=float, default=1.96)
 CLI.add_argument(
@@ -45,7 +44,6 @@ args = CLI.parse_args()
 subject = args.subject[0]
 session = args.session[0]
 out = args.out[0]
-hipDir = args.hipDir[0]
 demo = args.demo[0]
 thr = args.thr[0]
 featList_ctx = args.featList_ctx
@@ -124,7 +122,7 @@ def matrix(area, filename, TBL):
     if area == "ctx":
         for i in range(nSub):
             try:
-                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}_{session}/{sub[i]}_{session}"
+                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}/{session}/{sub[i]}_{session}"
                 d = []
                 for _, h in enumerate(['lh', 'rh']):
                     d = np.append(d, nib.load(dpath + filename.format(h)).darrays[0].data)
@@ -137,7 +135,7 @@ def matrix(area, filename, TBL):
     elif area == "sctx":
         for i in range(nSub):
             try:
-                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}_{session}/{sub[i]}_{session}"
+                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}/{session}/{sub[i]}_{session}"
                 mtrx[i] = np.loadtxt(dpath + filename, 
                                     delimiter=",", skiprows=1, usecols=range(1,15))
             except:
@@ -148,7 +146,7 @@ def matrix(area, filename, TBL):
     elif area == "hipp":
         for i in range(nSub):
             try:
-                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}_{session}/{sub[i]}_{session}"
+                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}/{session}/{sub[i]}_{session}"
                 d = []
                 for _, h in enumerate(['lh', 'rh']):
                     d = np.append(d, nib.load(dpath + filename.format(h)).darrays[0].data)

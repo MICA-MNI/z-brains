@@ -53,43 +53,45 @@ Info "Saving temporal dir: $nocleanup"
 aloita=$(date +%s)
 Nsteps=0
 
-# Hippunfold directory
-hipDir="${out/micapipe/}/hippunfold_v1.0.0/hippunfold/"
+# Output directory
+reportDir="${out/micapipe/}/z-brains/asymmetry/sub-${id}/${SES}/"
+[[ ! -d "$reportDir" ]] && Do_cmd mkdir -p "$reportDir"
+outDir="${out//micapipe/}/z-brains/scene-nativepro/sub-${id}/${SES}"
 
 # Freesurfer SUBJECTs directory
 export SUBJECTS_DIR=${dir_surf}
 
 # Check CORTICAL input features (flair, qt1, thickness, adc); if missing a feature, skip this module
 featList_ctx=()
-if [ -f "${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}/${idBIDS}_space-conte69_hemi-rh_midthickness_desc-flair_10mm.func.gii" ]; then
+if [ -f "$outDir/${idBIDS}_space-conte69_hemi-rh_midthickness_desc-flair_10mm.func.gii" ]; then
     featList_ctx+=("flair"); fi
-if [ -f "${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}/${idBIDS}_space-conte69_hemi-rh_midthickness_desc-qt1_10mm.func.gii" ]; then
+if [ -f "$outDir/${idBIDS}_space-conte69_hemi-rh_midthickness_desc-qt1_10mm.func.gii" ]; then
     featList_ctx+=("qt1"); fi
-if [ -f "${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}/${idBIDS}_space-conte69_hemi-rh_midthickness_desc-ADC_10mm.func.gii" ]; then
+if [ -f "$outDir/${idBIDS}_space-conte69_hemi-rh_midthickness_desc-ADC_10mm.func.gii" ]; then
     featList_ctx+=("adc"); fi
-if [ -f "${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}/${idBIDS}_space-conte69_hemi-rh_desc-thickness_10mm.func.gii" ]; then
+if [ -f "$outDir/${idBIDS}_space-conte69_hemi-rh_desc-thickness_10mm.func.gii" ]; then
     featList_ctx+=("thickness"); fi
 
 # Check SUBCORTICAL input features (flair, qt1, thickness, adc); if missing a feature, skip this module
 featList_sctx=()
-if [ -f "${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}/${idBIDS}_space-nativepro_desc-subcortical-flair.csv" ]; then
+if [ -f "$outDir/${idBIDS}_space-nativepro_desc-subcortical-flair.csv" ]; then
     featList_sctx+=("flair"); fi
-if [ -f "${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}/${idBIDS}_space-nativepro_desc-subcortical-qt1.csv" ]; then
+if [ -f "$outDir/${idBIDS}_space-nativepro_desc-subcortical-qt1.csv" ]; then
     featList_sctx+=("qt1"); fi
-if [ -f "${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}/${idBIDS}_space-nativepro_desc-subcortical-ADC.csv" ]; then
+if [ -f "$outDir/${idBIDS}_space-nativepro_desc-subcortical-ADC.csv" ]; then
     featList_sctx+=("adc"); fi
-if [ -f "${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}/${idBIDS}_space-nativepro_desc-subcortical-volume.csv" ]; then
+if [ -f "$outDir/${idBIDS}_space-nativepro_desc-subcortical-volume.csv" ]; then
     featList_sctx+=("thickness"); fi
 
 # Check HIPPOCAMPAL input features (flair, qt1, thickness, adc); if missing a feature, skip this module
 featList_hipp=()
-if [ -f "${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}/${idBIDS}_space-hipp_hemi-rh_midthickness_desc-flair_2mm.func.gii" ]; then
+if [ -f "$outDir/${idBIDS}_space-hipp_hemi-rh_midthickness_desc-flair_2mm.func.gii" ]; then
     featList_hipp+=("flair"); fi
-if [ -f "${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}/${idBIDS}_space-hipp_hemi-rh_midthickness_desc-qt1_2mm.func.gii" ]; then
+if [ -f "$outDir/${idBIDS}_space-hipp_hemi-rh_midthickness_desc-qt1_2mm.func.gii" ]; then
     featList_hipp+=("qt1"); fi
-if [ -f "${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}/${idBIDS}_space-hipp_hemi-rh_midthickness_desc-ADC_2mm.func.gii" ]; then
+if [ -f "$outDir/${idBIDS}_space-hipp_hemi-rh_midthickness_desc-ADC_2mm.func.gii" ]; then
     featList_hipp+=("adc"); fi
-if [ -f "${out//micapipe/}/z-brains/scene-nativepro/${idBIDS}/${idBIDS}_space-hipp_hemi-rh_desc-thickness_2mm.func.gii" ]; then
+if [ -f "$outDir/${idBIDS}_space-hipp_hemi-rh_desc-thickness_2mm.func.gii" ]; then
     featList_hipp+=("thickness"); fi
 
 # Check input feature
@@ -106,14 +108,10 @@ Do_cmd mkdir -p "$tmp"
 # TRAP in case the script fails
 trap 'cleanup $tmp $nocleanup $here' SIGINT SIGTERM
 
-# Make output directory
-outDir="${out/micapipe/}/z-brains/asymmetry/sub-${id}/${SES}/"
-[[ ! -d "$outDir" ]] && Do_cmd mkdir -p "$outDir"
-
 
 #------------------------------------------------------------------------------#
 ### asymmetry analysis ###
-Do_cmd python "$ZBRAINS"/functions/02_asymmetry.py "sub-$id" "$SES" "$out" "$hipDir" \
+Do_cmd python "$ZBRAINS"/functions/02_asymmetry.py "sub-$id" "$SES" "$out" \
               "${demo}" "$thr" \
               --featList_ctx "${featList_ctx[@]}" --featList_sctx "${featList_sctx[@]}" \
               --featList_hipp "${featList_hipp[@]}"
@@ -124,7 +122,7 @@ Do_cmd python "$ZBRAINS"/functions/02_asymmetry-report.py "sub-$id" "$SES" "$out
               --featList_ctx "${featList_ctx[@]}" --featList_sctx "${featList_sctx[@]}" \
               --featList_hipp "${featList_hipp[@]}"
               
-if [[ -f "${outDir}/sub-${id}_asymmetry_Report.pdf" ]]; then ((Nsteps++)); fi
+if [[ -f "${reportDir}/sub-${id}_asymmetry_Report.pdf" ]]; then ((Nsteps++)); fi
 
 #------------------------------------------------------------------------------#
 # QC notification of completion

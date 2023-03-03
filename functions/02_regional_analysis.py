@@ -78,7 +78,7 @@ def matrix(area, filename, TBL):
     if area == "ctx":
         for i in range(nSub):
             try:
-                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}_{session}/{sub[i]}_{session}"
+                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}/{session}/{sub[i]}_{session}"
                 d = []
                 for _, h in enumerate(['lh', 'rh']):
                     d = np.append(d, nib.load(dpath + filename.format(h)).darrays[0].data)
@@ -91,7 +91,7 @@ def matrix(area, filename, TBL):
     elif area == "sctx":
         for i in range(nSub):
             try:
-                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}_{session}/{sub[i]}_{session}"
+                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}/{session}/{sub[i]}_{session}"
                 mtrx[i] = np.loadtxt(dpath + filename, 
                                     delimiter=",", skiprows=1, usecols=range(1,15))
             except:
@@ -102,7 +102,7 @@ def matrix(area, filename, TBL):
     elif area == "hipp":
         for i in range(nSub):
             try:
-                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}_{session}/{sub[i]}_{session}"
+                dpath = f"{out}/../z-brains/scene-nativepro/{sub[i]}/{session}/{sub[i]}_{session}"
                 d = []
                 for _, h in enumerate(['lh', 'rh']):
                     d = np.append(d, nib.load(dpath + filename.format(h)).darrays[0].data)
