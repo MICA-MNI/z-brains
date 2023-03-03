@@ -163,12 +163,12 @@ if [[ ! -f "$outDir/${idBIDS}_space-conte69_hemi-${hemi}_midthickness_desc-flair
         Do_cmd wb_command -volume-to-surface-mapping \
                              $outDir/${idBIDS}_space-nativepro_flair.nii.gz \
                              $outDir/${idBIDS}_space-nativepro_desc-conte69_hemi-${hemi}_midthickness.surf.gii \
-                             $outDir/${idBIDS}_space-conte69_hemi-${hemi}_midthickness_desc-flair.func.gii \
+                             $tmp/${idBIDS}_space-conte69_hemi-${hemi}_midthickness_desc-flair.func.gii \
                              -trilinear
 
         Do_cmd wb_command -metric-smoothing \
                              $outDir/${idBIDS}_space-nativepro_desc-conte69_hemi-${hemi}_midthickness.surf.gii \
-                             $outDir/${idBIDS}_space-conte69_hemi-${hemi}_midthickness_desc-flair.func.gii \
+                             $tmp/${idBIDS}_space-conte69_hemi-${hemi}_midthickness_desc-flair.func.gii \
                              10 \
                              $outDir/${idBIDS}_space-conte69_hemi-${hemi}_midthickness_desc-flair_10mm.func.gii \
 
