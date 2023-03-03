@@ -19,7 +19,6 @@ CLI=argparse.ArgumentParser()
 CLI.add_argument("subject", nargs=1, type=str, default="")
 CLI.add_argument("session", nargs=1, type=str, default="")
 CLI.add_argument("out", nargs=1, type=str, default="")
-CLI.add_argument("hipDir", nargs=1, type=str, default="")
 CLI.add_argument("demo", nargs=1, type=str, default="")
 CLI.add_argument("thr", nargs=1, type=float, default=1.96)
 CLI.add_argument(
@@ -45,7 +44,6 @@ args = CLI.parse_args()
 subject = args.subject[0]
 session = args.session[0]
 out = args.out[0]
-hipDir = args.hipDir[0]
 demo = args.demo[0]
 thr = args.thr[0]
 featList_ctx = args.featList_ctx
