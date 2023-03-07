@@ -4,7 +4,7 @@ import numpy as np
 import nibabel as nb
 
 
-def normalize_surfs(in_file, transform_file, fname):
+def normalize_surfs(in_file, out_file):
 
     img = nb.load(in_file)
     pointset = img.get_arrays_from_intent('NIFTI_INTENT_POINTSET')[0]
@@ -20,7 +20,7 @@ def normalize_surfs(in_file, transform_file, fname):
         pointset.meta[f'{c}'] = '0.000000'
 
     # save
-    img.to_filename(fname)
-    return os.path.abspath(fname)
+    img.to_filename(out_file)
+    return os.path.abspath(out_file)
 
-normalize_surfs(sys.argv[1], None, sys.argv[2])
+normalize_surfs(sys.argv[1], sys.argv[2])
