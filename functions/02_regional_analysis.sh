@@ -83,11 +83,11 @@ if [ -f "${proc_struct}/surfaces/morphology/sctx_volume/${idBIDS}_sctx_volume.cs
 
 # Check HIPPOCAMPAL input features (flair, qt1, thickness, adc); if missing a feature, skip this module
 featList_hipp=()
-if [ -f "${proc_struct}/surfaces/flair/${idBIDS}_hemi-rh_space-flair_desc-flair_N4_den-0p5mm_label-hipp_midthickness_2mm.func.gii" ]; then
+if [ -f "${proc_struct}/surfaces/flair/${idBIDS}_hemi-rh_space-flair_desc-flair_N4_den-0p5mm_label-hipp_midthickness_10mm.func.gii" ]; then
     featList_hipp+=("flair"); fi
-if [ -f "${proc_struct}/surfaces/qt1/${idBIDS}_hemi-rh_space-qt1_desc-qt1_den-0p5mm_label-hipp_midthickness_2mm.func.gii" ]; then
+if [ -f "${proc_struct}/surfaces/qt1/${idBIDS}_hemi-rh_space-qt1_desc-qt1_den-0p5mm_label-hipp_midthickness_10mm.func.gii" ]; then
     featList_hipp+=("qt1"); fi
-if [ -f "${proc_dwi}/surfaces/${idBIDS}_hemi-rh_space-dwi_desc-dwi-ADC_den-0p5mm_label-hipp_midthickness_2mm.func.gii" ]; then
+if [ -f "${proc_dwi}/surfaces/${idBIDS}_hemi-rh_space-dwi_desc-dwi-ADC_den-0p5mm_label-hipp_midthickness_10mm.func.gii" ]; then
     featList_hipp+=("adc"); fi
 if [ -f "${hipDir}/sub-${id}/surf/sub-${id}_hemi-R_space-T1w_den-0p5mm_label-hipp_thickness.shape.gii" ]; then
     featList_hipp+=("thickness"); fi
