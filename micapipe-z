@@ -389,7 +389,11 @@ fi
 # Creates subject directory if it doesn't exist
 if [ ! -d "${subject_dirz}" ]; then
     Info "Subject ${idBIDS} directory doesn't exist, creating..."
-    Do_cmd mkdir -m 770 -p "${subject_dirz}"/{logs,subcortex,cortex,hippocampus,asymmetry,regional,scene}
+    Do_cmd mkdir -m 770 -p "${subject_dirz}"/{logs,maps,norm-z,norm-propensity,norm-normative}
+    Do_cmd mkdir -m 770 -p "${subject_dirz}"/maps/{subcortex,cortex,hippocampus}
+    Do_cmd mkdir -m 770 -p "${subject_dirz}"/norm-z/{subcortex,cortex,hippocampus}
+    Do_cmd mkdir -m 770 -p "${subject_dirz}"/norm-propensity/{subcortex,cortex,hippocampus}
+    Do_cmd mkdir -m 770 -p "${subject_dirz}"/norm-normative/{subcortex,cortex,hippocampus}
     chmod g+xX -R "${subject_dirz}"
 fi
 

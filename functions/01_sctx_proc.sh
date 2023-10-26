@@ -116,21 +116,21 @@ if [[ "${featList_sctx[*]}" =~ 'volume' ]]; then
         
         # Create file header
         echo "SubjID,Laccumb,Lamyg,Lcaud,Lhippo,Lpal,Lput,Lthal,Raccumb,Ramyg,Rcaud,Rhippo,Rpal,Rput,Rthal,ICV" > \
-            "${subject_dirz}/subcortex/${idBIDS}_label-volume.csv" 
-        printf "%s,"  "${idBIDS}" >> "${subject_dirz}/subcortex/${idBIDS}_label-volume.csv" 
+            "${subject_dirz}/maps/subcortex/${idBIDS}_feature-volume.csv" 
+        printf "%s,"  "${idBIDS}" >> "${subject_dirz}/maps/subcortex/${idBIDS}_feature-volume.csv" 
                 
         for sub in Left-Accumbens-area Left-Amygdala Left-Caudate Left-Hippocampus Left-Pallidum \
         Left-Putamen Left-Thalamus-Proper Right-Accumbens-area Right-Amygdala \
         Right-Caudate Right-Hippocampus Right-Pallidum Right-Putamen Right-Thalamus-Proper; do
             printf "%g," `grep  ${sub} ${volDir}/aseg.stats | awk '{print $4}'` >> \
-            "${subject_dirz}/subcortex/${idBIDS}_label-volume.csv" 
+            "${subject_dirz}/maps/subcortex/${idBIDS}_feature-volume.csv" 
         done
         
         printf "%g" `cat ${volDir}/aseg.stats | grep IntraCranialVol | awk -F, '{print $4}'` >> \
-            "${subject_dirz}/subcortex/${idBIDS}_label-volume.csv" 
-        echo "" >> "${subject_dirz}/subcortex/${idBIDS}_label-volume.csv" 
+            "${subject_dirz}/maps/subcortex/${idBIDS}_feature-volume.csv" 
+        echo "" >> "${subject_dirz}/maps/subcortex/${idBIDS}_feature-volume.csv" 
     
-        if [[ -f "${subject_dirz}/subcortex/${idBIDS}_label-volume.csv"  ]]; then ((Nsteps++)); fi
+        if [[ -f "${subject_dirz}/maps/subcortex/${idBIDS}_feature-volume.csv"  ]]; then ((Nsteps++)); fi
         
     else
         Note "Volumetric processing requested but did not find subcortical volume file: skipping"
@@ -152,8 +152,8 @@ if [[ "${featList_sctx[*]}" =~ 'flair' ]]; then
     
         # Create file header
         echo "SubjID,Laccumb,Lamyg,Lcaud,Lhippo,Lpal,Lput,Lthal,Raccumb,Ramyg,Rcaud,Rhippo,Rpal,Rput,Rthal" > \
-                "${subject_dirz}/subcortex/${idBIDS}_label-flair.csv" 
-        printf "%s,"  "${idBIDS}" >> "${subject_dirz}/subcortex/${idBIDS}_label-flair.csv" 
+                "${subject_dirz}/maps/subcortex/${idBIDS}_feature-flair.csv" 
+        printf "%s,"  "${idBIDS}" >> "${subject_dirz}/maps/subcortex/${idBIDS}_feature-flair.csv" 
     
         for sub in 26 18 11 17 13 12 10 58 54 50 53 52 51 49; do
             if [[ ${sub} == 26 ]]; then sctxname="Left-Accumbens-area"; elif [[ ${sub} == 18 ]]; then sctxname="Left-Amygdala"; \
@@ -177,15 +177,15 @@ if [[ "${featList_sctx[*]}" =~ 'flair' ]]; then
             # Input values in .csv file
             if [[ "${sctxname}" == "Right-Thalamus-Proper" ]]; then
                 printf "%g" `fslstats "${tmp}/${idBIDS}_${sctxname}_masked-flair.nii.gz" -M` >> \
-                    "${subject_dirz}/subcortex/${idBIDS}_label-flair.csv" 
+                    "${subject_dirz}/maps/subcortex/${idBIDS}_feature-flair.csv" 
             else
                 printf "%g," `fslstats "${tmp}/${idBIDS}_${sctxname}_masked-flair.nii.gz" -M` >> \
-                    "${subject_dirz}/subcortex/${idBIDS}_label-flair.csv" 
+                    "${subject_dirz}/maps/subcortex/${idBIDS}_feature-flair.csv" 
             fi 
         done
         
-        echo "" >> "${subject_dirz}/subcortex/${idBIDS}_label-flair.csv"
-        if [[ -f "${subject_dirz}/subcortex/${idBIDS}_label-flair.csv" ]]; then ((Nsteps++)); fi
+        echo "" >> "${subject_dirz}/maps/subcortex/${idBIDS}_feature-flair.csv"
+        if [[ -f "${subject_dirz}/maps/subcortex/${idBIDS}_feature-flair.csv" ]]; then ((Nsteps++)); fi
 
     else
         Note "T2/FLAIR processing requested but did not find pre-processed file: skipping"
@@ -207,8 +207,8 @@ if [[ "${featList_sctx[*]}" =~ 'ADC' ]]; then
     if [[ -f "${adc_preproc}" ]]; then
 
         echo "SubjID,Laccumb,Lamyg,Lcaud,Lhippo,Lpal,Lput,Lthal,Raccumb,Ramyg,Rcaud,Rhippo,Rpal,Rput,Rthal" > \
-                "${subject_dirz}/subcortex/${idBIDS}_label-ADC.csv" 
-        printf "%s,"  "${idBIDS}" >> "${subject_dirz}/subcortex/${idBIDS}_label-ADC.csv" 
+                "${subject_dirz}/maps/subcortex/${idBIDS}_feature-ADC.csv" 
+        printf "%s,"  "${idBIDS}" >> "${subject_dirz}/maps/subcortex/${idBIDS}_feature-ADC.csv" 
     
         for sub in 26 18 11 17 13 12 10 58 54 50 53 52 51 49; do
             if [[ ${sub} == 26 ]]; then sctxname="Left-Accumbens-area"; elif [[ ${sub} == 18 ]]; then sctxname="Left-Amygdala"; \
@@ -232,15 +232,15 @@ if [[ "${featList_sctx[*]}" =~ 'ADC' ]]; then
             # Input values in .csv file
             if [[ "${sctxname}" == "Right-Thalamus-Proper" ]]; then
                 printf "%g" `fslstats "${tmp}/${idBIDS}_${sctxname}_masked-ADC.nii.gz" -M` >> \
-                    "${subject_dirz}/subcortex/${idBIDS}_label-ADC.csv" 
+                    "${subject_dirz}/maps/subcortex/${idBIDS}_feature-ADC.csv" 
             else
                 printf "%g," `fslstats "${tmp}/${idBIDS}_${sctxname}_masked-ADC.nii.gz" -M` >> \
-                    "${subject_dirz}/subcortex/${idBIDS}_label-ADC.csv" 
+                    "${subject_dirz}/maps/subcortex/${idBIDS}_feature-ADC.csv" 
             fi        
         done
 
-        echo "" >> "${subject_dirz}/subcortex/${idBIDS}_label-ADC.csv"
-        if [[ -f "${subject_dirz}/subcortex/${idBIDS}_label-ADC.csv" ]]; then ((Nsteps++)); fi
+        echo "" >> "${subject_dirz}/maps/subcortex/${idBIDS}_feature-ADC.csv"
+        if [[ -f "${subject_dirz}/maps/subcortex/${idBIDS}_feature-ADC.csv" ]]; then ((Nsteps++)); fi
         
     else
         Note "ADC processing requested but did not find pre-processed file: skipping"
@@ -257,8 +257,8 @@ if [[ "${featList_sctx[*]}" =~ 'FA' ]]; then
     if [[ -f "${fa_preproc}" ]]; then
 
         echo "SubjID,Laccumb,Lamyg,Lcaud,Lhippo,Lpal,Lput,Lthal,Raccumb,Ramyg,Rcaud,Rhippo,Rpal,Rput,Rthal" > \
-                "${subject_dirz}/subcortex/${idBIDS}_label-FA.csv" 
-        printf "%s,"  "${idBIDS}" >> "${subject_dirz}/subcortex/${idBIDS}_label-FA.csv" 
+                "${subject_dirz}/maps/subcortex/${idBIDS}_feature-FA.csv" 
+        printf "%s,"  "${idBIDS}" >> "${subject_dirz}/maps/subcortex/${idBIDS}_feature-FA.csv" 
     
         for sub in 26 18 11 17 13 12 10 58 54 50 53 52 51 49; do
             if [[ ${sub} == 26 ]]; then sctxname="Left-Accumbens-area"; elif [[ ${sub} == 18 ]]; then sctxname="Left-Amygdala"; \
@@ -282,15 +282,15 @@ if [[ "${featList_sctx[*]}" =~ 'FA' ]]; then
             # Input values in .csv file
             if [[ "${sctxname}" == "Right-Thalamus-Proper" ]]; then
                 printf "%g" `fslstats "${tmp}/${idBIDS}_${sctxname}_masked-FA.nii.gz" -M` >> \
-                    "${subject_dirz}/subcortex/${idBIDS}_label-FA.csv" 
+                    "${subject_dirz}/maps/subcortex/${idBIDS}_feature-FA.csv" 
             else
                 printf "%g," `fslstats "${tmp}/${idBIDS}_${sctxname}_masked-FA.nii.gz" -M` >> \
-                    "${subject_dirz}/subcortex/${idBIDS}_label-FA.csv" 
+                    "${subject_dirz}/maps/subcortex/${idBIDS}_feature-FA.csv" 
             fi 
             
         done
-        echo "" >> "${subject_dirz}/subcortex/${idBIDS}_label-FA.csv"
-        if [[ -f "${subject_dirz}/subcortex/${idBIDS}_label-FA.csv" ]]; then ((Nsteps++)); fi
+        echo "" >> "${subject_dirz}/maps/subcortex/${idBIDS}_feature-FA.csv"
+        if [[ -f "${subject_dirz}/maps/subcortex/${idBIDS}_feature-FA.csv" ]]; then ((Nsteps++)); fi
         
     else
         Note "FA processing requested but did not find pre-processed file: skipping"
@@ -312,8 +312,8 @@ if [[ "${featList_sctx[*]}" =~ 'qt1' ]]; then
     
         # Create file header
         echo "SubjID,Laccumb,Lamyg,Lcaud,Lhippo,Lpal,Lput,Lthal,Raccumb,Ramyg,Rcaud,Rhippo,Rpal,Rput,Rthal" > \
-                "${subject_dirz}/subcortex/${idBIDS}_label-T1map.csv" 
-        printf "%s,"  "${idBIDS}" >> "${subject_dirz}/subcortex/${idBIDS}_label-T1map.csv" 
+                "${subject_dirz}/maps/subcortex/${idBIDS}_feature-T1map.csv" 
+        printf "%s,"  "${idBIDS}" >> "${subject_dirz}/maps/subcortex/${idBIDS}_feature-T1map.csv" 
     
         for sub in 26 18 11 17 13 12 10 58 54 50 53 52 51 49; do
             if [[ ${sub} == 26 ]]; then sctxname="Left-Accumbens-area"; elif [[ ${sub} == 18 ]]; then sctxname="Left-Amygdala"; \
@@ -337,15 +337,15 @@ if [[ "${featList_sctx[*]}" =~ 'qt1' ]]; then
             # Input values in .csv file
             if [[ "${sctxname}" == "Right-Thalamus-Proper" ]]; then
                 printf "%g" `fslstats "${tmp}/${idBIDS}_${sctxname}_masked-T1map.nii.gz" -M` >> \
-                    "${subject_dirz}/subcortex/${idBIDS}_label-T1map.csv" 
+                    "${subject_dirz}/maps/subcortex/${idBIDS}_feature-T1map.csv" 
             else
                 printf "%g," `fslstats "${tmp}/${idBIDS}_${sctxname}_masked-T1map.nii.gz" -M` >> \
-                    "${subject_dirz}/subcortex/${idBIDS}_label-T1map.csv" 
+                    "${subject_dirz}/maps/subcortex/${idBIDS}_feature-T1map.csv" 
             fi 
             
         done
-        echo "" >> "${subject_dirz}/subcortex/${idBIDS}_label-T1map.csv"
-        if [[ -f "${subject_dirz}/subcortex/${idBIDS}_label-T1map.csv" ]]; then ((Nsteps++)); fi
+        echo "" >> "${subject_dirz}/maps/subcortex/${idBIDS}_feature-T1map.csv"
+        if [[ -f "${subject_dirz}/maps/subcortex/${idBIDS}_feature-T1map.csv" ]]; then ((Nsteps++)); fi
         
     else
         Note "qT1 processing requested but did not find pre-processed file: skipping"
