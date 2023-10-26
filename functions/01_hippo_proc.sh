@@ -114,7 +114,7 @@ if [[ "$smoothing" == "DEFAULT" ]]; then fwhm=2; else fwhm=${smoothing}; fi
 Info "Fetching thickness from hippunfold"
 
 hippThickness="${hippoDir}/surf/${idBIDS}_hemi-R_space-T1w_den-0p5mm_label-hipp_thickness.shape.gii"
-thickness_out="${subject_dirz}/hippocampus/${idBIDS}_hemi-R_label-thickness_smooth-${fwhm}mm.func.gii"
+thickness_out="${subject_dirz}/maps/hippocampus/${idBIDS}_hemi-R_feature-thickness_smooth-${fwhm}mm.func.gii"
 
 if [[ "${featList_hippo[*]}" =~ 'thickness' ]]; then
     N=$((N + 2))
@@ -129,7 +129,7 @@ if [[ "${featList_hippo[*]}" =~ 'thickness' ]]; then
             Do_cmd wb_command -metric-smoothing "${hippoDir}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
                               "${hippThickness}" \
                               ${fwhm} \
-                              "${subject_dirz}/hippocampus/${idBIDS}_hemi-${HEMICAP}_label-thickness_smooth-${fwhm}mm.func.gii"
+                              "${subject_dirz}/maps/hippocampus/${idBIDS}_hemi-${HEMICAP}_feature-thickness_smooth-${fwhm}mm.func.gii"
         done
 
         if [[ -f "${thickness_out}" ]]; then Nsteps=$((Nsteps + 2)); fi
@@ -147,7 +147,7 @@ fi
 Info "Map T2/FLAIR to hippocampus"
 
 flair_preproc="${mapsDir}/${idBIDS}_space-nativepro_map-flair.nii.gz"
-flair_out="${subject_dirz}/hippocampus/${idBIDS}_hemi-R_label-flair_smooth-${fwhm}mm.func.gii"
+flair_out="${subject_dirz}/maps/hippocampus/${idBIDS}_hemi-R_feature-flair_smooth-${fwhm}mm.func.gii"
 if [[ "${featList_hippo[*]}" =~ 'flair' ]]; then
     N=$((N + 2))
 
@@ -162,13 +162,13 @@ if [[ "${featList_hippo[*]}" =~ 'flair' ]]; then
 
                 Do_cmd wb_command -volume-to-surface-mapping "$flair_preproc" \
                                   "${hippoDir}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
-                                  "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-T1w_desc-flair_den-0p5mm_label-hipp_midthickness.func.gii" \
+                                  "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-T1w_desc-flair_den-0p5mm_feature-hipp_midthickness.func.gii" \
                                   -trilinear
 
                 Do_cmd wb_command -metric-smoothing "${hippoDir}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
-                                  "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-T1w_desc-flair_den-0p5mm_label-hipp_midthickness.func.gii" \
+                                  "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-T1w_desc-flair_den-0p5mm_feature-hipp_midthickness.func.gii" \
                                   ${fwhm} \
-                                  "${subject_dirz}/hippocampus/${idBIDS}_hemi-${HEMICAP}_label-flair_smooth-${fwhm}mm.func.gii"
+                                  "${subject_dirz}/maps/hippocampus/${idBIDS}_hemi-${HEMICAP}_feature-flair_smooth-${fwhm}mm.func.gii"
 
             done
 
@@ -192,7 +192,7 @@ Info "Map FA/ADC to hippocampus"
 
 # ADC
 adc_preproc="${mapsDir}/${idBIDS}_space-nativepro_model-DTI_map-ADC.nii.gz"
-adc_out="${subject_dirz}/hippocampus/${idBIDS}_hemi-R_label-ADC_smooth-${fwhm}mm.func.gii"
+adc_out="${subject_dirz}/maps/hippocampus/${idBIDS}_hemi-R_feature-ADC_smooth-${fwhm}mm.func.gii"
 if [[ "${featList_hippo[*]}" =~ 'ADC' ]]; then
     N=$((N + 2))
 
@@ -207,13 +207,13 @@ if [[ "${featList_hippo[*]}" =~ 'ADC' ]]; then
 
                 Do_cmd wb_command -volume-to-surface-mapping "$adc_preproc" \
                                   "${hippoDir}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
-                                  "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-T1w_desc-ADC_den-0p5mm_label-hipp_midthickness.func.gii" \
+                                  "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-T1w_desc-ADC_den-0p5mm_feature-hipp_midthickness.func.gii" \
                                   -trilinear
 
                 Do_cmd wb_command -metric-smoothing "${hippoDir}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
-                                  "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-T1w_desc-ADC_den-0p5mm_label-hipp_midthickness.func.gii" \
+                                  "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-T1w_desc-ADC_den-0p5mm_feature-hipp_midthickness.func.gii" \
                                   ${fwhm} \
-                                  "${subject_dirz}/hippocampus/${idBIDS}_hemi-${HEMICAP}_label-ADC_smooth-${fwhm}mm.func.gii"
+                                  "${subject_dirz}/maps/hippocampus/${idBIDS}_hemi-${HEMICAP}_feature-ADC_smooth-${fwhm}mm.func.gii"
 
             done
 
@@ -232,7 +232,7 @@ fi
 
 # FA
 fa_preproc="${mapsDir}/${idBIDS}_space-nativepro_model-DTI_map-FA.nii.gz"
-fa_out="${subject_dirz}/hippocampus/${idBIDS}_hemi-R_label-FA_smooth-${fwhm}mm.func.gii"
+fa_out="${subject_dirz}/maps/hippocampus/${idBIDS}_hemi-R_feature-FA_smooth-${fwhm}mm.func.gii"
 if [[ "${featList_hippo[*]}" =~ 'FA' ]]; then
     N=$((N + 2))
 
@@ -247,13 +247,13 @@ if [[ "${featList_hippo[*]}" =~ 'FA' ]]; then
 
                 Do_cmd wb_command -volume-to-surface-mapping "$fa_preproc" \
                                   "${hippoDir}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
-                                  "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-T1w_desc-FA_den-0p5mm_label-hipp_midthickness.func.gii" \
+                                  "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-T1w_desc-FA_den-0p5mm_feature-hipp_midthickness.func.gii" \
                                   -trilinear
 
                 Do_cmd wb_command -metric-smoothing "${hippoDir}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
-                                  "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-T1w_desc-FA_den-0p5mm_label-hipp_midthickness.func.gii" \
+                                  "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-T1w_desc-FA_den-0p5mm_feature-hipp_midthickness.func.gii" \
                                   ${fwhm} \
-                                  "${subject_dirz}/hippocampus/${idBIDS}_hemi-${HEMICAP}_label-FA_smooth-${fwhm}mm.func.gii"
+                                  "${subject_dirz}/maps/hippocampus/${idBIDS}_hemi-${HEMICAP}_feature-FA_smooth-${fwhm}mm.func.gii"
 
             done
 
@@ -276,7 +276,7 @@ fi
 Info "Map qT1 to hippocampus"
 
 qt1_preproc="${mapsDir}/${idBIDS}_space-nativepro_map-T1map.nii.gz"
-qt1_out="${subject_dirz}/hippocampus/${idBIDS}_hemi-R_label-T1map_smooth-${fwhm}mm.func.gii"
+qt1_out="${subject_dirz}/maps/hippocampus/${idBIDS}_hemi-R_feature-T1map_smooth-${fwhm}mm.func.gii"
 if [[ "${featList_hippo[*]}" =~ 'qt1' ]]; then 
     N=$((N + 2))
 
@@ -291,13 +291,13 @@ if [[ "${featList_hippo[*]}" =~ 'qt1' ]]; then
 
                 Do_cmd wb_command -volume-to-surface-mapping "$qt1_preproc" \
                                   "${hippoDir}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
-                                  "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-T1w_desc-T1map_den-0p5mm_label-hipp_midthickness.func.gii" \
+                                  "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-T1w_desc-T1map_den-0p5mm_feature-hipp_midthickness.func.gii" \
                                   -trilinear
 
                 Do_cmd wb_command -metric-smoothing "${hippoDir}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
-                                  "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-T1w_desc-T1map_den-0p5mm_label-hipp_midthickness.func.gii" \
+                                  "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-T1w_desc-T1map_den-0p5mm_feature-hipp_midthickness.func.gii" \
                                   ${fwhm} \
-                                  "${subject_dirz}/hippocampus/${idBIDS}_hemi-${HEMICAP}_label-T1map_smooth-${fwhm}mm.func.gii"
+                                  "${subject_dirz}/maps/hippocampus/${idBIDS}_hemi-${HEMICAP}_feature-T1map_smooth-${fwhm}mm.func.gii"
 
             done
 
