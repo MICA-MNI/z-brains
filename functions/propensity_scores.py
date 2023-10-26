@@ -49,6 +49,49 @@ def estimate_ps(df_cov: pd.DataFrame, y: np.ndarray,
     return ps
 
 
+def get_matches(ps: float, ps_cn: np.ndarray[float], caliper: float | None = .2, n_min: int | None = None,
+                n_max: int | None = None):
+    """ Get the indices of the closest propensity scores in `pc_cn` to `ps`.
+
+    Parameters
+    ----------
+    ps: float
+        Propensity score of target subject
+    ps_cn: np.ndarray, shape = (n_subjects,)
+        Propensity scores of control subjects
+    caliper: float, default=0.2
+        Caliper to use for imperfect matches. If None, no caliper is used.
+    n_min: int, default=None
+        Minimum number of matches.
+    n_max: int default=None
+        Maximum number of matches to consider.
+
+    Returns
+    -------
+    matches: np.ndarray, shape=(n_matches,)
+        Indices of the closest matches in `pc_cn`.
+    """
+    d = np.abs(ps_cn - ps)
+
+    # Indices of closest matches in controls
+    idx = np.argsort(d)
+
+    if caliper is not None:
+        thresh = caliper * d.std()
+        n = np.count_nonzero(d < thresh)
+        if n_min is not None:
+            n_min = max(n, n_min)
+        else:
+            n_min = n
+    elif n_min is None:
+        n_min = d.size
+
+    if n_max is not None:
+        n_min = min(n_min, n_max)
+
+    return idx[:n_min]
+
+
 def match_ps(y: np.ndarray, ps: np.ndarray, caliper: Optional[float] = None) \
         -> Tuple[pd.DataFrame, np.ndarray]:
     """Match propensity scores.
