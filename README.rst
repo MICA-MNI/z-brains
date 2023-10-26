@@ -22,3 +22,17 @@ Multimodal lesion mapping in focal epilepsy with `z-brains`
 This open access processing and analysis tool aims identify patient-specific anomalies in brain morphology and microstructure, using features with previously demonstrated potential to accurately localize epileptogenic lesions. 
 
 `z-brains` uses a set of known software dependencies developped by other groups and aggregated in a published pipeline `micapipe <https://github.com/MICA-MNI/micapipe>`_.
+
+    
+Installation
+--------------------------------------------
+
+Make sure set MICAPIPE and ZBRAINS variables, and add their function to your PATH. For example:
+```
+export MICAPIPE=/data_/mica1/01_programs/micapipe-v0.2.0
+export PATH=${PATH}:${MICAPIPE}:${MICAPIPE}/functions
+source ${MICAPIPE}/functions/init.sh
+
+export ZBRAINS=/data/mica1/03_projects/jordand/z-brains
+export PATH=${PATH}:${ZBRAINS}:${ZBRAINS}/functions
+```
