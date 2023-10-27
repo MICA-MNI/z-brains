@@ -131,7 +131,6 @@ if [[ "${featList_sctx[*]}" =~ 'volume' ]]; then
         echo "" >> "${subject_dirz}/maps/subcortex/${idBIDS}_feature-volume.csv" 
     
         if [[ -f "${subject_dirz}/maps/subcortex/${idBIDS}_feature-volume.csv" ]]; then ((Nsteps++)); fi
-        
     else
         Note "Volumetric processing requested but did not find subcortical volume file: skipping"
     fi
@@ -292,7 +291,7 @@ if [[ "${featList_sctx[*]}" =~ 'FA' ]]; then
 
         echo "SubjID,Laccumb,Lamyg,Lcaud,Lhippo,Lpal,Lput,Lthal,Raccumb,Ramyg,Rcaud,Rhippo,Rpal,Rput,Rthal" > \
                 "${subject_dirz}/maps/subcortex/${idBIDS}_feature-FA.csv" 
-        printf "%s,"  "${idBIDS}" >> "${subject_dirz}/maps/subcortex/${idBIDS}_feature-FA.csv"  
+        printf "%s,"  "${idBIDS}" >> "${subject_dirz}/maps/subcortex/${idBIDS}_feature-FA.csv" 
     
         for sub in 26 18 11 17 13 12 10 58 54 50 53 52 51 49; do
             if [[ ${sub} == 26 ]]; then sctxname="Left-Accumbens-area"; elif [[ ${sub} == 18 ]]; then sctxname="Left-Amygdala"; \
@@ -411,7 +410,7 @@ if [[ "${featList_sctx[*]}" =~ 'qt1' ]]; then
                     "${subject_dirz}/maps/subcortex/${idBIDS}_feature-T1map.csv" 
             fi 
         done
-        
+
         echo "" >> "${subject_dirz}/maps/subcortex/${idBIDS}_feature-T1map.csv"
         if [[ -f "${subject_dirz}/maps/subcortex/${idBIDS}_feature-T1map.csv" ]]; then ((Nsteps++)); fi
         
