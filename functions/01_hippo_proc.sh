@@ -90,9 +90,9 @@ outLogs="${subject_dirz}/logs/"
 
 # Manage manual inputs: feature processing
 featList_hippo=()
-if [[ "$featStr" != "DEFAULT" ]]; then
+if [[ "$featStr" != "all" ]]; then
     IFS=',' read -ra featList_hippo <<< "$featStr"
-elif [[ "$featStr" == "DEFAULT" ]]; then
+elif [[ "$featStr" == "all" ]]; then
     if [ -f "${mapsDir}/${idBIDS}_space-nativepro_map-flair.nii.gz" ]; then
         featList_hippo+=("flair"); fi
     if [ -f "${mapsDir}/${idBIDS}_space-nativepro_map-T1map.nii.gz" ]; then

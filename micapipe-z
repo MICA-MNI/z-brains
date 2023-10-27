@@ -42,7 +42,7 @@ echo -e "
 \t\t\t         Currently supported features: volume,flair,FA,ADC,qT1
 
    Flags for case-control analysis and clinical report generation:
-\t\033[38;5;197m-regional_z\033[0m          : Multivariate regional analysis
+\t\033[38;5;197m-regional\033[0m          : Multivariate regional analysis
 \t\t\033[38;5;120m-csvControls\033[0m       : A list of control subjects
 \t\t\t         Default='/data_/mica1/03_projects/jessica/hackathon2023/lists/control.csv'
 \t\t\033[38;5;120m-demo\033[0m        : Path to demographic file

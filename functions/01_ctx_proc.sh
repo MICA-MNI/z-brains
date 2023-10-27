@@ -89,9 +89,9 @@ outLogs="${subject_dirz}/logs/"
 
 # Manage manual inputs: feature processing
 featList_ctx=()
-if [[ "$featStr" != "DEFAULT" ]]; then
+if [[ "$featStr" != "all" ]]; then
     IFS=',' read -ra featList_ctx <<< "$featStr"
-elif [[ "$featStr" == "DEFAULT" ]]; then
+elif [[ "$featStr" == "all" ]]; then
     if [ -f "${mapsDir}/${idBIDS}_hemi-L_surf-fsLR-32k_label-white_flair.func.gii" ]; then
         featList_ctx+=("flair"); fi
     if [ -f "${mapsDir}/${idBIDS}_hemi-L_surf-fsLR-32k_label-white_T1map.func.gii" ]; then
