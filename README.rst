@@ -28,11 +28,10 @@ Installation
 --------------------------------------------
 
 Make sure set MICAPIPE and ZBRAINS variables, and add their function to your PATH. For example:
-```
-export MICAPIPE=/data_/mica1/01_programs/micapipe-v0.2.0
-export PATH=${PATH}:${MICAPIPE}:${MICAPIPE}/functions
-source ${MICAPIPE}/functions/init.sh
-
-export ZBRAINS=/data/mica1/03_projects/jordand/z-brains
-export PATH=${PATH}:${ZBRAINS}:${ZBRAINS}/functions
-```
+.. code-block bash::
+   export MICAPIPE=/data_/mica1/01_programs/micapipe-v0.2.0
+   export PATH=${PATH}:${MICAPIPE}:${MICAPIPE}/functions
+   source ${MICAPIPE}/functions/init.sh
+   
+   export ZBRAINS=/data/mica1/03_projects/jordand/z-brains
+   export PATH=${PATH}:${ZBRAINS}:${ZBRAINS}/functions
