@@ -117,7 +117,7 @@ if [[ "${featList_sctx[*]}" =~ 'volume' ]]; then
         # Create file header
         echo "SubjID,Laccumb,Lamyg,Lcaud,Lhippo,Lpal,Lput,Lthal,Raccumb,Ramyg,Rcaud,Rhippo,Rpal,Rput,Rthal,ICV" > \
             "${subject_dirz}/maps/subcortex/${idBIDS}_feature-volume.csv" 
-        printf "%s,"  "${idBIDS}" >> "${subject_dirz}/maps/subcortex/${idBIDS}_feature-volume.csv" 
+        printf "%s,"  "${idBIDS}" >> "${subject_dirz}/maps/subcortex/${idBIDS}_feature-volume.csv"
                 
         for sub in Left-Accumbens-area Left-Amygdala Left-Caudate Left-Hippocampus Left-Pallidum \
         Left-Putamen Left-Thalamus-Proper Right-Accumbens-area Right-Amygdala \
@@ -127,11 +127,10 @@ if [[ "${featList_sctx[*]}" =~ 'volume' ]]; then
         done
         
         printf "%g" `cat ${volDir}/aseg.stats | grep IntraCranialVol | awk -F, '{print $4}'` >> \
-            "${subject_dirz}/maps/subcortex/${idBIDS}_feature-volume.csv" 
+             "${subject_dirz}/maps/subcortex/${idBIDS}_feature-volume.csv" 
         echo "" >> "${subject_dirz}/maps/subcortex/${idBIDS}_feature-volume.csv" 
     
-        if [[ -f "${subject_dirz}/maps/subcortex/${idBIDS}_feature-volume.csv"  ]]; then ((Nsteps++)); fi
-        
+        if [[ -f "${subject_dirz}/maps/subcortex/${idBIDS}_feature-volume.csv" ]]; then ((Nsteps++)); fi
     else
         Note "Volumetric processing requested but did not find subcortical volume file: skipping"
     fi
@@ -165,22 +164,39 @@ if [[ "${featList_sctx[*]}" =~ 'flair' ]]; then
             elif [[ ${sub} == 51 ]]; then sctxname="Right-Putamen"; elif [[ ${sub} == 49 ]]; then sctxname="Right-Thalamus-Proper"; fi
     
             # Extract subcortical masks
-            Do_cmd mri_binarize --i "${subDeriv}/parc/${idBIDS}_space-nativepro_T1w_atlas-subcortical.nii.gz" \
-                                --match "${sub}" \
-                                --o "${tmp}/${idBIDS}_${sctxname}_mask.nii.gz"
-    
+            Do_cmd ThresholdImage 3 "${subDeriv}/parc/${idBIDS}_space-nativepro_T1w_atlas-subcortical.nii.gz" \
+                                "${tmp}/${idBIDS}_${sctxname}_mask1.nii.gz" \
+                                threshlo "${sub}"
+                                
+            Do_cmd ThresholdImage 3 "${subDeriv}/parc/${idBIDS}_space-nativepro_T1w_atlas-subcortical.nii.gz" \
+                                "${tmp}/${idBIDS}_${sctxname}_mask2.nii.gz" \
+                                threshhi `awk "BEGIN {print $sub-1}"`
+                                
+            Do_cmd ImageMath 3 "${tmp}/${idBIDS}_${sctxname}_mask.nii.gz" \
+                                - "${tmp}/${idBIDS}_${sctxname}_mask1.nii.gz" "${tmp}/${idBIDS}_${sctxname}_mask2.nii.gz"
+            
             # Get flair intensities for subcortical mask
-            Do_cmd fslmaths "$flair_preproc" \
-                            -mul "${tmp}/${idBIDS}_${sctxname}_mask.nii.gz" \
-                            "${tmp}/${idBIDS}_${sctxname}_masked-flair.nii.gz"
-    
+            Do_cmd ImageMath 3 "${tmp}/${idBIDS}_${sctxname}_masked-flair.nii.gz" \
+                            m "${tmp}/${idBIDS}_${sctxname}_mask.nii.gz" "$flair_preproc"
+            
+            # Get mean intensity in sampled region
+            echo `ImageIntensityStatistics 3 "${tmp}/${idBIDS}_${sctxname}_masked-flair.nii.gz"` >> "${tmp}/stats_flair_${sctxname}.txt"
+            stats_reg=($(cat "${tmp}/stats_flair_${sctxname}.txt"))
+            sum_reg=`echo "${stats_reg[17]}"`
+            
+            echo `ImageIntensityStatistics 3 "${tmp}/${idBIDS}_${sctxname}_mask.nii.gz"` >> "${tmp}/stats_mask_flair_${sctxname}.txt"
+            stats_mask=($(cat "${tmp}/stats_mask_flair_${sctxname}.txt"))
+            sum_mask=`echo "${stats_mask[17]}"`
+            
+            reg_mean=`awk "BEGIN {print $sum_reg/$sum_mask}"`
+            
             # Input values in .csv file
             if [[ "${sctxname}" == "Right-Thalamus-Proper" ]]; then
-                printf "%g" `fslstats "${tmp}/${idBIDS}_${sctxname}_masked-flair.nii.gz" -M` >> \
+                printf "%g" `echo $reg_mean` >> \
                     "${subject_dirz}/maps/subcortex/${idBIDS}_feature-flair.csv" 
             else
-                printf "%g," `fslstats "${tmp}/${idBIDS}_${sctxname}_masked-flair.nii.gz" -M` >> \
-                    "${subject_dirz}/maps/subcortex/${idBIDS}_feature-flair.csv" 
+                printf "%g," `echo $reg_mean` >> \
+                    "${subject_dirz}/maps/subcortex/${idBIDS}_feature-flair.csv"
             fi 
         done
         
@@ -220,23 +236,40 @@ if [[ "${featList_sctx[*]}" =~ 'ADC' ]]; then
             elif [[ ${sub} == 51 ]]; then sctxname="Right-Putamen"; elif [[ ${sub} == 49 ]]; then sctxname="Right-Thalamus-Proper"; fi
     
             # Extract subcortical masks
-            Do_cmd mri_binarize --i "${subDeriv}/parc/${idBIDS}_space-nativepro_T1w_atlas-subcortical.nii.gz" \
-                                --match "${sub}" \
-                                --o "${tmp}/${idBIDS}_${sctxname}_mask.nii.gz"
-    
-            # Get FA/MD for subcortical mask
-            Do_cmd fslmaths "$adc_preproc" \
-                            -mul "${tmp}/${idBIDS}_${sctxname}_mask.nii.gz" \
-                            "${tmp}/${idBIDS}_${sctxname}_masked-ADC.nii.gz"
-    
+            Do_cmd ThresholdImage 3 "${subDeriv}/parc/${idBIDS}_space-nativepro_T1w_atlas-subcortical.nii.gz" \
+                                "${tmp}/${idBIDS}_${sctxname}_mask1.nii.gz" \
+                                threshlo "${sub}"
+                                
+            Do_cmd ThresholdImage 3 "${subDeriv}/parc/${idBIDS}_space-nativepro_T1w_atlas-subcortical.nii.gz" \
+                                "${tmp}/${idBIDS}_${sctxname}_mask2.nii.gz" \
+                                threshhi `awk "BEGIN {print $sub-1}"`
+                                
+            Do_cmd ImageMath 3 "${tmp}/${idBIDS}_${sctxname}_mask.nii.gz" \
+                                - "${tmp}/${idBIDS}_${sctxname}_mask1.nii.gz" "${tmp}/${idBIDS}_${sctxname}_mask2.nii.gz"
+            
+            # Get flair intensities for subcortical mask
+            Do_cmd ImageMath 3 "${tmp}/${idBIDS}_${sctxname}_masked-ADC.nii.gz" \
+                            m "${tmp}/${idBIDS}_${sctxname}_mask.nii.gz" "$adc_preproc"
+            
+            # Get mean intensity in sampled region
+            echo `ImageIntensityStatistics 3 "${tmp}/${idBIDS}_${sctxname}_masked-ADC.nii.gz"` >> "${tmp}/stats_ADC_${sctxname}.txt"
+            stats_reg=($(cat "${tmp}/stats_ADC_${sctxname}.txt"))
+            sum_reg=`echo "${stats_reg[17]}"`
+            
+            echo `ImageIntensityStatistics 3 "${tmp}/${idBIDS}_${sctxname}_mask.nii.gz"` >> "${tmp}/stats_mask_ADC_${sctxname}.txt"
+            stats_mask=($(cat "${tmp}/stats_mask_ADC_${sctxname}.txt"))
+            sum_mask=`echo "${stats_mask[17]}"`
+            
+            reg_mean=`awk "BEGIN {print $sum_reg/$sum_mask}"`
+            
             # Input values in .csv file
             if [[ "${sctxname}" == "Right-Thalamus-Proper" ]]; then
-                printf "%g" `fslstats "${tmp}/${idBIDS}_${sctxname}_masked-ADC.nii.gz" -M` >> \
+                printf "%g" `echo $reg_mean` >> \
                     "${subject_dirz}/maps/subcortex/${idBIDS}_feature-ADC.csv" 
             else
-                printf "%g," `fslstats "${tmp}/${idBIDS}_${sctxname}_masked-ADC.nii.gz" -M` >> \
+                printf "%g," `echo $reg_mean` >> \
                     "${subject_dirz}/maps/subcortex/${idBIDS}_feature-ADC.csv" 
-            fi        
+            fi 
         done
 
         echo "" >> "${subject_dirz}/maps/subcortex/${idBIDS}_feature-ADC.csv"
@@ -270,25 +303,42 @@ if [[ "${featList_sctx[*]}" =~ 'FA' ]]; then
             elif [[ ${sub} == 51 ]]; then sctxname="Right-Putamen"; elif [[ ${sub} == 49 ]]; then sctxname="Right-Thalamus-Proper"; fi
     
             # Extract subcortical masks
-            Do_cmd mri_binarize --i "${subDeriv}/parc/${idBIDS}_space-nativepro_T1w_atlas-subcortical.nii.gz" \
-                                --match "${sub}" \
-                                --o "${tmp}/${idBIDS}_${sctxname}_mask.nii.gz"
-    
-            # Get FA/MD for subcortical mask
-            Do_cmd fslmaths "$fa_preproc" \
-                            -mul "${tmp}/${idBIDS}_${sctxname}_mask.nii.gz" \
-                            "${tmp}/${idBIDS}_${sctxname}_masked-FA.nii.gz"
-    
+            Do_cmd ThresholdImage 3 "${subDeriv}/parc/${idBIDS}_space-nativepro_T1w_atlas-subcortical.nii.gz" \
+                                "${tmp}/${idBIDS}_${sctxname}_mask1.nii.gz" \
+                                threshlo "${sub}"
+                                
+            Do_cmd ThresholdImage 3 "${subDeriv}/parc/${idBIDS}_space-nativepro_T1w_atlas-subcortical.nii.gz" \
+                                "${tmp}/${idBIDS}_${sctxname}_mask2.nii.gz" \
+                                threshhi `awk "BEGIN {print $sub-1}"`
+                                
+            Do_cmd ImageMath 3 "${tmp}/${idBIDS}_${sctxname}_mask.nii.gz" \
+                                - "${tmp}/${idBIDS}_${sctxname}_mask1.nii.gz" "${tmp}/${idBIDS}_${sctxname}_mask2.nii.gz"
+            
+            # Get flair intensities for subcortical mask
+            Do_cmd ImageMath 3 "${tmp}/${idBIDS}_${sctxname}_masked-FA.nii.gz" \
+                            m "${tmp}/${idBIDS}_${sctxname}_mask.nii.gz" "$fa_preproc"
+            
+            # Get mean intensity in sampled region
+            echo `ImageIntensityStatistics 3 "${tmp}/${idBIDS}_${sctxname}_masked-FA.nii.gz"` >> "${tmp}/stats_FA_${sctxname}.txt"
+            stats_reg=($(cat "${tmp}/stats_FA_${sctxname}.txt"))
+            sum_reg=`echo "${stats_reg[17]}"`
+            
+            echo `ImageIntensityStatistics 3 "${tmp}/${idBIDS}_${sctxname}_mask.nii.gz"` >> "${tmp}/stats_mask_FA_${sctxname}.txt"
+            stats_mask=($(cat "${tmp}/stats_mask_FA_${sctxname}.txt"))
+            sum_mask=`echo "${stats_mask[17]}"`
+            
+            reg_mean=`awk "BEGIN {print $sum_reg/$sum_mask}"`
+            
             # Input values in .csv file
             if [[ "${sctxname}" == "Right-Thalamus-Proper" ]]; then
-                printf "%g" `fslstats "${tmp}/${idBIDS}_${sctxname}_masked-FA.nii.gz" -M` >> \
+                printf "%g" `echo $reg_mean` >> \
                     "${subject_dirz}/maps/subcortex/${idBIDS}_feature-FA.csv" 
             else
-                printf "%g," `fslstats "${tmp}/${idBIDS}_${sctxname}_masked-FA.nii.gz" -M` >> \
-                    "${subject_dirz}/maps/subcortex/${idBIDS}_feature-FA.csv" 
+                printf "%g," `echo $reg_mean` >> \
+                    "${subject_dirz}/maps/subcortex/${idBIDS}_feature-FA.csv"
             fi 
-            
         done
+
         echo "" >> "${subject_dirz}/maps/subcortex/${idBIDS}_feature-FA.csv"
         if [[ -f "${subject_dirz}/maps/subcortex/${idBIDS}_feature-FA.csv" ]]; then ((Nsteps++)); fi
         
@@ -325,25 +375,42 @@ if [[ "${featList_sctx[*]}" =~ 'qt1' ]]; then
             elif [[ ${sub} == 51 ]]; then sctxname="Right-Putamen"; elif [[ ${sub} == 49 ]]; then sctxname="Right-Thalamus-Proper"; fi
     
             # Extract subcortical masks
-            Do_cmd mri_binarize --i "${subDeriv}/parc/${idBIDS}_space-nativepro_T1w_atlas-subcortical.nii.gz" \
-                                --match "${sub}" \
-                                --o "${tmp}/${idBIDS}_${sctxname}_mask.nii.gz"
-    
+            Do_cmd ThresholdImage 3 "${subDeriv}/parc/${idBIDS}_space-nativepro_T1w_atlas-subcortical.nii.gz" \
+                                "${tmp}/${idBIDS}_${sctxname}_mask1.nii.gz" \
+                                threshlo "${sub}"
+                                
+            Do_cmd ThresholdImage 3 "${subDeriv}/parc/${idBIDS}_space-nativepro_T1w_atlas-subcortical.nii.gz" \
+                                "${tmp}/${idBIDS}_${sctxname}_mask2.nii.gz" \
+                                threshhi `awk "BEGIN {print $sub-1}"`
+                                
+            Do_cmd ImageMath 3 "${tmp}/${idBIDS}_${sctxname}_mask.nii.gz" \
+                                - "${tmp}/${idBIDS}_${sctxname}_mask1.nii.gz" "${tmp}/${idBIDS}_${sctxname}_mask2.nii.gz"
+            
             # Get flair intensities for subcortical mask
-            Do_cmd fslmaths "$qt1_preproc" \
-                            -mul "${tmp}/${idBIDS}_${sctxname}_mask.nii.gz" \
-                            "${tmp}/${idBIDS}_${sctxname}_masked-T1map.nii.gz"
-    
+            Do_cmd ImageMath 3 "${tmp}/${idBIDS}_${sctxname}_masked-T1map.nii.gz" \
+                            m "${tmp}/${idBIDS}_${sctxname}_mask.nii.gz" "$qt1_preproc"
+            
+            # Get mean intensity in sampled region
+            echo `ImageIntensityStatistics 3 "${tmp}/${idBIDS}_${sctxname}_masked-T1map.nii.gz"` >> "${tmp}/stats_T1map_${sctxname}.txt"
+            stats_reg=($(cat "${tmp}/stats_T1map_${sctxname}.txt"))
+            sum_reg=`echo "${stats_reg[17]}"`
+            
+            echo `ImageIntensityStatistics 3 "${tmp}/${idBIDS}_${sctxname}_mask.nii.gz"` >> "${tmp}/stats_mask_T1map_${sctxname}.txt"
+            stats_mask=($(cat "${tmp}/stats_mask_T1map_${sctxname}.txt"))
+            sum_mask=`echo "${stats_mask[17]}"`
+            
+            reg_mean=`awk "BEGIN {print $sum_reg/$sum_mask}"`
+            
             # Input values in .csv file
             if [[ "${sctxname}" == "Right-Thalamus-Proper" ]]; then
-                printf "%g" `fslstats "${tmp}/${idBIDS}_${sctxname}_masked-T1map.nii.gz" -M` >> \
-                    "${subject_dirz}/maps/subcortex/${idBIDS}_feature-T1map.csv" 
+                printf "%g" `echo $reg_mean` >> \
+                    "${subject_dirz}/maps/subcortex/${idBIDS}_feature-T1map.csv"
             else
-                printf "%g," `fslstats "${tmp}/${idBIDS}_${sctxname}_masked-T1map.nii.gz" -M` >> \
+                printf "%g," `echo $reg_mean` >> \
                     "${subject_dirz}/maps/subcortex/${idBIDS}_feature-T1map.csv" 
             fi 
-            
         done
+
         echo "" >> "${subject_dirz}/maps/subcortex/${idBIDS}_feature-T1map.csv"
         if [[ -f "${subject_dirz}/maps/subcortex/${idBIDS}_feature-T1map.csv" ]]; then ((Nsteps++)); fi
         
