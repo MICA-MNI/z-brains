@@ -26,14 +26,14 @@ echo -e "
 \t\t\t         To only process one feature, specify using string: e.g. '-featureStr flair'
 \t\t\t         Multiple inputs example = '-featureStr flair,FA,ADC'
 \t\t\t         Currently supported features: thickness,flair,FA,ADC,qT1
-\t\t\033[38;5;120m-smoothing\033[0m   : Specify size of gaussian smoothing kernel (Default: 5mm). If set to 0, no smoothing is applied.
+\t\t\033[38;5;120m-smoothCtx\033[0m   : Specify size of gaussian smoothing kernel (Default: 5mm). If set to 0, no smoothing is applied.
 \t\033[38;5;197m-proc_hippocampus\033[0m    : run post-processing of hippocampal features for report generation. Relies on hippunfold derivatives
 \t\t\033[38;5;120m-featureStr\033[0m  : Specify which hippocampal features should undergo post-processing
 \t\t\t         Default is '-featureStr all', meaning all available features based on BIDS raw data
 \t\t\t         To only process one feature, specify using string: e.g. '-featureStr flair'
 \t\t\t         Multiple inputs example = '-featureStr flair,FA,ADC'
 \t\t\t         Currently supported features: thickness,flair,FA,ADC,qT1
-\t\t\033[38;5;120m-smoothing\033[0m   : Specify size of gaussian smoothing kernel (Default: 2mm). If set to 0, no smoothing is applied.
+\t\t\033[38;5;120m-smoothHipp\033[0m   : Specify size of gaussian smoothing kernel (Default: 2mm). If set to 0, no smoothing is applied.
 \t\033[38;5;197m-proc_subcortex\033[0m      : run post-processing of subcortical structures for report generation. Relies on Freesurfer and micapipe
 \t\t\033[38;5;120m-featureStr\033[0m  : Specify which subcortical features should undergo post-processing
 \t\t\t         Default is '-featureStr all', meaning all available features based on BIDS outputs
@@ -143,8 +143,8 @@ do
     feat=$2
     shift;shift
   ;;
-  -smoothing)
-    smooth=$2
+  -smoothCtx)
+    smoothCtx=$2
     shift;shift
   ;;
   -proc_hippocampus)
@@ -155,8 +155,8 @@ do
     feat=$2
     shift;shift
   ;;
-  -smoothing)
-    smooth=$2
+  -smoothHipp)
+    smoothHipp=$2
     shift;shift
   ;;
   -proc_subcortex)
@@ -320,7 +320,6 @@ if [ -z ${dir_subjsurf} ]; then FSdir="FALSE"; else  FSdir=$(realpath $dir_subjs
 
 # Feature selection and smoothing
 if [ -z ${feat} ]; then featStr='all'; else featStr="$feat"; fi
-if [ -z ${smooth} ]; then smoothing=DEFAULT; else smoothing="$smooth"; fi
 if [ -z ${smoothCtx} ]; then smoothCtx='5mm'; else smoothingCTX="$smoothCTX"; fi
 if [ -z ${smoothHipp} ]; then smoothHipp='2mm'; else smoothingHIPP="$smoothHIPP"; fi
 
@@ -420,7 +419,7 @@ if [ "$ALL" = "TRUE" ] || [ "$ctxPROC" = "TRUE" ]; then
     # Define UTILITIES directory
     export scriptDir=${ZBRAINS}/functions
 
-    COMMAND="${scriptDir}/01_ctx_proc.sh $BIDS $id $out $SES $FSdir $nocleanup $threads $tmpDir $featStr $smoothing"
+    COMMAND="${scriptDir}/01_ctx_proc.sh $BIDS $id $out $SES $FSdir $nocleanup $threads $tmpDir $featStr $smoothCtx"
     # mica.q - Structural processing: Cortex
     if [[ $micaq == "TRUE" ]]; then
         Info "MICA qsub - Structural processing: Cortex"
@@ -451,7 +450,7 @@ if [ "$ALL" = "TRUE" ] || [ "$hippoPROC" = "TRUE" ]; then
     # Define UTILITIES directory
     export scriptDir=${ZBRAINS}/functions
 
-    COMMAND="${scriptDir}/01_hippo_proc.sh $BIDS $id $out $SES $FSdir $nocleanup $threads $tmpDir $featStr $smoothing"
+    COMMAND="${scriptDir}/01_hippo_proc.sh $BIDS $id $out $SES $FSdir $nocleanup $threads $tmpDir $featStr $smoothHipp"
     # mica.q - Structural processing: Hippocampus
     if [[ $micaq == "TRUE" ]]; then
         Info "MICA qsub - Structural processing: Hippocampus"

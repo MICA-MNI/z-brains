@@ -25,7 +25,7 @@ nocleanup=$6
 threads=$7
 tmpDir=$8
 featStr=$9
-smoothing=${10}
+fwhm=${10}
 PROC=${11}
 export OMP_NUM_THREADS=$threads
 here=$(pwd)
@@ -104,8 +104,6 @@ elif [[ "$featStr" == "all" ]]; then
         featList_ctx+=("thickness"); fi
 fi
 
-# smoothing
-if [[ "$smoothing" == "DEFAULT" ]]; then fwhm=5; else fwhm=${smoothing}; fi
 
 #------------------------------------------------------------------------------#
 ### Cortical thickness ###
