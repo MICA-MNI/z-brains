@@ -42,7 +42,7 @@ echo -e "
 \t\t\t         Currently supported features: volume,flair,FA,ADC,qT1
 
    Flags for case-control analysis and clinical report generation:
-\t\033[38;5;197m-regional_z\033[0m          : Multivariate regional analysis
+\t\033[38;5;197m-regional\033[0m          : Multivariate regional analysis
 \t\t\033[38;5;120m-thr\033[0m         : Z-score threshold for regional maps
 \t\t\t         Default=|1.96|
 \t\t\033[38;5;120m-demo\033[0m        : Path to demographic file
@@ -87,11 +87,9 @@ echo -e "
 
 
 \033[38;5;141mDEPENDENCIES:\033[0m
-    > FSL         6.0     (https://fsl.fmrib.ox.ac.uk/fsl/fslwiki)
     > workbench   1.4.2   (https://www.humanconnectome.org/software/workbench-command)
+    > ANTS        2.3.3   (https://github.com/ANTsX/ANTs)
     > python      3.7.6   (https://www.python.org)
-    > hippunfold  1.3.0   (https://github.com/khanlab/hippunfold)
-    > micapipe    0.2.0   (https://github.com/MICA-MNI/micapipe)
 
 
 McGill University, MNI, MICA lab, April 2023
@@ -169,7 +167,7 @@ do
     feat=$2
     shift;shift
   ;;
-  -regional_z)
+  -regional)
     REGZ=TRUE
     shift
   ;;
@@ -267,7 +265,7 @@ Error "A processing flag is missing:
                     -proc_cortex
                     -proc_hippocampus
                     -proc_subcortex
-                    -regional_z
+                    -regional
                     -asymmetry"
 help; exit 1; fi
 
@@ -389,14 +387,18 @@ fi
 # Creates subject directory if it doesn't exist
 if [ ! -d "${subject_dirz}" ]; then
     Info "Subject ${idBIDS} directory doesn't exist, creating..."
-    Do_cmd mkdir -m 770 -p "${subject_dirz}"/{logs,subcortex,cortex,hippocampus,asymmetry,regional,scene}
+    Do_cmd mkdir -m 770 -p "${subject_dirz}"/{logs,maps,norm-z,norm-propensity,norm-normative}
+    Do_cmd mkdir -m 770 -p "${subject_dirz}"/maps/{subcortex,cortex,hippocampus}
+    Do_cmd mkdir -m 770 -p "${subject_dirz}"/norm-z/{subcortex,cortex,hippocampus}
+    Do_cmd mkdir -m 770 -p "${subject_dirz}"/norm-propensity/{subcortex,cortex,hippocampus}
+    Do_cmd mkdir -m 770 -p "${subject_dirz}"/norm-normative/{subcortex,cortex,hippocampus}
     chmod g+xX -R "${subject_dirz}"
 fi
 
 # -----------------------------------------------------------------------------------------------#
 # subject_dir
 if [ ! -d "${subject_dir}" ]; then
-    Error "Subject ${id} directory doesn't exist, run micapipe v0.2.0 before running z-brains"
+    Error "Subject ${id} directory doesn't exist, run micapipe v0.2.2 before running z-brains"
 exit 1; fi
 
 # freesurfer Directory
@@ -508,21 +510,21 @@ fi
 # # #        Multivariate analysis: REGIONAL Z
 # -----------------------------------------------------------------------------------------------#
 if [ "$ALL" = "TRUE" ] || [ "$REGZ" = "TRUE" ]; then
-    log_file_str=$outLogs/regional_z_$(date +'%d-%m-%Y')
+    log_file_str=$outLogs/regional_$(date +'%d-%m-%Y')
 
     export scriptDir=${ZBRAINS}/functions
 
     COMMAND="${scriptDir}/02_regional_analysis.sh $BIDS $id $out $SES $nocleanup $threads $tmpDir $thr $demo"
     # mica.q - Multivariate analysis: REGIONAL Z
     if [[ $micaq == "TRUE" ]]; then
-        Info "MICA qsub - Multivariate analysis: REGIONAL Z"
+        Info "MICA qsub - Multivariate analysis: REGIONAL"
         Warning "This option only works on the MICA workstations"
         export PROC="qsub-MICA"
         # Info "Setting a warper to run on mica.q"
         qsub -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_regionZ -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
              # all.q - Multivariate analysis: REGIONAL Z
     elif [[ $qall == "TRUE" ]]; then
-        Info "all.q qsub - Multivariate analysis: REGIONAL Z"
+        Info "all.q qsub - Multivariate analysis: REGIONAL"
         Warning "This option only works on the McGill BIC network"
         export PROC="qsub-all.q"
         # Info "Setting a warper to run on all.q"
