@@ -26,14 +26,14 @@ echo -e "
 \t\t\t         To only process one feature, specify using string: e.g. '-featureStr flair'
 \t\t\t         Multiple inputs example = '-featureStr flair,FA,ADC'
 \t\t\t         Currently supported features: thickness,flair,FA,ADC,qT1
-\t\t\033[38;5;120m-smoothing\033[0m   : Specify size of gaussian smoothing kernel (Default: 5mm). If set to 0, no smoothing is applied.
+\t\t\033[38;5;120m-smoothCtx\033[0m   : Specify size of gaussian smoothing kernel (Default: 5mm). If set to 0, no smoothing is applied.
 \t\033[38;5;197m-proc_hippocampus\033[0m    : run post-processing of hippocampal features for report generation. Relies on hippunfold derivatives
 \t\t\033[38;5;120m-featureStr\033[0m  : Specify which hippocampal features should undergo post-processing
 \t\t\t         Default is '-featureStr all', meaning all available features based on BIDS raw data
 \t\t\t         To only process one feature, specify using string: e.g. '-featureStr flair'
 \t\t\t         Multiple inputs example = '-featureStr flair,FA,ADC'
 \t\t\t         Currently supported features: thickness,flair,FA,ADC,qT1
-\t\t\033[38;5;120m-smoothing\033[0m   : Specify size of gaussian smoothing kernel (Default: 2mm). If set to 0, no smoothing is applied.
+\t\t\033[38;5;120m-smoothHipp\033[0m   : Specify size of gaussian smoothing kernel (Default: 2mm). If set to 0, no smoothing is applied.
 \t\033[38;5;197m-proc_subcortex\033[0m      : run post-processing of subcortical structures for report generation. Relies on Freesurfer and micapipe
 \t\t\033[38;5;120m-featureStr\033[0m  : Specify which subcortical features should undergo post-processing
 \t\t\t         Default is '-featureStr all', meaning all available features based on BIDS outputs
@@ -42,7 +42,7 @@ echo -e "
 \t\t\t         Currently supported features: volume,flair,FA,ADC,qT1
 
    Flags for case-control analysis and clinical report generation:
-\t\033[38;5;197m-regional_z\033[0m          : Multivariate regional analysis
+\t\033[38;5;197m-regional\033[0m          : Multivariate regional analysis
 \t\t\033[38;5;120m-csvControls\033[0m       : A list of control subjects
 \t\t\t         Default='/data_/mica1/03_projects/jessica/hackathon2023/lists/control.csv'
 \t\t\033[38;5;120m-demo\033[0m        : Path to demographic file
@@ -87,11 +87,9 @@ echo -e "
 
 
 \033[38;5;141mDEPENDENCIES:\033[0m
-    > FSL         6.0     (https://fsl.fmrib.ox.ac.uk/fsl/fslwiki)
     > workbench   1.4.2   (https://www.humanconnectome.org/software/workbench-command)
+    > ANTS        2.3.3   (https://github.com/ANTsX/ANTs)
     > python      3.7.6   (https://www.python.org)
-    > hippunfold  1.3.0   (https://github.com/khanlab/hippunfold)
-    > micapipe    0.2.0   (https://github.com/MICA-MNI/micapipe)
 
 
 McGill University, MNI, MICA lab, April 2023
@@ -145,8 +143,8 @@ do
     feat=$2
     shift;shift
   ;;
-  -smoothing)
-    smooth=$2
+  -smoothCtx)
+    smoothCtx=$2
     shift;shift
   ;;
   -proc_hippocampus)
@@ -157,8 +155,8 @@ do
     feat=$2
     shift;shift
   ;;
-  -smoothing)
-    smooth=$2
+  -smoothHipp)
+    smoothHipp=$2
     shift;shift
   ;;
   -proc_subcortex)
@@ -169,7 +167,7 @@ do
     feat=$2
     shift;shift
   ;;
-  -regional_z)
+  -regional)
     REGZ=TRUE
     shift
   ;;
@@ -267,7 +265,7 @@ Error "A processing flag is missing:
                     -proc_cortex
                     -proc_hippocampus
                     -proc_subcortex
-                    -regional_z
+                    -regional
                     -asymmetry"
 help; exit 1; fi
 
@@ -322,7 +320,6 @@ if [ -z ${dir_subjsurf} ]; then FSdir="FALSE"; else  FSdir=$(realpath $dir_subjs
 
 # Feature selection and smoothing
 if [ -z ${feat} ]; then featStr='all'; else featStr="$feat"; fi
-if [ -z ${smooth} ]; then smoothing=DEFAULT; else smoothing="$smooth"; fi
 if [ -z ${smoothCtx} ]; then smoothCtx='5mm'; else smoothingCTX="$smoothCTX"; fi
 if [ -z ${smoothHipp} ]; then smoothHipp='2mm'; else smoothingHIPP="$smoothHIPP"; fi
 
@@ -386,18 +383,19 @@ else
 fi
 
 # subject_dir
+
 # Creates subject directory 
 Do_cmd mkdir -m 770 -p "${subject_dirz}"/{logs,maps,norm-z,norm-propensity,norm-normative}
 Do_cmd mkdir -m 770 -p "${subject_dirz}"/maps/{subcortex,cortex,hippocampus}
 Do_cmd mkdir -m 770 -p "${subject_dirz}"/norm-z/{subcortex,cortex,hippocampus}
 Do_cmd mkdir -m 770 -p "${subject_dirz}"/norm-propensity/{subcortex,cortex,hippocampus}
 Do_cmd mkdir -m 770 -p "${subject_dirz}"/norm-normative/{subcortex,cortex,hippocampus}
-chmod g+xX -R "${subject_dirz}"
+chmod g+xX -R --silent "${subject_dirz}"
 
 # -----------------------------------------------------------------------------------------------#
 # subject_dir
 if [ ! -d "${subject_dir}" ]; then
-    Error "Subject ${id} directory doesn't exist, run micapipe v0.2.0 before running z-brains"
+    Error "Subject ${id} directory doesn't exist, run micapipe v0.2.2 before running z-brains"
 exit 1; fi
 
 # freesurfer Directory
@@ -421,7 +419,7 @@ if [ "$ALL" = "TRUE" ] || [ "$ctxPROC" = "TRUE" ]; then
     # Define UTILITIES directory
     export scriptDir=${ZBRAINS}/functions
 
-    COMMAND="${scriptDir}/01_ctx_proc.sh $BIDS $id $out $SES $FSdir $nocleanup $threads $tmpDir $featStr $smoothing"
+    COMMAND="${scriptDir}/01_ctx_proc.sh $BIDS $id $out $SES $FSdir $nocleanup $threads $tmpDir $featStr $smoothCtx"
     # mica.q - Structural processing: Cortex
     if [[ $micaq == "TRUE" ]]; then
         Info "MICA qsub - Structural processing: Cortex"
@@ -452,7 +450,7 @@ if [ "$ALL" = "TRUE" ] || [ "$hippoPROC" = "TRUE" ]; then
     # Define UTILITIES directory
     export scriptDir=${ZBRAINS}/functions
 
-    COMMAND="${scriptDir}/01_hippo_proc.sh $BIDS $id $out $SES $FSdir $nocleanup $threads $tmpDir $featStr $smoothing"
+    COMMAND="${scriptDir}/01_hippo_proc.sh $BIDS $id $out $SES $FSdir $nocleanup $threads $tmpDir $featStr $smoothHipp"
     # mica.q - Structural processing: Hippocampus
     if [[ $micaq == "TRUE" ]]; then
         Info "MICA qsub - Structural processing: Hippocampus"
@@ -509,7 +507,7 @@ fi
 # # #        Multivariate analysis: REGIONAL Z
 # -----------------------------------------------------------------------------------------------#
 if [ "$ALL" = "TRUE" ] || [ "$REGZ" = "TRUE" ]; then
-    log_file_str=$outLogs/regional_z_$(date +'%d-%m-%Y')
+    log_file_str=$outLogs/regional_$(date +'%d-%m-%Y')
 
     export scriptDir=${ZBRAINS}/functions
 
@@ -517,14 +515,14 @@ if [ "$ALL" = "TRUE" ] || [ "$REGZ" = "TRUE" ]; then
     echo $COMMAND
     # mica.q - Multivariate analysis: REGIONAL Z
     if [[ $micaq == "TRUE" ]]; then
-        Info "MICA qsub - Multivariate analysis: REGIONAL Z"
+        Info "MICA qsub - Multivariate analysis: REGIONAL"
         Warning "This option only works on the MICA workstations"
         export PROC="qsub-MICA"
         # Info "Setting a warper to run on mica.q"
         qsub -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_regionZ -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
              # all.q - Multivariate analysis: REGIONAL Z
     elif [[ $qall == "TRUE" ]]; then
-        Info "all.q qsub - Multivariate analysis: REGIONAL Z"
+        Info "all.q qsub - Multivariate analysis: REGIONAL"
         Warning "This option only works on the McGill BIC network"
         export PROC="qsub-all.q"
         # Info "Setting a warper to run on all.q"

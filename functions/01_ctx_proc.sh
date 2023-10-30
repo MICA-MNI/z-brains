@@ -25,7 +25,7 @@ nocleanup=$6
 threads=$7
 tmpDir=$8
 featStr=$9
-smoothing=${10}
+fwhm=${10}
 PROC=${11}
 export OMP_NUM_THREADS=$threads
 here=$(pwd)
@@ -89,9 +89,9 @@ outLogs="${subject_dirz}/logs/"
 
 # Manage manual inputs: feature processing
 featList_ctx=()
-if [[ "$featStr" != "DEFAULT" ]]; then
+if [[ "$featStr" != "all" ]]; then
     IFS=',' read -ra featList_ctx <<< "$featStr"
-elif [[ "$featStr" == "DEFAULT" ]]; then
+elif [[ "$featStr" == "all" ]]; then
     if [ -f "${mapsDir}/${idBIDS}_hemi-L_surf-fsLR-32k_label-white_flair.func.gii" ]; then
         featList_ctx+=("flair"); fi
     if [ -f "${mapsDir}/${idBIDS}_hemi-L_surf-fsLR-32k_label-white_T1map.func.gii" ]; then
@@ -104,8 +104,6 @@ elif [[ "$featStr" == "DEFAULT" ]]; then
         featList_ctx+=("thickness"); fi
 fi
 
-# smoothing
-if [[ "$smoothing" == "DEFAULT" ]]; then fwhm=5; else fwhm=${smoothing}; fi
 
 #------------------------------------------------------------------------------#
 ### Cortical thickness ###

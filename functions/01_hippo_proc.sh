@@ -25,7 +25,7 @@ nocleanup=$6
 threads=$7
 tmpDir=$8
 featStr=$9
-smoothing=${10}
+fwhm=${10}
 PROC=${11}
 export OMP_NUM_THREADS=$threads
 here=$(pwd)
@@ -90,9 +90,9 @@ outLogs="${subject_dirz}/logs/"
 
 # Manage manual inputs: feature processing
 featList_hippo=()
-if [[ "$featStr" != "DEFAULT" ]]; then
+if [[ "$featStr" != "all" ]]; then
     IFS=',' read -ra featList_hippo <<< "$featStr"
-elif [[ "$featStr" == "DEFAULT" ]]; then
+elif [[ "$featStr" == "all" ]]; then
     if [ -f "${mapsDir}/${idBIDS}_space-nativepro_map-flair.nii.gz" ]; then
         featList_hippo+=("flair"); fi
     if [ -f "${mapsDir}/${idBIDS}_space-nativepro_map-T1map.nii.gz" ]; then
@@ -104,9 +104,6 @@ elif [[ "$featStr" == "DEFAULT" ]]; then
     if [ -f "${hippoDir}/surf/${idBIDS}_hemi-R_space-T1w_den-0p5mm_label-hipp_thickness.shape.gii" ]; then
         featList_hippo+=("thickness"); fi
 fi
-
-# smoothing
-if [[ "$smoothing" == "DEFAULT" ]]; then fwhm=2; else fwhm=${smoothing}; fi
 
 #------------------------------------------------------------------------------#
 ### Hippocampal thickness ###
