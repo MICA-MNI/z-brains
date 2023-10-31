@@ -1,0 +1,574 @@
+#!/bin/bash
+#
+# Z-BRAINS - Generating, normalizing, and visualizing structural imaging features
+#
+version() {
+  echo -e "\z-brains April 2023 (Version v.0.0.2 'reborn')\n"
+}
+export this_version="v0.0.2 'reborn'"
+#---------------- FUNCTION: HELP ----------------#
+help() {
+echo -e "
+\033[38;5;141mCOMMAND:\033[0m
+   $(basename $0)
+
+
+\033[38;5;141mARGUMENTS:\033[0m
+\t\033[38;5;197m-sub\033[0m         : idBIDS identification
+\t\033[38;5;197m-rawdir\033[0m      : Path to BIDS raw data directory
+\t\033[38;5;197m-hippdir\033[0m     : Path to hippunfold derivatives directory
+\t\033[38;5;197m-micapipedir\033[0m : Path to micapipe derivatives directory
+\t\033[38;5;197m-outdir\033[0m      : Output directory for processed z-brains derivatives.
+\t\033[38;5;120m-ses\033[0m         : OPTIONAL flag that indicates the session name (if omitted will manage as SINGLE session)
+
+
+   Flags for cortical, hippocampal, and subcortical feature post-processing:
+\t\033[38;5;197m-proc_cortex\033[0m         : run post-processing of cortical features for report generation. Relies on micapipe derivatives
+\t\t\033[38;5;120m-featureStr\033[0m  : Specify which cortical features should undergo post-processing
+\t\t\t         Default is '-featureStr all', meaning all features found under /derivatives/micapipe/subject/maps
+\t\t\t         To only process one feature, specify using string: e.g. '-featureStr flair'
+\t\t\t         Multiple inputs example = '-featureStr flair,FA,ADC'
+\t\t\t         Currently supported features: thickness,flair,FA,ADC,qT1
+\t\t\033[38;5;120m-smoothing\033[0m   : Specify size of gaussian smoothing kernel (Default: 5mm). If set to 0, no smoothing is applied.
+\t\033[38;5;197m-proc_hippocampus\033[0m    : run post-processing of hippocampal features for report generation. Relies on hippunfold derivatives
+\t\t\033[38;5;120m-featureStr\033[0m  : Specify which hippocampal features should undergo post-processing
+\t\t\t         Default is '-featureStr all', meaning all available features based on BIDS raw data
+\t\t\t         To only process one feature, specify using string: e.g. '-featureStr flair'
+\t\t\t         Multiple inputs example = '-featureStr flair,FA,ADC'
+\t\t\t         Currently supported features: thickness,flair,FA,ADC,qT1
+\t\t\033[38;5;120m-smoothing\033[0m   : Specify size of gaussian smoothing kernel (Default: 2mm). If set to 0, no smoothing is applied.
+\t\033[38;5;197m-proc_subcortex\033[0m      : run post-processing of subcortical structures for report generation. Relies on Freesurfer and micapipe
+\t\t\033[38;5;120m-featureStr\033[0m  : Specify which subcortical features should undergo post-processing
+\t\t\t         Default is '-featureStr all', meaning all available features based on BIDS outputs
+\t\t\t         To only process one feature, specify using string: e.g. '-featureStr flair'
+\t\t\t         Multiple inputs example = '-featureStr flair,FA,ADC'
+\t\t\t         Currently supported features: volume,flair,FA,ADC,qT1
+
+   Flags for case-control analysis and clinical report generation:
+\t\033[38;5;197m-regional\033[0m          : Multivariate regional analysis
+\t\t\033[38;5;120m-thr\033[0m         : Z-score threshold for regional maps
+\t\t\t         Default=|1.96|
+\t\t\033[38;5;120m-demo\033[0m        : Path to demographic file
+\t\t\t         Default=''
+\t\t\033[38;5;120m-featureStr\033[0m  : Specify which cortical/subcortical/hippocampal features should be analyzed
+\t\t\t         Default=all
+\t\t\t         Multiple inputs example = '-featureStr thickness,FA,ADC'
+\t\t\033[38;5;120m-smoothCtx\033[0m   : Specify size of gaussian smoothing kernel used to generate cortical input features
+\t\t\t         Default=5mm
+\t\t\033[38;5;120m-smoothHipp\033[0m  : Specify size of gaussian smoothing kernel used to generate hippocampal input features
+\t\t\t         Default=2mm
+\t\033[38;5;197m-asymmetry\033[0m           : Multivariate feature asymmetry analysis
+\t\t\033[38;5;120m-thr\033[0m         : Z-score threshold for asymmetry maps
+\t\t\t         Default=|1.96|
+\t\t\033[38;5;120m-demo\033[0m        : Path to demographic file
+\t\t\t         Default=''
+\t\t\033[38;5;120m-featureStr\033[0m  : Specify which cortical/subcortical/hippocampal features should be analyzed
+\t\t\t         Default=all
+\t\t\t         Multiple inputs example = '-featureStr thickness,FA,ADC'
+\t\t\033[38;5;120m-smoothCtx\033[0m   : Specify size of gaussian smoothing kernel used to generate cortical input features
+\t\t\t         Default=5mm
+\t\t\033[38;5;120m-smoothHipp\033[0m  : Specify size of gaussian smoothing kernel used to generate hippocampal input features
+\t\t\t         Default=2mm
+
+
+\033[38;5;141mOPTIONS:\033[0m
+\t\033[38;5;197m-h|-help\033[0m         : Print help
+\t\033[38;5;197m-v|-version\033[0m      : Print software version
+\t\033[38;5;197m-force\033[0m           : WARNING this will overwrite the idBIDS directory
+\t\033[38;5;197m-quiet\033[0m           : Do not print comments
+\t\033[38;5;197m-nocleanup\033[0m       : Do not delete temporary directory at script completion
+\t\033[38;5;197m-threads\033[0m         : Number of threads (Default is 6)
+\t\033[38;5;197m-tmpDir\033[0m          : Specify location of temporary directory <path> (Default is /tmp)
+\t\033[38;5;197m-slim\033[0m            : This option will keep only the main outputs and erase all the intermediate files
+\t\033[38;5;197m-mica\033[0m            : Only for MICA local processing
+\t\033[38;5;197m-qsub\033[0m            : Only for MICA network processing (SGE mica.q)
+\t\033[38;5;197m-qall\033[0m            : Only for MICA network processing (SGE all.q)
+
+
+\033[38;5;141mUSAGE:\033[0m
+    \033[38;5;141m$(basename $0)\033[0m  \033[38;5;197m-sub\033[0m <idBIDS_id>
+              \033[38;5;197m-rawdir\033[0m <raw_data_directory>
+              \033[38;5;197m-hippdir\033[0m <hippunfold_directory>
+              \033[38;5;197m-micapipedir\033[0m <micapipe_directory>
+              \033[38;5;197m-outdir\033[0m <output_directory>
+              \033[38;5;197m-proc_subcortex\033[0m
+
+
+
+\033[38;5;141mDEPENDENCIES:\033[0m
+    > workbench   1.4.2   (https://www.humanconnectome.org/software/workbench-command)
+    > ANTS        2.3.3   (https://github.com/ANTsX/ANTs)
+    > python      3.7.6   (https://www.python.org)
+
+
+McGill University, MNI, MICA lab, April 2023
+https://github.com/MICA-MNI/micapipe
+https://github.com/MICA-MNI/z-brains
+http://mica-mni.github.io/
+"
+}
+
+# Source utilities functions
+if [ -z ${ZBRAINS} ]; then echo "ZBRAINS NOT DEFINED ð¤"; exit 0; fi
+export scriptDir=${ZBRAINS}/functions
+source "${scriptDir}/utilities.sh"
+
+# ----------------------------------------------------------------------------------------------- #
+# -------------------------- Handle all arguments and create variables -------------------------- #
+# ----------------------------------------------------------------------------------------------- #
+
+for arg in "$@"; do
+  case "$arg" in
+  -h|-help)
+    help
+    exit 1
+  ;;
+  -v|-version)
+    version
+    exit 1
+  ;;
+  -sub)
+    id=$2
+    shift;shift
+  ;;
+  -rawdir)
+    rawdir=$2
+    shift;shift
+  ;;
+  -hippdir)
+    hippdir=$2
+    shift;shift
+  ;;
+  -micapipedir)
+    micapipedir=$2
+    shift;shift
+  ;;
+  -outdir)
+    outdir=$2
+    shift;shift
+  ;;
+  -ses)
+    SES=$2
+    shift;shift
+  ;;
+  -proc_cortex)
+    ctxPROC=TRUE
+    shift
+  ;;
+  -featureStr)
+    feat=$2
+    shift;shift
+  ;;
+  -smoothing)
+    smooth=$2
+    shift;shift
+  ;;
+  -proc_hippocampus)
+    hippoPROC=TRUE
+    shift
+  ;;
+  -featureStr)
+    feat=$2
+    shift;shift
+  ;;
+  -smoothing)
+    smooth=$2
+    shift;shift
+  ;;
+  -proc_subcortex)
+    sctxPROC=TRUE
+    shift
+  ;;
+  -featureStr)
+    feat=$2
+    shift;shift
+  ;;
+  -regional)
+    REGZ=TRUE
+    shift
+  ;;
+  -thr)
+    thr=$2
+    shift;shift
+  ;;
+  -demo)
+    demo=$2
+    shift;shift
+  ;;
+  -smoothCtx)
+    smoothCTX=$2
+    shift;shift
+  ;;
+  -smoothHipp)
+    smoothHIPP=$2
+    shift;shift
+  ;;
+  -asymmetry)
+    ASYMMETRY=TRUE
+    shift
+  ;;
+  -thr)
+    thr=$2
+    shift;shift
+  ;;
+  -demo)
+    demo=$2
+    shift;shift
+  ;;
+  -featureStr)
+    feat=$2
+    shift;shift
+  ;;
+  -smoothCtx)
+    smoothCTX=$2
+    shift;shift
+  ;;
+  -smoothHipp)
+    smoothHIPP=$2
+    shift;shift
+  ;;
+  -mica)
+    mica=TRUE
+    shift
+  ;;
+  -tmpDir)
+    tmpDir=$2
+    shift;shift;
+  ;;
+  -qsub)
+    micaq=TRUE
+    shift
+  ;;
+  -qall)
+    qall=TRUE
+    shift
+  ;;
+  -nocleanup)
+    nocleanup=TRUE
+    shift
+  ;;
+  -threads)
+    threads=$2
+    shift;shift
+  ;;
+  -force)
+    force=TRUE
+    shift
+  ;;
+  -quiet)
+    quiet=TRUE
+    shift
+  ;;
+  -*)
+    Error "Unknown option ${2}"
+    help
+    exit 1
+  ;;
+    esac
+done
+
+# ------------------------------ Check arguments and send warnings ------------------------------ #
+arg=($id $rawdir $hippdir $micapipedir $outdir)
+if [ ${#arg[@]} -lt 5 ]; then
+Error "One or more mandatory arguments are missing:
+               -sub         : $id
+               -rawdir      : $rawdir
+               -hippdir     : $hippdir
+               -micapipedir : $micapipedir
+               -outdir      : $outdir"
+help; exit 1; fi
+runs=($ALL $ctxPROC $hippoPROC $sctxPROC $REGZ $ASYMMETRY)
+if [ "${#runs[@]}" -lt 1 ]; then
+Error "A processing flag is missing:
+                    -proc_cortex
+                    -proc_hippocampus
+                    -proc_subcortex
+                    -regional
+                    -asymmetry"
+help; exit 1; fi
+
+# Get the real path of the Inputs
+indir=$(realpath $rawdir)
+outmicapipe=$(realpath $micapipedir)
+outhipp=$(realpath $hippdir)
+outz=$(realpath $outdir)
+
+id=${id/sub-/}
+here=$(pwd)
+
+# Number of session (Default is "ses-pre")
+if [ -z ${SES} ]; then SES="SINGLE"; else SES="ses-${SES/ses-/}"; fi
+
+# Assign variables names
+bids_variables "$id" "$rawdir" "$hippdir" "$micapipedir" "$outdir" "$SES"
+
+# Check raw data irectory
+if [ ! -d "${indir}" ]; then Error "$id was not found in the BIDS raw data directory\n\t Check ls ${indir}"; exit 1; fi
+
+# Erase temporary files by default
+if [ -z ${nocleanup} ]; then nocleanup=FALSE; fi
+
+# No print Do_cmd
+if [ "$quiet" = "TRUE" ]; then export quiet=TRUE; fi
+
+# Temporary directory
+if [ -z ${tmpDir} ]; then export tmpDir=/tmp; else tmpDir=$(realpath $tmpDir); fi
+if [ ! -d ${tmpDir} ]; then Do_cmd mkdir -p $tmpDir; fi
+
+# Set surface directory and check if subject has a surface directory
+Nrecon=($(ls "${dir_QC}/${idBIDS}_module-proc_surf-"*.json 2>/dev/null | wc -l))
+if [[ "$Nrecon" -lt 1 ]]; then
+  Error "Subject $id doesn't have a module-proc_surf: run -proc_surf"; exit 1
+elif [[ "$Nrecon" -eq 1 ]]; then
+  module_qc=$(ls "${dir_QC}/${idBIDS}_module-proc_surf-"*.json 2>/dev/null)
+  recon="$(echo ${module_qc/.json/} | awk -F 'proc_surf-' '{print $2}')"
+elif [[ "$Nrecon" -gt 1 ]]; then
+  Warning "${idBIDS} has been processed with freesurfer and fastsurfer."
+  if [[ "$FastSurfer" == "TRUE" ]]; then
+    Note "fastsurfer will run: $FastSurfer\n"; recon="fastsurfer";
+  else
+    Note "freesurfer is the default"; recon="freesurfer"
+  fi
+fi
+
+set_surface_directory "${recon}"
+if [ -z ${dir_subjsurf} ]; then FSdir="FALSE"; else  FSdir=$(realpath $dir_subjsurf); fi
+
+if [ ! -d "$FSdir" ]; then
+    Error "Subject ${id} freesurfer directory doesn't exist, run freesurfer or fastsurfer before running z-brains"
+exit 1; fi
+
+# Check if subject's micapipe directory exists
+if [ ! -d "${subject_micapipe}" ]; then
+    Error "Subject ${id} micapipe directory doesn't exist, run micapipe v0.2.2 before running z-brains"
+exit 1; fi
+
+
+# ----------------------------------- Set optional arguments ------------------------------------ #
+
+# Feature selection and smoothing
+if [ -z ${feat} ]; then featStr=DEFAULT; else featStr="$feat"; fi
+if [ -z ${smooth} ]; then smoothing=DEFAULT; else smoothing="$smooth"; fi
+if [ -z ${smoothCTX} ]; then smoothingCTX=DEFAULT; else smoothingCTX="$smoothCTX"; fi
+if [ -z ${smoothHIPP} ]; then smoothingHIPP=DEFAULT; else smoothingHIPP="$smoothHIPP"; fi
+
+# arguments for regional and asymmetry analysis
+if [ -z "$thr" ]; then thr=1.96; fi
+if [ -z "$demo" ]; then demo=''; fi
+
+
+# ----------------------------------------------------------------------------------------------- #
+# ------------------------------------- Start of processing ------------------------------------- #
+# ----------------------------------------------------------------------------------------------- #
+Title "z-brains pipeline - (Version $this_version) \n\t\tidBIDS: $id Session: $SES"
+
+# -------------------- Launch the init file for local processing at MICA lab -------------------- #
+if [ "$micaq" = "TRUE" ] || [ "$qall" = "TRUE" ] || [ "$mica" = "TRUE" ]; then
+    source "${ZBRAINS}/functions/init.sh" "$threads"
+else
+    # tree display
+    if [[ -z $(which tree) ]]; then Warn "tree function was not found"; fi
+    # ANTSx
+    if [[ -z $(which antsRegistration) ]]; then Error "ANTs was not found"; exit 1; fi
+    # workbench
+    if [[ -z $(which wb_command) ]]; then Error "Workbench was not found"; exit 1; fi
+fi
+
+# Processing default
+if [[ -z $PROC ]]; then export PROC="LOCAL"; fi
+
+# Number of THREADS used by ANTs and workbench, default is 6 if not defined by -threads
+if [[ -z $threads ]]; then export threads=6; fi
+Info "z-brains will use $threads threads for multicore processing"
+
+# If -force flag specified 
+if [[ ${force} == TRUE ]]; then
+  Warning "$id processing directory will be overwritten"
+  rm -rf $outz/${idBIDS};
+fi
+
+# Timer & Beginning
+aloita=$(date +%s)
+
+# Create output directory if does not exist
+if [ ! -d ${outz} ]; then Do_cmd mkdir -p ${outz}; fi
+
+# Handle single session
+if [ "$SES" == "SINGLE" ]; then
+  export subject_dirz=$outz/${subject}
+  ses=""
+else
+  export subject_dirz=$outz/${subject}/${SES}
+  ses="_${SES}"
+fi
+
+# Create subject directory in output directory if it does not exist
+if [ ! -d "${subject_dirz}" ]; then
+    Info "Subject ${idBIDS} directory doesn't exist, creating..."
+    Do_cmd mkdir -m 770 -p "${subject_dirz}"/{logs,maps,norm-z,norm-propensity,norm-normative}
+    Do_cmd mkdir -m 770 -p "${subject_dirz}"/maps/{subcortex,cortex,hippocampus}
+    Do_cmd mkdir -m 770 -p "${subject_dirz}"/norm-z/{subcortex,cortex,hippocampus}
+    Do_cmd mkdir -m 770 -p "${subject_dirz}"/norm-propensity/{subcortex,cortex,hippocampus}
+    Do_cmd mkdir -m 770 -p "${subject_dirz}"/norm-normative/{subcortex,cortex,hippocampus}
+    chmod g+xX -R "${subject_dirz}"
+fi
+
+# Pipeline description json
+zbrains_json
+
+
+# ----------------------------------------------------------------------------------------------- #
+# ------------------------------------- Cortical processing ------------------------------------- #
+# ----------------------------------------------------------------------------------------------- #
+if [ "$ALL" = "TRUE" ] || [ "$ctxPROC" = "TRUE" ]; then
+    log_file_str=${dir_logs}/ctx_proc_$(date +'%d-%m-%Y')
+
+    COMMAND="${scriptDir}/01_ctx_proc.sh $id $indir $outmicapipe $outz $SES $FSdir $nocleanup $threads $tmpDir $featStr $smoothing"
+    # mica.q - Structural processing: Cortex
+    if [[ $micaq == "TRUE" ]]; then
+        Info "MICA qsub - Structural processing: Cortex"
+        Warning "This option only works on the MICA workstations"
+        export PROC="qsub-MICA"
+        # Info "Setting a warper to run on mica.q"
+        qsub -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_ctx_proc -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+             # all.q - Structural processing: Cortex
+    elif [[ $qall == "TRUE" ]]; then
+        Info "all.q qsub - Structural processing: Cortex"
+        Warning "This option only works on the McGill BIC network"
+        export PROC="qsub-all.q"
+        # Info "Setting a warper to run on all.q"
+        qsub -q all.q -pe all.pe $threads -l h_vmem=6G -N q${id}_ctx_proc -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+    else
+        #  LOCAL - Structural processing: Cortex
+        $COMMAND $PROC 2>&1 | tee -a ${log_file_str}.txt
+    fi
+fi
+
+
+# ----------------------------------------------------------------------------------------------- #
+# ------------------------------------ Hippocampal processing ----------------------------------- #
+# ----------------------------------------------------------------------------------------------- #
+if [ "$ALL" = "TRUE" ] || [ "$hippoPROC" = "TRUE" ]; then
+    log_file_str=${dir_logs}/hippo_proc_$(date +'%d-%m-%Y')
+
+    COMMAND="${scriptDir}/01_hippo_proc.sh $id $indir $outhipp $outmicapipe $outz $SES $FSdir $nocleanup $threads $tmpDir $featStr $smoothing"
+    # mica.q - Structural processing: Hippocampus
+    if [[ $micaq == "TRUE" ]]; then
+        Info "MICA qsub - Structural processing: Hippocampus"
+        Warning "This option only works on the MICA workstations"
+        export PROC="qsub-MICA"
+        # Info "Setting a warper to run on mica.q"
+        qsub -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_hippo_proc -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+             # all.q - Structural processing: Hippocampus
+    elif [[ $qall == "TRUE" ]]; then
+        Info "all.q qsub - Structural processing: Hippocampus"
+        Warning "This option only works on the McGill BIC network"
+        export PROC="qsub-all.q"
+        # Info "Setting a warper to run on all.q"
+        qsub -q all.q -pe all.pe $threads -l h_vmem=6G -N q${id}_hippo_proc -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+    else
+        #  LOCAL - Structural processing: Hippocampus
+        $COMMAND $PROC 2>&1 | tee -a ${log_file_str}.txt
+    fi
+fi
+
+
+# ----------------------------------------------------------------------------------------------- #
+# ------------------------------------- Subcortex processing ------------------------------------ #
+# ----------------------------------------------------------------------------------------------- #
+if [ "$ALL" = "TRUE" ] || [ "$sctxPROC" = "TRUE" ]; then
+    log_file_str=${dir_logs}/sctx_proc_$(date +'%d-%m-%Y')
+
+    COMMAND="${scriptDir}/01_sctx_proc.sh $id $indir $outmicapipe $outz $SES $FSdir $nocleanup $threads $tmpDir $featStr"
+    # mica.q - Structural processing: Subcortex
+    if [[ $micaq == "TRUE" ]]; then
+        Info "MICA qsub - Structural processing: Subcortex"
+        Warning "This option only works on the MICA workstations"
+        export PROC="qsub-MICA"
+        # Info "Setting a warper to run on mica.q"
+        qsub -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_sctx_proc -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+             # all.q - Structural processing: Subcortex
+    elif [[ $qall == "TRUE" ]]; then
+        Info "all.q qsub - Structural processing: Subcortex"
+        Warning "This option only works on the McGill BIC network"
+        export PROC="qsub-all.q"
+        # Info "Setting a warper to run on all.q"
+        qsub -q all.q -pe all.pe $threads -l h_vmem=6G -N q${id}_sctx_proc -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+    else
+        #  LOCAL - Structural processing: Subcortex
+        $COMMAND $PROC 2>&1 | tee -a ${log_file_str}.txt
+    fi
+fi
+
+
+# ----------------------------------------------------------------------------------------------- #
+# -------------------------------- Multivariate regional analysis ------------------------------- #
+# ----------------------------------------------------------------------------------------------- #
+if [ "$ALL" = "TRUE" ] || [ "$REGZ" = "TRUE" ]; then
+    log_file_str=${dir_logs}/regional_$(date +'%d-%m-%Y')
+
+    COMMAND="${scriptDir}/02_regional_analysis.sh $BIDS $id $out $SES $nocleanup $threads $tmpDir $thr $demo"
+    # mica.q - Multivariate analysis: REGIONAL Z
+    if [[ $micaq == "TRUE" ]]; then
+        Info "MICA qsub - Multivariate analysis: REGIONAL"
+        Warning "This option only works on the MICA workstations"
+        export PROC="qsub-MICA"
+        # Info "Setting a warper to run on mica.q"
+        qsub -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_regionZ -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+             # all.q - Multivariate analysis: REGIONAL Z
+    elif [[ $qall == "TRUE" ]]; then
+        Info "all.q qsub - Multivariate analysis: REGIONAL"
+        Warning "This option only works on the McGill BIC network"
+        export PROC="qsub-all.q"
+        # Info "Setting a warper to run on all.q"
+        qsub -q all.q -pe all.pe $threads -l h_vmem=6G -N q${id}_regionZ -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+    else
+        #  LOCAL - Multivariate analysis: REGIONAL Z
+        $COMMAND $PROC 2>&1 | tee -a ${log_file_str}.txt
+    fi
+fi
+
+
+# ----------------------------------------------------------------------------------------------- #
+# ------------------------------- Multivariate asymmetry analysis ------------------------------- #
+# ----------------------------------------------------------------------------------------------- #
+if [ "$ALL" = "TRUE" ] || [ "$ASYMMETRY" = "TRUE" ]; then
+    log_file_str=${dir_logs}/asymmetry_$(date +'%d-%m-%Y')
+
+    COMMAND="${scriptDir}/02_asymmetry.sh $BIDS $id $out $SES $nocleanup $threads $tmpDir $thr $demo $featStr $smoothingCTX $smoothingHIPP"
+    # mica.q - Multivariate analysis: ASYMMETRY
+    if [[ $micaq == "TRUE" ]]; then
+        Info "MICA qsub - Multivariate analysis: ASYMMETRY"
+        Warning "This option only works on the MICA workstations"
+        export PROC="qsub-MICA"
+        # Info "Setting a warper to run on mica.q"
+        qsub -q mica.q -pe smp $threads -l h_vmem=6G -N q${id}_asymmetry -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+             # all.q - Multivariate analysis: ASYMMETRY
+    elif [[ $qall == "TRUE" ]]; then
+        Info "all.q qsub - Multivariate analysis: ASYMMETRY"
+        Warning "This option only works on the McGill BIC network"
+        export PROC="qsub-all.q"
+        # Info "Setting a warper to run on all.q"
+        qsub -q all.q -pe all.pe $threads -l h_vmem=6G -N q${id}_asymmetry -e ${log_file_str}.e -o ${log_file_str}.txt $COMMAND $PROC
+    else
+        #  LOCAL - Multivariate analysis: ASYMMETRY
+        $COMMAND $PROC 2>&1 | tee -a ${log_file_str}.txt
+    fi
+fi
+
+: <<'END'
+END
+
+
+# ----------------------------------------------------------------------------------------------- #
+# -------------------------------------- Total running time ------------------------------------- #
+# ----------------------------------------------------------------------------------------------- #
+lopuu=$(date +%s)
+eri=$(echo "$lopuu - $aloita" | bc)
+eri=$(echo print $eri/60 | perl)
+
+# Cleanup if processing was local
+if [ $PROC == "LOCAL" ] || [ "$mica" = "TRUE" ]; then
+    cleanup "$tmpDir/*_zbrains*_${id}" "$nocleanup" "$here"
+fi
+Title "GLOBAL z-brains running time with $PROC processing:\033[38;5;220m $(printf "%0.3f\n" ${eri}) minutes \033[38;5;141m"
