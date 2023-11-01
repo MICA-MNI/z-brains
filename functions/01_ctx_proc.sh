@@ -17,8 +17,8 @@ nocleanup=$7
 threads=$8
 tmpDir=$9
 featStr=${10}
-smoothing=${11}
-PROC=${11}
+fwhm=${11}
+PROC=${12}
 export OMP_NUM_THREADS=$threads
 here=$(pwd)
 
@@ -78,9 +78,9 @@ mapsDir="${subject_micapipe}/maps/"
 
 # Manage manual inputs: feature processing
 featList_ctx=()
-if [[ "$featStr" != "DEFAULT" ]]; then
+if [[ "$featStr" != "all" ]]; then
     IFS=',' read -ra featList_ctx <<< "$featStr"
-elif [[ "$featStr" == "DEFAULT" ]]; then
+elif [[ "$featStr" == "all" ]]; then
     if [ -f "${mapsDir}/${idBIDS}_hemi-L_surf-fsLR-32k_label-white_flair.func.gii" ]; then
         featList_ctx+=("flair"); fi
     if [ -f "${mapsDir}/${idBIDS}_hemi-L_surf-fsLR-32k_label-white_T1map.func.gii" ]; then
@@ -93,8 +93,6 @@ elif [[ "$featStr" == "DEFAULT" ]]; then
         featList_ctx+=("thickness"); fi
 fi
 
-# smoothing
-if [[ "$smoothing" == "DEFAULT" ]]; then fwhm=5; else fwhm=${smoothing}; fi
 
 #------------------------------------------------------------------------------#
 ### Cortical thickness ###
@@ -117,7 +115,7 @@ if [[ "${featList_ctx[*]}" =~ 'thickness' ]]; then
             Do_cmd wb_command -metric-smoothing "${subject_micapipe}/surf/${idBIDS}_hemi-${HEMICAP}_space-nativepro_surf-fsLR-32k_label-white.surf.gii" \
                               "${subject_micapipe}/maps/${idBIDS}_hemi-${HEMICAP}_surf-fsLR-32k_label-thickness.func.gii" \
                               ${fwhm} \
-                              "${subject_dirz}/maps/cortex/${idBIDS}_hemi-${HEMICAP}_label-thickness_smooth-${fwhm}mm.func.gii"
+                              "${subject_dirz}/maps/cortex/${idBIDS}_hemi-${HEMICAP}_feature-thickness_smooth-${fwhm}mm.func.gii"
         done
 
         if [[ -f "${thickness_out}" ]]; then Nsteps=$((Nsteps + 2)); fi
@@ -135,7 +133,7 @@ fi
 Info "Map T2/FLAIR to cortex"
 
 flair_preproc="${mapsDir}/${idBIDS}_hemi-L_surf-fsLR-32k_label-white_flair.func.gii" 
-flair_out="${subject_dirz}/maps/cortex/${idBIDS}_hemi-L_label-flair_smooth-${fwhm}mm.func.gii" 
+flair_out="${subject_dirz}/maps/cortex/${idBIDS}_hemi-L_feature-flair_smooth-${fwhm}mm.func.gii" 
 
 if [[ "${featList_ctx[*]}" =~ 'flair' ]]; then
     N=$((N + 2))
@@ -152,8 +150,7 @@ if [[ "${featList_ctx[*]}" =~ 'flair' ]]; then
                 Do_cmd wb_command -metric-smoothing "${subject_micapipe}/surf/${idBIDS}_hemi-${HEMICAP}_space-nativepro_surf-fsLR-32k_label-white.surf.gii" \
                                   "${subject_micapipe}/maps/${idBIDS}_hemi-${HEMICAP}_surf-fsLR-32k_label-white_flair.func.gii" \
                                   ${fwhm} \
-                                  "${subject_dirz}/maps/cortex/${idBIDS}_hemi-${HEMICAP}_label-flair_smooth-${fwhm}mm.func.gii"
-
+                                  "${subject_dirz}/maps/cortex/${idBIDS}_hemi-${HEMICAP}_feature-flair_smooth-${fwhm}mm.func.gii"
             done
 
             if [[ -f "${flair_out}" ]]; then Nsteps=$((Nsteps + 2)); fi
@@ -176,7 +173,8 @@ Info "Map FA/ADC to cortex"
 
 # ADC
 adc_preproc="${mapsDir}/${idBIDS}_hemi-L_surf-fsLR-32k_label-white_ADC.func.gii" 
-adc_out="${subject_dirz}/maps/cortex/${idBIDS}_hemi-L_label-ADC_smooth-${fwhm}mm.func.gii" 
+adc_out="${subject_dirz}/maps/cortex/${idBIDS}_hemi-L_feature-ADC_smooth-${fwhm}mm.func.gii" 
+
 if [[ "${featList_ctx[*]}" =~ 'ADC' ]]; then
     N=$((N + 2))
 
@@ -192,7 +190,7 @@ if [[ "${featList_ctx[*]}" =~ 'ADC' ]]; then
                 Do_cmd wb_command -metric-smoothing "${subject_micapipe}/surf/${idBIDS}_hemi-${HEMICAP}_space-nativepro_surf-fsLR-32k_label-white.surf.gii" \
                                   "${subject_micapipe}/maps/${idBIDS}_hemi-${HEMICAP}_surf-fsLR-32k_label-white_ADC.func.gii" \
                                   ${fwhm} \
-                                  "${subject_dirz}/cortex/${idBIDS}_hemi-${HEMICAP}_label-ADC_smooth-${fwhm}mm.func.gii"
+                                  "${subject_dirz}/maps/cortex/${idBIDS}_hemi-${HEMICAP}_feature-ADC_smooth-${fwhm}mm.func.gii"
 
             done
 
@@ -211,7 +209,7 @@ fi
 
 # FA
 fa_preproc="${mapsDir}/${idBIDS}_hemi-L_surf-fsLR-32k_label-white_FA.func.gii"
-fa_out="${subject_dirz}/cortex/${idBIDS}_hemi-L_label-FA_smooth-${fwhm}mm.func.gii"
+fa_out="${subject_dirz}/maps/cortex/${idBIDS}_hemi-L_feature-FA_smooth-${fwhm}mm.func.gii"
 if [[ "${featList_ctx[*]}" =~ 'FA' ]]; then
     N=$((N + 2))
 
@@ -227,7 +225,7 @@ if [[ "${featList_ctx[*]}" =~ 'FA' ]]; then
                 Do_cmd wb_command -metric-smoothing "${subject_micapipe}/surf/${idBIDS}_hemi-${HEMICAP}_space-nativepro_surf-fsLR-32k_label-white.surf.gii" \
                                   "${subject_micapipe}/maps/${idBIDS}_hemi-${HEMICAP}_surf-fsLR-32k_label-white_FA.func.gii" \
                                   ${fwhm} \
-                                  "${subject_dirz}/maps/cortex/${idBIDS}_hemi-${HEMICAP}_label-FA_smooth-${fwhm}mm.func.gii"
+                                  "${subject_dirz}/maps/cortex/${idBIDS}_hemi-${HEMICAP}_feature-FA_smooth-${fwhm}mm.func.gii"
 
             done
 
@@ -250,7 +248,8 @@ fi
 Info "Map qT1 to cortex"
 
 qt1_preproc="${mapsDir}/${idBIDS}_hemi-L_surf-fsLR-32k_label-white_T1map.func.gii"
-qt1_out="${subject_dirz}/maps/cortex/${idBIDS}_hemi-L_label-T1map_smooth-${fwhm}mm.func.gii"
+qt1_out="${subject_dirz}/maps/cortex/${idBIDS}_hemi-L_feature-T1map_smooth-${fwhm}mm.func.gii"
+
 if [[ "${featList_ctx[*]}" =~ 'qt1' ]]; then
     N=$((N + 2))
 
@@ -266,7 +265,7 @@ if [[ "${featList_ctx[*]}" =~ 'qt1' ]]; then
                 Do_cmd wb_command -metric-smoothing "${subject_micapipe}/surf/${idBIDS}_hemi-${HEMICAP}_space-nativepro_surf-fsLR-32k_label-white.surf.gii" \
                                   "${subject_micapipe}/maps/${idBIDS}_hemi-${HEMICAP}_surf-fsLR-32k_label-white_T1map.func.gii" \
                                   ${fwhm} \
-                                  "${subject_dirz}/maps/cortex/${idBIDS}_hemi-${HEMICAP}_label-T1map_smooth-${fwhm}mm.func.gii"
+                                  "${subject_dirz}/maps/cortex/${idBIDS}_hemi-${HEMICAP}_feature-T1map_smooth-${fwhm}mm.func.gii"
                                   
             done
 
