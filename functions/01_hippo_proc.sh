@@ -16,47 +16,48 @@
 #   $3 : Out Directory
 #
 umask 003
-BIDS=$1
-id=$2
-out=$3
-SES=$4
-fsdir=$5
-nocleanup=$6
-threads=$7
-tmpDir=$8
-featStr=$9
-fwhm=${10}
-PROC=${11}
+id=$1
+indir=$2
+outh=$3
+outm=$4
+outz=$5
+SES=$6
+fsdir=$7
+nocleanup=$8
+threads=$9
+tmpDir=${10}
+featStr=${11}
+fwhm=${12}
+PROC=${13}
 export OMP_NUM_THREADS=$threads
 here=$(pwd)
 
-echo "PROC:"
-echo $PROC
 
 #------------------------------------------------------------------------------#
 # qsub configuration
 if [ "$PROC" = "qsub-MICA" ] || [ "$PROC" = "qsub-all.q" ];then
-    export MICAPIPE=/data_/mica1/01_programs//micapipe-v0.2.0
-    source "${MICAPIPE}/functions/init.sh" "$threads"
+    export ZBRAINS=${$ZBRAINS}
+    source "${ZBRAINS}/functions/init.sh" "$threads"
 fi
 
 # source utilities
-source "$MICAPIPE/functions/utilities.sh"
+source "$ZBRAINS/functions/utilities.sh"
 
 # Get the real path of the Inputs
-out=${out/micapipe_v0.2.0/}
-outz=$(realpath $out)/z-brains
-outm=$(realpath $out)/micapipe_v0.2.0
-BIDS=$(realpath $BIDS)
+outz=$(realpath $outz)
+outm=$(realpath $outm)
+outh=$(realpath $outh)
+indir=$(realpath $indir)
 id=${id/sub-/}
 here=$(pwd)
 
+
 #------------------------------------------------------------------------------#
 Title "hippocampal feature mapping\n\t\tmicapipe-z $this_version, $PROC"
-micapipe_software
-bids_print.variables-post
+zbrains_software
+bids_print.variables-hipp
 Info "wb_command will use $OMP_NUM_THREADS threads"
-Info "Saving temporary dir: $nocleanup"
+Info "Saving temporary directory: $nocleanup"
 
 # Timer
 aloita=$(date +%s)
@@ -64,7 +65,7 @@ Nsteps=0
 N=0
 
 # Create script specific temp directory
-tmp="${tmpDir}/${RANDOM}_micapipe-z_hippo_proc_${idBIDS}"
+tmp="${tmpDir}/${RANDOM}_zbrains_hippo_proc_${idBIDS}"
 Do_cmd mkdir -p "$tmp"
 
 # TRAP in case the script fails
@@ -80,10 +81,8 @@ else
 fi
 
 # Data location
-hippoDir="${out}/hippunfold_v1.3.0/hippunfold/sub-${id}/${SES}/"
-subDeriv="${out}/micapipe_v0.2.0/sub-${id}/${SES}/"
-mapsDir="${subDeriv}/maps/"
-outLogs="${subject_dirz}/logs/"
+mapsDir="${subject_micapipe}/maps/"
+
 
 #------------------------------------------------------------------------------#
 # Optional argument handling
@@ -123,10 +122,11 @@ if [[ "${featList_hippo[*]}" =~ 'thickness' ]]; then
             [[ "$hemi" == lh ]] && hemisphere=l || hemisphere=r
             HEMICAP=$(echo $hemisphere | tr [:lower:] [:upper:])
 
-            Do_cmd wb_command -metric-smoothing "${hippoDir}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
+            Do_cmd wb_command -metric-smoothing "${subject_hipp}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
                               "${hippThickness}" \
                               ${fwhm} \
                               "${subject_dirz}/maps/hippocampus/${idBIDS}_hemi-${HEMICAP}_feature-thickness_smooth-${fwhm}mm.func.gii"
+                              
         done
 
         if [[ -f "${thickness_out}" ]]; then Nsteps=$((Nsteps + 2)); fi
@@ -145,6 +145,7 @@ Info "Map T2/FLAIR to hippocampus"
 
 flair_preproc="${mapsDir}/${idBIDS}_space-nativepro_map-flair.nii.gz"
 flair_out="${subject_dirz}/maps/hippocampus/${idBIDS}_hemi-R_feature-flair_smooth-${fwhm}mm.func.gii"
+
 if [[ "${featList_hippo[*]}" =~ 'flair' ]]; then
     N=$((N + 2))
 
@@ -158,15 +159,15 @@ if [[ "${featList_hippo[*]}" =~ 'flair' ]]; then
                 HEMICAP=$(echo $hemisphere | tr [:lower:] [:upper:])
 
                 Do_cmd wb_command -volume-to-surface-mapping "$flair_preproc" \
-                                  "${hippoDir}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
+                                  "${subject_hipp}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
                                   "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-T1w_desc-flair_den-0p5mm_feature-hipp_midthickness.func.gii" \
                                   -trilinear
 
-                Do_cmd wb_command -metric-smoothing "${hippoDir}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
+                Do_cmd wb_command -metric-smoothing "${subject_hipp}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
                                   "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-T1w_desc-flair_den-0p5mm_feature-hipp_midthickness.func.gii" \
                                   ${fwhm} \
                                   "${subject_dirz}/maps/hippocampus/${idBIDS}_hemi-${HEMICAP}_feature-flair_smooth-${fwhm}mm.func.gii"
-
+                                  
             done
 
             if [[ -f "${flair_out}" ]]; then Nsteps=$((Nsteps + 2)); fi
@@ -190,6 +191,7 @@ Info "Map FA/ADC to hippocampus"
 # ADC
 adc_preproc="${mapsDir}/${idBIDS}_space-nativepro_model-DTI_map-ADC.nii.gz"
 adc_out="${subject_dirz}/maps/hippocampus/${idBIDS}_hemi-R_feature-ADC_smooth-${fwhm}mm.func.gii"
+
 if [[ "${featList_hippo[*]}" =~ 'ADC' ]]; then
     N=$((N + 2))
 
@@ -203,11 +205,11 @@ if [[ "${featList_hippo[*]}" =~ 'ADC' ]]; then
                 HEMICAP=$(echo $hemisphere | tr [:lower:] [:upper:])
 
                 Do_cmd wb_command -volume-to-surface-mapping "$adc_preproc" \
-                                  "${hippoDir}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
+                                  "${subject_hipp}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
                                   "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-T1w_desc-ADC_den-0p5mm_feature-hipp_midthickness.func.gii" \
                                   -trilinear
 
-                Do_cmd wb_command -metric-smoothing "${hippoDir}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
+                Do_cmd wb_command -metric-smoothing "${subject_hipp}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
                                   "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-T1w_desc-ADC_den-0p5mm_feature-hipp_midthickness.func.gii" \
                                   ${fwhm} \
                                   "${subject_dirz}/maps/hippocampus/${idBIDS}_hemi-${HEMICAP}_feature-ADC_smooth-${fwhm}mm.func.gii"
@@ -230,6 +232,7 @@ fi
 # FA
 fa_preproc="${mapsDir}/${idBIDS}_space-nativepro_model-DTI_map-FA.nii.gz"
 fa_out="${subject_dirz}/maps/hippocampus/${idBIDS}_hemi-R_feature-FA_smooth-${fwhm}mm.func.gii"
+
 if [[ "${featList_hippo[*]}" =~ 'FA' ]]; then
     N=$((N + 2))
 
@@ -243,11 +246,11 @@ if [[ "${featList_hippo[*]}" =~ 'FA' ]]; then
                 HEMICAP=$(echo $hemisphere | tr [:lower:] [:upper:])
 
                 Do_cmd wb_command -volume-to-surface-mapping "$fa_preproc" \
-                                  "${hippoDir}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
+                                  "${subject_hipp}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
                                   "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-T1w_desc-FA_den-0p5mm_feature-hipp_midthickness.func.gii" \
                                   -trilinear
 
-                Do_cmd wb_command -metric-smoothing "${hippoDir}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
+                Do_cmd wb_command -metric-smoothing "${subject_hipp}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
                                   "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-T1w_desc-FA_den-0p5mm_feature-hipp_midthickness.func.gii" \
                                   ${fwhm} \
                                   "${subject_dirz}/maps/hippocampus/${idBIDS}_hemi-${HEMICAP}_feature-FA_smooth-${fwhm}mm.func.gii"
@@ -274,6 +277,7 @@ Info "Map qT1 to hippocampus"
 
 qt1_preproc="${mapsDir}/${idBIDS}_space-nativepro_map-T1map.nii.gz"
 qt1_out="${subject_dirz}/maps/hippocampus/${idBIDS}_hemi-R_feature-T1map_smooth-${fwhm}mm.func.gii"
+
 if [[ "${featList_hippo[*]}" =~ 'qt1' ]]; then 
     N=$((N + 2))
 
@@ -287,15 +291,15 @@ if [[ "${featList_hippo[*]}" =~ 'qt1' ]]; then
                 HEMICAP=$(echo $hemisphere | tr [:lower:] [:upper:])
 
                 Do_cmd wb_command -volume-to-surface-mapping "$qt1_preproc" \
-                                  "${hippoDir}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
+                                  "${subject_hipp}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
                                   "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-T1w_desc-T1map_den-0p5mm_feature-hipp_midthickness.func.gii" \
                                   -trilinear
 
-                Do_cmd wb_command -metric-smoothing "${hippoDir}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
+                Do_cmd wb_command -metric-smoothing "${subject_hipp}/surf/${idBIDS}_hemi-${HEMICAP}_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii" \
                                   "${tmp}/${idBIDS}_hemi-${HEMICAP}_space-T1w_desc-T1map_den-0p5mm_feature-hipp_midthickness.func.gii" \
                                   ${fwhm} \
                                   "${subject_dirz}/maps/hippocampus/${idBIDS}_hemi-${HEMICAP}_feature-T1map_smooth-${fwhm}mm.func.gii"
-
+                                  
             done
 
             if [[ -f "${qt1_out}" ]]; then Nsteps=$((Nsteps + 2)); fi
@@ -323,6 +327,6 @@ if [ "$Nsteps" -eq 10 ]; then status="COMPLETED"; else status="ERROR hippo_proc 
 Title "hippo processing ended in \033[38;5;220m $(printf "%0.3f\n" "$eri") minutes \033[38;5;141m.
 \tSteps completed : $(printf "%02d" "$Nsteps")/10
 \tStatus          : ${status}
-\tCheck logs      : $(ls "${outLogs}"/hippo_proc_*.txt)"
+\tCheck logs      : $(ls "${dir_logs}"/hippo_proc_*.txt)"
 #echo "${id}, ${SES/ses-/}, sctx_proc, $status N=$(printf "%02d" "$Nsteps")/08, $(whoami), $(uname -n), $(date), $(printf "%0.3f\n" "$eri"), ${PROC}, ${Version}" >> "${outz}/micapipez_processed_sub.csv"
 cleanup "$tmp" "$nocleanup" "$here"

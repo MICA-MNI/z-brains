@@ -6,57 +6,47 @@
 #
 # This workflow makes use of freesurfer outputs and custom python scripts
 #
-# Atlas and templates are available from:
-#
-# https://github.com/MICA-MNI/micapipe/tree/master/parcellations
-#
-#   ARGUMENTS order:
-#   $1 : BIDS directory
-#   $2 : participant
-#   $3 : Out Directory
-#
 umask 003
-BIDS=$1
-id=$2
-out=$3
-SES=$4
-fsdir=$5
-nocleanup=$6
-threads=$7
-tmpDir=$8
-featStr=$9
-fwhm=${10}
-PROC=${11}
+id=$1
+indir=$2
+outm=$3
+outz=$4
+SES=$5
+fsdir=$6
+nocleanup=$7
+threads=$8
+tmpDir=$9
+featStr=${10}
+fwhm=${11}
+PROC=${12}
 export OMP_NUM_THREADS=$threads
 here=$(pwd)
 
-echo "PROC:"
-echo $PROC
 
 #------------------------------------------------------------------------------#
 # qsub configuration
 if [ "$PROC" = "qsub-MICA" ] || [ "$PROC" = "qsub-all.q" ];then
-    export MICAPIPE=/data_/mica1/01_programs//micapipe-v0.2.0
-    source "${MICAPIPE}/functions/init.sh" "$threads"
+    export ZBRAINS=${$ZBRAINS}
+    source "${ZBRAINS}/functions/init.sh" "$threads"
 fi
 
 # source utilities
-source "$MICAPIPE/functions/utilities.sh"
+source "$ZBRAINS/functions/utilities.sh"
 
 # Get the real path of the Inputs
-out=${out/micapipe_v0.2.0/}
-outz=$(realpath $out)/z-brains
-outm=$(realpath $out)/micapipe_v0.2.0
-BIDS=$(realpath $BIDS)
+outz=$(realpath $outz)
+outm=$(realpath $outm)
+indir=$(realpath $indir)
 id=${id/sub-/}
 here=$(pwd)
 
+
 #------------------------------------------------------------------------------#
 Title "Cortical feature mapping\n\t\tmicapipe-z $this_version, $PROC"
-micapipe_software
-bids_print.variables-post
+zbrains_software
+bids_print.variables-ctx
 Info "wb_command will use $OMP_NUM_THREADS threads"
-Info "Saving temporary dir: $nocleanup"
+Info "Saving temporary directory: $nocleanup"
 
 # Timer
 aloita=$(date +%s)
@@ -64,7 +54,7 @@ Nsteps=0
 N=0
 
 # Create script specific temp directory
-tmp="${tmpDir}/${RANDOM}_micapipe-z_ctx_proc_${idBIDS}"
+tmp="${tmpDir}/${RANDOM}_zbrains_ctx_proc_${idBIDS}"
 Do_cmd mkdir -p "$tmp"
 
 # TRAP in case the script fails
@@ -80,9 +70,8 @@ else
 fi
 
 # Data location
-subDeriv="${out}/micapipe_v0.2.0/sub-${id}/${SES}/"
-mapsDir="${subDeriv}/maps/"
-outLogs="${subject_dirz}/logs/"
+mapsDir="${subject_micapipe}/maps/"
+
 
 #------------------------------------------------------------------------------#
 # Optional argument handling
@@ -110,8 +99,8 @@ fi
 
 Info "Fetching thickness from cortex"
 
-cortThickness="${subDeriv}/maps/${idBIDS}_hemi-R_surf-fsLR-32k_label-thickness.func.gii"
-thickness_out="${subject_dirz}/maps/cortex/${idBIDS}_hemi-R_feature-thickness_smooth-${fwhm}mm.func.gii" 
+cortThickness="${subject_micapipe}/maps/${idBIDS}_hemi-R_surf-fsLR-32k_label-thickness.func.gii"
+thickness_out="${subject_dirz}/maps/cortex/${idBIDS}_hemi-R_label-thickness_smooth-${fwhm}mm.func.gii" 
 
 if [[ "${featList_ctx[*]}" =~ 'thickness' ]]; then 
     N=$((N + 2))
@@ -123,8 +112,8 @@ if [[ "${featList_ctx[*]}" =~ 'thickness' ]]; then
             [[ "$hemi" == lh ]] && hemisphere=l || hemisphere=r
             HEMICAP=$(echo $hemisphere | tr [:lower:] [:upper:])
 
-            Do_cmd wb_command -metric-smoothing "${subDeriv}/surf/${idBIDS}_hemi-${HEMICAP}_space-nativepro_surf-fsLR-32k_label-white.surf.gii" \
-                              "${subDeriv}/maps/${idBIDS}_hemi-${HEMICAP}_surf-fsLR-32k_label-thickness.func.gii" \
+            Do_cmd wb_command -metric-smoothing "${subject_micapipe}/surf/${idBIDS}_hemi-${HEMICAP}_space-nativepro_surf-fsLR-32k_label-white.surf.gii" \
+                              "${subject_micapipe}/maps/${idBIDS}_hemi-${HEMICAP}_surf-fsLR-32k_label-thickness.func.gii" \
                               ${fwhm} \
                               "${subject_dirz}/maps/cortex/${idBIDS}_hemi-${HEMICAP}_feature-thickness_smooth-${fwhm}mm.func.gii"
         done
@@ -158,11 +147,10 @@ if [[ "${featList_ctx[*]}" =~ 'flair' ]]; then
                 [[ "$hemi" == lh ]] && hemisphere=l || hemisphere=r 
                 HEMICAP=$(echo $hemisphere | tr [:lower:] [:upper:]) 
 
-                Do_cmd wb_command -metric-smoothing "${subDeriv}/surf/${idBIDS}_hemi-${HEMICAP}_space-nativepro_surf-fsLR-32k_label-white.surf.gii" \
-                                  "${subDeriv}/maps/${idBIDS}_hemi-${HEMICAP}_surf-fsLR-32k_label-white_flair.func.gii" \
+                Do_cmd wb_command -metric-smoothing "${subject_micapipe}/surf/${idBIDS}_hemi-${HEMICAP}_space-nativepro_surf-fsLR-32k_label-white.surf.gii" \
+                                  "${subject_micapipe}/maps/${idBIDS}_hemi-${HEMICAP}_surf-fsLR-32k_label-white_flair.func.gii" \
                                   ${fwhm} \
                                   "${subject_dirz}/maps/cortex/${idBIDS}_hemi-${HEMICAP}_feature-flair_smooth-${fwhm}mm.func.gii"
-
             done
 
             if [[ -f "${flair_out}" ]]; then Nsteps=$((Nsteps + 2)); fi
@@ -186,6 +174,7 @@ Info "Map FA/ADC to cortex"
 # ADC
 adc_preproc="${mapsDir}/${idBIDS}_hemi-L_surf-fsLR-32k_label-white_ADC.func.gii" 
 adc_out="${subject_dirz}/maps/cortex/${idBIDS}_hemi-L_feature-ADC_smooth-${fwhm}mm.func.gii" 
+
 if [[ "${featList_ctx[*]}" =~ 'ADC' ]]; then
     N=$((N + 2))
 
@@ -198,8 +187,8 @@ if [[ "${featList_ctx[*]}" =~ 'ADC' ]]; then
                 [[ "$hemi" == lh ]] && hemisphere=l || hemisphere=r
                 HEMICAP=$(echo $hemisphere | tr [:lower:] [:upper:])
 
-                Do_cmd wb_command -metric-smoothing "${subDeriv}/surf/${idBIDS}_hemi-${HEMICAP}_space-nativepro_surf-fsLR-32k_label-white.surf.gii" \
-                                  "${subDeriv}/maps/${idBIDS}_hemi-${HEMICAP}_surf-fsLR-32k_label-white_ADC.func.gii" \
+                Do_cmd wb_command -metric-smoothing "${subject_micapipe}/surf/${idBIDS}_hemi-${HEMICAP}_space-nativepro_surf-fsLR-32k_label-white.surf.gii" \
+                                  "${subject_micapipe}/maps/${idBIDS}_hemi-${HEMICAP}_surf-fsLR-32k_label-white_ADC.func.gii" \
                                   ${fwhm} \
                                   "${subject_dirz}/maps/cortex/${idBIDS}_hemi-${HEMICAP}_feature-ADC_smooth-${fwhm}mm.func.gii"
 
@@ -233,8 +222,8 @@ if [[ "${featList_ctx[*]}" =~ 'FA' ]]; then
                 [[ "$hemi" == lh ]] && hemisphere=l || hemisphere=r
                 HEMICAP=$(echo $hemisphere | tr [:lower:] [:upper:])
 
-                Do_cmd wb_command -metric-smoothing "${subDeriv}/surf/${idBIDS}_hemi-${HEMICAP}_space-nativepro_surf-fsLR-32k_label-white.surf.gii" \
-                                  "${subDeriv}/maps/${idBIDS}_hemi-${HEMICAP}_surf-fsLR-32k_label-white_FA.func.gii" \
+                Do_cmd wb_command -metric-smoothing "${subject_micapipe}/surf/${idBIDS}_hemi-${HEMICAP}_space-nativepro_surf-fsLR-32k_label-white.surf.gii" \
+                                  "${subject_micapipe}/maps/${idBIDS}_hemi-${HEMICAP}_surf-fsLR-32k_label-white_FA.func.gii" \
                                   ${fwhm} \
                                   "${subject_dirz}/maps/cortex/${idBIDS}_hemi-${HEMICAP}_feature-FA_smooth-${fwhm}mm.func.gii"
 
@@ -260,6 +249,7 @@ Info "Map qT1 to cortex"
 
 qt1_preproc="${mapsDir}/${idBIDS}_hemi-L_surf-fsLR-32k_label-white_T1map.func.gii"
 qt1_out="${subject_dirz}/maps/cortex/${idBIDS}_hemi-L_feature-T1map_smooth-${fwhm}mm.func.gii"
+
 if [[ "${featList_ctx[*]}" =~ 'qt1' ]]; then
     N=$((N + 2))
 
@@ -272,8 +262,8 @@ if [[ "${featList_ctx[*]}" =~ 'qt1' ]]; then
                 [[ "$hemi" == lh ]] && hemisphere=l || hemisphere=r
                 HEMICAP=$(echo $hemisphere | tr [:lower:] [:upper:])
 
-                Do_cmd wb_command -metric-smoothing "${subDeriv}/surf/${idBIDS}_hemi-${HEMICAP}_space-nativepro_surf-fsLR-32k_label-white.surf.gii" \
-                                  "${subDeriv}/maps/${idBIDS}_hemi-${HEMICAP}_surf-fsLR-32k_label-white_T1map.func.gii" \
+                Do_cmd wb_command -metric-smoothing "${subject_micapipe}/surf/${idBIDS}_hemi-${HEMICAP}_space-nativepro_surf-fsLR-32k_label-white.surf.gii" \
+                                  "${subject_micapipe}/maps/${idBIDS}_hemi-${HEMICAP}_surf-fsLR-32k_label-white_T1map.func.gii" \
                                   ${fwhm} \
                                   "${subject_dirz}/maps/cortex/${idBIDS}_hemi-${HEMICAP}_feature-T1map_smooth-${fwhm}mm.func.gii"
                                   
@@ -304,6 +294,6 @@ if [ "$Nsteps" -eq 10 ]; then status="COMPLETED"; else status="ERROR ctx_proc is
 Title "ctx processing ended in \033[38;5;220m $(printf "%0.3f\n" "$eri") minutes \033[38;5;141m.
 \tSteps completed : $(printf "%02d" "$Nsteps")/10
 \tStatus          : ${status}
-\tCheck logs      : $(ls "${outLogs}"/ctx_proc_*.txt)"
+\tCheck logs      : $(ls "${dir_logs}"/ctx_proc_*.txt)"
 #echo "${id}, ${SES/ses-/}, ctx_proc, $status N=$(printf "%02d" "$Nsteps")/08, $(whoami), $(uname -n), $(date), $(printf "%0.3f\n" "$eri"), ${PROC}, ${Version}" >> "${outz}/micapipez_processed_sub.csv"
 cleanup "$tmp" "$nocleanup" "$here"

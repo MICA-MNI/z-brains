@@ -6,55 +6,47 @@
 #
 # This workflow makes use of freesurfer outputs and custom python scripts
 #
-# Atlas and templates are available from:
-#
-# https://github.com/MICA-MNI/micapipe/tree/master/parcellations
-#
-#   ARGUMENTS order:
-#   $1 : BIDS directory
-#   $2 : participant
-#   $3 : Out Directory
 #
 umask 003
-BIDS=$1
-id=$2
-out=$3
-SES=$4
-fsdir=$5
-nocleanup=$6
-threads=$7
-tmpDir=$8
-featStr=$9
-PROC=${10}
+id=$1
+indir=$2
+outm=$3
+outz=$4
+SES=$5
+fsdir=$6
+nocleanup=$7
+threads=$8
+tmpDir=$9
+featStr=${10}
+PROC=${11}
 export OMP_NUM_THREADS=$threads
 here=$(pwd)
 
-echo "PROC:"
-echo $PROC
 
 #------------------------------------------------------------------------------#
 # qsub configuration
 if [ "$PROC" = "qsub-MICA" ] || [ "$PROC" = "qsub-all.q" ];then
-    export MICAPIPE=/data_/mica1/01_programs/micapipe-v0.2.0
-    source "${MICAPIPE}/functions/init.sh" "$threads"
+    export ZBRAINS=${$ZBRAINS}
+    source "${ZBRAINS}/functions/init.sh" "$threads"
 fi
 
 # source utilities
-source "$MICAPIPE/functions/utilities.sh"
+source "$ZBRAINS/functions/utilities.sh"
 
 # Get the real path of the Inputs
-outz=$(realpath $out)/z-brains
-outm=$(realpath $out)/micapipe_v0.2.0
-BIDS=$(realpath $BIDS)
+outz=$(realpath $outz)
+outm=$(realpath $outm)
+indir=$(realpath $indir)
 id=${id/sub-/}
 here=$(pwd)
 
+
 #------------------------------------------------------------------------------#
-Title "subcortical feature mapping\n\t\tmicapipe-z $this_version, $PROC"
-micapipe_software
-bids_print.variables-post
+Title "Subcortical feature mapping\n\t\tmicapipe-z $this_version, $PROC"
+zbrains_software
+bids_print.variables-sctx
 Info "wb_command will use $OMP_NUM_THREADS threads"
-Info "Saving temporary dir: $nocleanup"
+Info "Saving temporary directory: $nocleanup"
 
 # Timer
 aloita=$(date +%s)
@@ -62,7 +54,7 @@ Nsteps=0
 N=0
 
 # Create script specific temp directory
-tmp="${tmpDir}/${RANDOM}_micapipe-z_sctx_proc_${idBIDS}"
+tmp="${tmpDir}/${RANDOM}_zbrains_sctx_proc_${idBIDS}"
 Do_cmd mkdir -p "$tmp"
 
 # TRAP in case the script fails
@@ -79,9 +71,7 @@ fi
 
 # Data location
 volDir="${fsdir}/stats/"
-subDeriv="${out}/micapipe_v0.2.0/sub-${id}/${SES}/"
-mapsDir="${subDeriv}/maps/"
-outLogs="${subject_dirz}/logs/"
+mapsDir="${subject_micapipe}/maps/"
 
 
 #------------------------------------------------------------------------------#
@@ -103,6 +93,7 @@ elif [[ "$featStr" == "all" ]]; then
     if [ -f "${volDir}/aseg.stats" ]; then
         featList_sctx+=("volume"); fi
 fi
+
 
 #------------------------------------------------------------------------------#
 ### subcortical volume ###
@@ -138,6 +129,7 @@ else
     Note "Skipping subcortical volumetric"; ((Nsteps++))
 fi
 
+
 #------------------------------------------------------------------------------#
 ### subcortical flair ###
 
@@ -164,11 +156,11 @@ if [[ "${featList_sctx[*]}" =~ 'flair' ]]; then
             elif [[ ${sub} == 51 ]]; then sctxname="Right-Putamen"; elif [[ ${sub} == 49 ]]; then sctxname="Right-Thalamus-Proper"; fi
     
             # Extract subcortical masks
-            Do_cmd ThresholdImage 3 "${subDeriv}/parc/${idBIDS}_space-nativepro_T1w_atlas-subcortical.nii.gz" \
+            Do_cmd ThresholdImage 3 "${T1fast_seg}" \
                                 "${tmp}/${idBIDS}_${sctxname}_mask1.nii.gz" \
                                 threshlo "${sub}"
                                 
-            Do_cmd ThresholdImage 3 "${subDeriv}/parc/${idBIDS}_space-nativepro_T1w_atlas-subcortical.nii.gz" \
+            Do_cmd ThresholdImage 3 "${T1fast_seg}" \
                                 "${tmp}/${idBIDS}_${sctxname}_mask2.nii.gz" \
                                 threshhi `awk "BEGIN {print $sub-1}"`
                                 
@@ -210,6 +202,7 @@ else
     Note "Skipping T2/FLAIR"; ((Nsteps++))
 fi
 
+
 #------------------------------------------------------------------------------#
 ### subcortical ADC and FA ###
 
@@ -236,11 +229,11 @@ if [[ "${featList_sctx[*]}" =~ 'ADC' ]]; then
             elif [[ ${sub} == 51 ]]; then sctxname="Right-Putamen"; elif [[ ${sub} == 49 ]]; then sctxname="Right-Thalamus-Proper"; fi
     
             # Extract subcortical masks
-            Do_cmd ThresholdImage 3 "${subDeriv}/parc/${idBIDS}_space-nativepro_T1w_atlas-subcortical.nii.gz" \
+            Do_cmd ThresholdImage 3 "${T1fast_seg}" \
                                 "${tmp}/${idBIDS}_${sctxname}_mask1.nii.gz" \
                                 threshlo "${sub}"
                                 
-            Do_cmd ThresholdImage 3 "${subDeriv}/parc/${idBIDS}_space-nativepro_T1w_atlas-subcortical.nii.gz" \
+            Do_cmd ThresholdImage 3 "${T1fast_seg}" \
                                 "${tmp}/${idBIDS}_${sctxname}_mask2.nii.gz" \
                                 threshhi `awk "BEGIN {print $sub-1}"`
                                 
@@ -303,11 +296,11 @@ if [[ "${featList_sctx[*]}" =~ 'FA' ]]; then
             elif [[ ${sub} == 51 ]]; then sctxname="Right-Putamen"; elif [[ ${sub} == 49 ]]; then sctxname="Right-Thalamus-Proper"; fi
     
             # Extract subcortical masks
-            Do_cmd ThresholdImage 3 "${subDeriv}/parc/${idBIDS}_space-nativepro_T1w_atlas-subcortical.nii.gz" \
+            Do_cmd ThresholdImage 3 "${T1fast_seg}" \
                                 "${tmp}/${idBIDS}_${sctxname}_mask1.nii.gz" \
                                 threshlo "${sub}"
                                 
-            Do_cmd ThresholdImage 3 "${subDeriv}/parc/${idBIDS}_space-nativepro_T1w_atlas-subcortical.nii.gz" \
+            Do_cmd ThresholdImage 3 "${T1fast_seg}" \
                                 "${tmp}/${idBIDS}_${sctxname}_mask2.nii.gz" \
                                 threshhi `awk "BEGIN {print $sub-1}"`
                                 
@@ -349,6 +342,7 @@ else
     Note "Skipping FA"; ((Nsteps++))
 fi
 
+
 #------------------------------------------------------------------------------#
 ### subcortical qT1 ###
 
@@ -375,11 +369,11 @@ if [[ "${featList_sctx[*]}" =~ 'qt1' ]]; then
             elif [[ ${sub} == 51 ]]; then sctxname="Right-Putamen"; elif [[ ${sub} == 49 ]]; then sctxname="Right-Thalamus-Proper"; fi
     
             # Extract subcortical masks
-            Do_cmd ThresholdImage 3 "${subDeriv}/parc/${idBIDS}_space-nativepro_T1w_atlas-subcortical.nii.gz" \
+            Do_cmd ThresholdImage 3 "${T1fast_seg}" \
                                 "${tmp}/${idBIDS}_${sctxname}_mask1.nii.gz" \
                                 threshlo "${sub}"
                                 
-            Do_cmd ThresholdImage 3 "${subDeriv}/parc/${idBIDS}_space-nativepro_T1w_atlas-subcortical.nii.gz" \
+            Do_cmd ThresholdImage 3 "${T1fast_seg}" \
                                 "${tmp}/${idBIDS}_${sctxname}_mask2.nii.gz" \
                                 threshhi `awk "BEGIN {print $sub-1}"`
                                 
@@ -421,6 +415,7 @@ else
     Note "Skipping qT1"; ((Nsteps++))
 fi
 
+
 #------------------------------------------------------------------------------#
 # QC notification of completition
 lopuu=$(date +%s)
@@ -432,6 +427,6 @@ if [ "$Nsteps" -eq 5 ]; then status="COMPLETED"; else status="ERROR sctx_proc is
 Title "sctx processing ended in \033[38;5;220m $(printf "%0.3f\n" "$eri") minutes \033[38;5;141m.
 \tSteps completed : $(printf "%02d" "$Nsteps")/05
 \tStatus          : ${status}
-\tCheck logs      : $(ls "${outLogs}"/sctx_proc_*.txt)"
+\tCheck logs      : $(ls "${dir_logs}"/sctx_proc_*.txt)"
 #echo "${id}, ${SES/ses-/}, sctx_proc, $status N=$(printf "%02d" "$Nsteps")/05, $(whoami), $(uname -n), $(date), $(printf "%0.3f\n" "$eri"), ${PROC}, ${Version}" >> "${outz}/micapipez_processed_sub.csv"
 cleanup "$tmp" "$nocleanup" "$here"
