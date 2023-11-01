@@ -187,8 +187,8 @@ for arg in "$@"; do
     REGZ=TRUE
     shift
   ;;
-  -thr)
-    thr=$2
+  -csvControls)
+    csvControls=$2
     shift;shift
   ;;
   -demo)
@@ -196,11 +196,11 @@ for arg in "$@"; do
     shift;shift
   ;;
   -smoothCtx)
-    smoothCTX=$2
+    smoothCtx=$2
     shift;shift
   ;;
   -smoothHipp)
-    smoothHIPP=$2
+    smoothHipp=$2
     shift;shift
   ;;
   -asymmetry)
@@ -220,11 +220,11 @@ for arg in "$@"; do
     shift;shift
   ;;
   -smoothCtx)
-    smoothCTX=$2
+    smoothCtx=$2
     shift;shift
   ;;
   -smoothHipp)
-    smoothHIPP=$2
+    smoothHipp=$2
     shift;shift
   ;;
   -mica)
@@ -347,13 +347,12 @@ exit 1; fi
 # ----------------------------------- Set optional arguments ------------------------------------ #
 
 # Feature selection and smoothing
-if [ -z ${feat} ]; then featStr=DEFAULT; else featStr="$feat"; fi
-if [ -z ${smooth} ]; then smoothing=DEFAULT; else smoothing="$smooth"; fi
-if [ -z ${smoothCTX} ]; then smoothingCTX=DEFAULT; else smoothingCTX="$smoothCTX"; fi
-if [ -z ${smoothHIPP} ]; then smoothingHIPP=DEFAULT; else smoothingHIPP="$smoothHIPP"; fi
+if [ -z ${feat} ]; then featStr='all'; else featStr="$feat"; fi
+if [ -z ${smoothCtx} ]; then smoothCtx='5mm'; else smoothingCTX="$smoothCTX"; fi
+if [ -z ${smoothHipp} ]; then smoothHipp='2mm'; else smoothingHIPP="$smoothHIPP"; fi
 
 # arguments for regional and asymmetry analysis
-if [ -z "$thr" ]; then thr=1.96; fi
+if [ -z "$csvControls" ]; then csvControls="/data_/mica1/03_projects/jessica/hackathon2023/lists/control.csv"; fi
 if [ -z "$demo" ]; then demo=''; fi
 
 
