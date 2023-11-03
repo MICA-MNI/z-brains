@@ -348,7 +348,7 @@ exit 1; fi
 
 # Feature selection and smoothing
 if [ -z ${feat} ]; then featStr='all'; else featStr="$feat"; fi
-if [ -z ${smoothCtx} ]; then smoothCtx='5mm'; else smoothingCTX="$smoothCTX"; fi
+if [ -z ${smoothCtx} ]; then smoothCtx='5mm'; else smoothingCTX="$smoothCTX"; fi #!!!!!! there is an issue here with argument handling for cortex/hippo smoothing modules, it's defined as $smoothing and not $smoothCtx
 if [ -z ${smoothHipp} ]; then smoothHipp='2mm'; else smoothingHIPP="$smoothHIPP"; fi
 
 # arguments for regional and asymmetry analysis
@@ -422,7 +422,7 @@ zbrains_json
 if [ "$ALL" = "TRUE" ] || [ "$ctxPROC" = "TRUE" ]; then
     log_file_str=${dir_logs}/ctx_proc_$(date +'%d-%m-%Y')
 
-    COMMAND="${scriptDir}/01_ctx_proc.sh $id $indir $outmicapipe $outz $SES $FSdir $nocleanup $threads $tmpDir $featStr $smoothing"
+    COMMAND="${scriptDir}/01_ctx_proc.sh $id $indir $outmicapipe $outz $SES $FSdir $nocleanup $threads $tmpDir $featStr $smoothCtx"
     # mica.q - Structural processing: Cortex
     if [[ $micaq == "TRUE" ]]; then
         Info "MICA qsub - Structural processing: Cortex"
@@ -450,7 +450,7 @@ fi
 if [ "$ALL" = "TRUE" ] || [ "$hippoPROC" = "TRUE" ]; then
     log_file_str=${dir_logs}/hippo_proc_$(date +'%d-%m-%Y')
 
-    COMMAND="${scriptDir}/01_hippo_proc.sh $id $indir $outhipp $outmicapipe $outz $SES $FSdir $nocleanup $threads $tmpDir $featStr $smoothing"
+    COMMAND="${scriptDir}/01_hippo_proc.sh $id $indir $outhipp $outmicapipe $outz $SES $FSdir $nocleanup $threads $tmpDir $featStr $smoothHipp"
     # mica.q - Structural processing: Hippocampus
     if [[ $micaq == "TRUE" ]]; then
         Info "MICA qsub - Structural processing: Hippocampus"
