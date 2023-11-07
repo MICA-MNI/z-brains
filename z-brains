@@ -23,26 +23,32 @@ echo -e "
 
 
    Flags for cortical, hippocampal, and subcortical feature post-processing:
-\t\033[38;5;197m-proc_cortex\033[0m         : run post-processing of cortical features for report generation. Relies on micapipe derivatives
-\t\t\033[38;5;120m-featureStr\033[0m  : Specify which cortical features should undergo post-processing
-\t\t\t         Default is '-featureStr all', meaning all features found under /derivatives/micapipe/subject/maps
-\t\t\t         To only process one feature, specify using string: e.g. '-featureStr flair'
-\t\t\t         Multiple inputs example = '-featureStr flair,FA,ADC'
-\t\t\t         Currently supported features: thickness,flair,FA,ADC,qT1
-\t\t\033[38;5;120m-smoothing\033[0m   : Specify size of gaussian smoothing kernel (Default: 5mm). If set to 0, no smoothing is applied.
-\t\033[38;5;197m-proc_hippocampus\033[0m    : run post-processing of hippocampal features for report generation. Relies on hippunfold derivatives
-\t\t\033[38;5;120m-featureStr\033[0m  : Specify which hippocampal features should undergo post-processing
-\t\t\t         Default is '-featureStr all', meaning all available features based on BIDS raw data
-\t\t\t         To only process one feature, specify using string: e.g. '-featureStr flair'
-\t\t\t         Multiple inputs example = '-featureStr flair,FA,ADC'
-\t\t\t         Currently supported features: thickness,flair,FA,ADC,qT1
-\t\t\033[38;5;120m-smoothing\033[0m   : Specify size of gaussian smoothing kernel (Default: 2mm). If set to 0, no smoothing is applied.
-\t\033[38;5;197m-proc_subcortex\033[0m      : run post-processing of subcortical structures for report generation. Relies on Freesurfer and micapipe
-\t\t\033[38;5;120m-featureStr\033[0m  : Specify which subcortical features should undergo post-processing
-\t\t\t         Default is '-featureStr all', meaning all available features based on BIDS outputs
-\t\t\t         To only process one feature, specify using string: e.g. '-featureStr flair'
-\t\t\t         Multiple inputs example = '-featureStr flair,FA,ADC'
-\t\t\t         Currently supported features: volume,flair,FA,ADC,qT1
+\t\033[38;5;197m-proc_cortex\033[0m               : run post-processing of cortical features for report generation. Relies on micapipe derivatives
+\t\t\033[38;5;120m-featureStr\033[0m        : Specify which cortical features should undergo post-processing
+\t\t\t\t         Default is '-featureStr all', meaning all features found under /derivatives/micapipe/subject/maps
+\t\t\t\t         To only process one feature, specify using string: e.g. '-featureStr flair'
+\t\t\t\t         Multiple inputs example = '-featureStr flair,FA,ADC'
+\t\t\t\t         Currently supported features: thickness,flair,FA,ADC,qT1
+\t\t\033[38;5;120m-outputResolution\033[0m  : Resolution of neocortical surface mesh outputs.
+\t\t\t\t         Specify 'low' to output results on cortical surface mesh with 5k vertices/hemisphere
+\t\t\t\t         Specify 'high' to output results on cortical surface mesh with 32k vertices/hemisphere
+\t\t\t\t         Leave blank to output both 5k and 32k results.
+\t\033[38;5;197m-proc_hippocampus\033[0m          : run post-processing of hippocampal features for report generation. Relies on hippunfold derivatives
+\t\t\033[38;5;120m-featureStr\033[0m        : Specify which hippocampal features should undergo post-processing
+\t\t\t\t         Default is '-featureStr all', meaning all available features based on BIDS raw data
+\t\t\t\t         To only process one feature, specify using string: e.g. '-featureStr flair'
+\t\t\t\t         Multiple inputs example = '-featureStr flair,FA,ADC'
+\t\t\t\t         Currently supported features: thickness,flair,FA,ADC,qT1
+\t\t\033[38;5;120m-outputResolution\033[0m  : Resolution of hippocampal surface mesh outputs.
+\t\t\t\t         Specify 'low' to output results on hippocampal surface mesh with 5k vertices/hemisphere
+\t\t\t\t         Specify 'high' to output results on hippocampal surface mesh with 32k vertices/hemisphere
+\t\t\t\t         Leave blank to output both 5k and 32k results.
+\t\033[38;5;197m-proc_subcortex\033[0m            : run post-processing of subcortical structures for report generation. Relies on Freesurfer and micapipe
+\t\t\033[38;5;120m-featureStr\033[0m        : Specify which subcortical features should undergo post-processing
+\t\t\t\t         Default is '-featureStr all', meaning all available features based on BIDS outputs
+\t\t\t\t         To only process one feature, specify using string: e.g. '-featureStr flair'
+\t\t\t\t         Multiple inputs example = '-featureStr flair,FA,ADC'
+\t\t\t\t         Currently supported features: volume,flair,FA,ADC,qT1
 
    Flags for case-control analysis and clinical report generation:
 \t\033[38;5;197m-regional\033[0m          : Multivariate regional analysis
@@ -159,20 +165,12 @@ for arg in "$@"; do
     feat=$2
     shift;shift
   ;;
-  -smoothing)
-    smooth=$2
-    shift;shift
-  ;;
   -proc_hippocampus)
     hippoPROC=TRUE
     shift
   ;;
   -featureStr)
     feat=$2
-    shift;shift
-  ;;
-  -smoothing)
-    smooth=$2
     shift;shift
   ;;
   -proc_subcortex)
@@ -225,6 +223,10 @@ for arg in "$@"; do
   ;;
   -smoothHipp)
     smoothHipp=$2
+    shift;shift
+  ;;
+  -outputResolution)
+    outputResolution=$2
     shift;shift
   ;;
   -mica)
@@ -348,8 +350,9 @@ exit 1; fi
 
 # Feature selection and smoothing
 if [ -z ${feat} ]; then featStr='all'; else featStr="$feat"; fi
-if [ -z ${smoothCtx} ]; then smoothCtx='5mm'; else smoothingCTX="$smoothCTX"; fi #!!!!!! there is an issue here with argument handling for cortex/hippo smoothing modules, it's defined as $smoothing and not $smoothCtx
+if [ -z ${smoothCtx} ]; then smoothCtx='5mm'; else smoothingCTX="$smoothCTX"; fi 
 if [ -z ${smoothHipp} ]; then smoothHipp='2mm'; else smoothingHIPP="$smoothHIPP"; fi
+if [ -z ${outputResolution} ]; then outRes='all'; else outRES="$outputResolution"; fi
 
 # arguments for regional and asymmetry analysis
 if [ -z "$csvControls" ]; then csvControls="/data_/mica1/03_projects/jessica/hackathon2023/lists/control.csv"; fi
@@ -422,7 +425,7 @@ zbrains_json
 if [ "$ALL" = "TRUE" ] || [ "$ctxPROC" = "TRUE" ]; then
     log_file_str=${dir_logs}/ctx_proc_$(date +'%d-%m-%Y')
 
-    COMMAND="${scriptDir}/01_ctx_proc.sh $id $indir $outmicapipe $outz $SES $FSdir $nocleanup $threads $tmpDir $featStr $smoothCtx"
+    COMMAND="${scriptDir}/01_ctx_proc.sh $id $indir $outmicapipe $outz $SES $FSdir $nocleanup $threads $tmpDir $featStr $smoothCtx $outputResolution"
     # mica.q - Structural processing: Cortex
     if [[ $micaq == "TRUE" ]]; then
         Info "MICA qsub - Structural processing: Cortex"
@@ -450,7 +453,7 @@ fi
 if [ "$ALL" = "TRUE" ] || [ "$hippoPROC" = "TRUE" ]; then
     log_file_str=${dir_logs}/hippo_proc_$(date +'%d-%m-%Y')
 
-    COMMAND="${scriptDir}/01_hippo_proc.sh $id $indir $outhipp $outmicapipe $outz $SES $FSdir $nocleanup $threads $tmpDir $featStr $smoothHipp"
+    COMMAND="${scriptDir}/01_hippo_proc.sh $id $indir $outhipp $outmicapipe $outz $SES $FSdir $nocleanup $threads $tmpDir $featStr $smoothHipp $outputResolution"
     # mica.q - Structural processing: Hippocampus
     if [[ $micaq == "TRUE" ]]; then
         Info "MICA qsub - Structural processing: Hippocampus"

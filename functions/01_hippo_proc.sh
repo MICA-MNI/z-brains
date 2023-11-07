@@ -28,7 +28,8 @@ threads=$9
 tmpDir=${10}
 featStr=${11}
 fwhm=${12}
-PROC=${13}
+outRes=${13}
+PROC=${14}
 export OMP_NUM_THREADS=$threads
 here=$(pwd)
 
