@@ -39,45 +39,60 @@ ${PCOLOR}ARGUMENTS:${NC}
 \t${GCOLOR}-ses${NC}         : OPTIONAL flag that indicates the session name (if omitted will manage as SINGLE session)
 \t${GCOLOR}-run${NC} [task ...]         : Indicates tasks to perform.
                                   Options:
-                                    proc        : post-processing
-                                    regional    : multivariate regional analysis
-                                    asymmetry   : multivariate feature asymmetry analysis
-                                    all         : perform all tasks (default)
+                                    - proc        : post-processing
+                                    - regional    : multivariate regional analysis
+                                    - asymmetry   : multivariate feature asymmetry analysis
+                                    - all         : perform all tasks (default)
 \t${GCOLOR}-struct${NC} [structure ...] : Structures to use in the post-processing and case-control analyses.
                                   Options:
-                                    cortex      : cortex data
-                                    subcortex   : subcortex data
-                                    hippocampus : hippocampus data
-                                    all         : all structures (default)
+                                    - cortex      : cortex data
+                                    - subcortex   : subcortex data
+                                    - hippocampus : hippocampus data
+                                    - all         : all structures (default)
 \t${GCOLOR}-feat${NC} [feature ...]     : Specify which features should undergo post-processing and/or analysis.
                                   Options:
-                                    thickness   : cortical thickness (for subcortex, volume is used)
-                                    flair       : FLAIR
-                                    FA          : fractional anisotropy
-                                    ADC         : apparent diffusion coefficient
-                                    qT1         : quantitative T1
-                                    all         : all features (default)
-\t${GCOLOR}-smooth_ctx${NC} [size]      : Size of gaussian smoothing kernel ${BCOLOR}in mm${NC} used for cortical features
-                                  Default is 5
-\t${GCOLOR}-smooth_hipp${NC} [size]     : Size of gaussian smoothing kernel ${BCOLOR}in mm${NC} used for hippocampal features
-                                  Default is 2
-\t${GCOLOR}-thr_regional${NC} [th]      : Z-score threshold for regional maps
-                                  Default is 1.96.
-\t${GCOLOR}-thr_asymmetry${NC} [th]     : Z-score threshold for asymmetry maps
-                                  Default is 1.96.
-\t${GCOLOR}-demo${NC} [path]            : Path to demographic file
-                                  Default=''
-\t${GCOLOR}-resolution${NC} [res ...]           : Indicates resolutions of cortex and hippocampus surfaces used for processing and analysis.
-                                  Options:
-                                    low         : 5k cortical & 2mm hippocampal surfaces
-                                    high        : 32k cortical surfaces & 0p5mm hippocampal surfaces
-                                    all         : all resolutions (default)
+                                    - thickness   : cortical thickness (for subcortex, volume is used)
+                                    - flair       : FLAIR
+                                    - FA          : fractional anisotropy
+                                    - ADC         : apparent diffusion coefficient
+                                    - qT1         : quantitative T1
+                                    - all         : all features (default)
+\t${GCOLOR}-resolution${NC} [res ...]   : Indicates resolutions of cortex and hippocampus surfaces used for processing
+                                  and analysis. Options:
+                                    - low         : 5k cortical & 2mm hippocampal surfaces
+                                    - high        : 32k cortical surfaces & 0p5mm hippocampal surfaces
+                                    - all         : all resolutions (default)
+\t${GCOLOR}-smooth_ctx${NC} [size]      : Size of gaussian smoothing kernel ${BCOLOR}in mm${NC} used for cortical
+                                  features. Default is 5.
+\t${GCOLOR}-smooth_hipp${NC} [size]     : Size of gaussian smoothing kernel ${BCOLOR}in mm${NC} used for hippocampal
+                                  features Default is 2.
+\t${GCOLOR}-thr_regional${NC} [th]      : Z-score threshold for regional maps. Default is 1.96.
+\t${GCOLOR}-thr_asymmetry${NC} [th]     : Z-score threshold for asymmetry maps. Default is 1.96.
+\t${GCOLOR}-approach${NC} [path]        : Approach to analyze the differences of patient wrt controls. Options:
+                                    - zscore      : z-scoring
+                                    - norm        : normative modelling
+                                    - all         : all analyses (default)
+\t${GCOLOR}-demo_cn${NC} [path]         : CSV file with demographics for controls. Required for regional/asymmetry
+                                  analysis. Required columns:
+                                    - ID          : subject ID (e.g., PX001)
+                                    - SES         : session ID (e.g., 1)
+                                    - Other       : names provided with '-covariates'. Only used when approach=norm.
+                                                  If approach=zscore, only ID and SES are needed.
+\t${GCOLOR}-demo_px${NC} [path]         : CSV file with patient demographics. Required for regional/asymmetry analysis.
+                                  Only required when approach=norm (i.e., normative modelling). Required columns:
+                                    - ID          : patient ID (e.g., PX001)
+                                    - SES         : session ID (e.g., 1)
+                                    - Other       : names provided with '-covariates'
+\t${GCOLOR}-covariates${NC} [cov ...]   : Covariates used for normative modelling. Covariates should be columns in the
+                                  csv files provided for controls and patients.
+
+
 
 ${PCOLOR}OPTIONS:${NC}
 \t${RCOLOR}-h|-help${NC}         : Print help
 \t${RCOLOR}-v|-version${NC}      : Print software version
 \t${RCOLOR}-force${NC}           : WARNING this will overwrite the BIDS_ID directory
-\t${RCOLOR}-quiet${NC}           : Do not print comments
+\t${RCOLOR}-verbose${NC}         : level of verbosity. Negative numbers indicate highest level (default is -1)
 \t${RCOLOR}-threads${NC}         : Number of threads (Default is 6)
 \t${RCOLOR}-mica${NC}            : Only for MICA local processing
 \t${RCOLOR}-qsub${NC}            : Only for MICA network processing (SGE mica.q)
@@ -110,27 +125,25 @@ http://mica-mni.github.io/
 # ----------------------------------------------------------------------------------------------- #
 # -------------------------- Handle all arguments and create variables -------------------------- #
 # ----------------------------------------------------------------------------------------------- #
-export LIST_FEATURES=(thickness flair FA ADC qT1)
-export LIST_STRUCTURES=(cortex subcortex hippocampus)
-export LIST_TASKS=(proc regional asymmetry)
-export LIST_RESOLUTIONS=(low high)
-declare -A map_resolution_ctx=([low]=LOW_RESOLUTION_CTX [high]=HIGH_RESOLUTION_CTX)
-declare -A map_resolution_hipp=([low]=LOW_RESOLUTION_HIPP [high]=HIGH_RESOLUTION_HIPP)
+declare -A map_resolution_ctx=([low]=$LOW_RESOLUTION_CTX [high]=$HIGH_RESOLUTION_CTX)
+declare -A map_resolution_hipp=([low]=$LOW_RESOLUTION_HIPP [high]=$HIGH_RESOLUTION_HIPP)
 
 
 # Defaults
+export VERBOSE=-1
 session="SINGLE"
 smooth_ctx=${DEFAULT_SMOOTH_CTX}
 smooth_hipp=${DEFAULT_SMOOTH_HIPP}
 threshold_regional=${DEFAULT_THRESHOLD}
 threshold_asymmetry=${DEFAULT_THRESHOLD}
-#csvControls="${PATH_CSV_CONTROLS}"
-demo="" # TODO: Difference between demo and csvControls - is it the same??
 tasks=(all)
 structures=(all)
 features=(all)
 resolutions=(all)
-
+approaches=(zscore)
+#demo_cn=""
+#demo_px=""
+covariates=()
 
 for arg in "$@"; do
   case "$arg" in
@@ -232,14 +245,33 @@ for arg in "$@"; do
       shift
     done
     ;;
+  -approach)
+    approaches=()
+    shift
+    while [[ $# -gt 0 && ! "$1" == -* ]]; do
+      if [[ " ${LIST_APPROACHES[*]} " == *" $1 "* ]]; then
+        approaches+=("$1")
+      elif [ "$1" == "all" ]; then
+        approaches=(all)
+      else
+        Error "Invalid argument for ${arg}: $1"
+        exit 1
+      fi
+      shift
+    done
+    ;;
+  -covariates)
+    shift
+    while [[ $# -gt 0 && ! "$1" == -* ]]; do covariates+=("$1"); shift; done
+    ;;
   -smooth_ctx)
     [[ $# -eq 1 || "$2" == -* ]] && Error "${arg} option requires a value." && exit 1;
-    smooth_ctx="$2"mm
+    smooth_ctx=$2
     shift 2
   ;;
   -smooth_hipp)
     [[ $# -eq 1 || "$2" == -* ]] && Error "${arg} option requires a value." && exit 1;
-    smooth_hipp="$2"mm
+    smooth_hipp=$2
     shift 2
   ;;
   -thr_regional)
@@ -252,9 +284,14 @@ for arg in "$@"; do
     threshold_asymmetry="$2"
     shift 2
   ;;
-  -demo)
+  -demo_cn)
     [[ $# -eq 1 || "$2" == -* ]] && Error "${arg} option requires a value." && exit 1;
-    demo="$2"
+    demo_cn="$2"
+    shift 2
+  ;;
+  -demo_px)
+    [[ $# -eq 1 || "$2" == -* ]] && Error "${arg} option requires a value." && exit 1;
+    demo_px="$2"
     shift 2
   ;;
   -mica)
@@ -278,9 +315,10 @@ for arg in "$@"; do
     force=true
     shift
   ;;
-  -quiet)
-    quiet=true
-    shift
+  -verbose)
+    VERBOSE=$2
+    export VERBOSE
+    shift 2
   ;;
   -*)
     Error "Unknown option ${2}"
@@ -302,20 +340,32 @@ done
 
 # If no tasks specified -> raise error - This only happens when user provides -run with no values
 [[ ${#tasks[*]} -eq 0 ]] && Error "Option -run requires at least one task." && exit 1;
-[[ ${tasks[*]} =~ "all" ]] && tasks=("${LIST_TASKS[@]}")
+[[ " ${tasks[*]} " =~ " all " ]] && tasks=("${LIST_TASKS[@]}")
 
 # If no structures specified -> raise error - This only happens when user provides -struct with no values
 [[ ${#structures[*]} -eq 0 ]] && Error "Option -struct requires at least one structure." && exit 1;
-[[ ${structures[*]} =~ "all" ]] && structures=("${LIST_STRUCTURES[@]}")
+[[ " ${structures[*]} " =~ " all " ]] && structures=("${LIST_STRUCTURES[@]}")
 
 # If no features specified -> raise error - This only happens when user provides -feat with no values
 [[ ${#features[*]} -eq 0 ]] && Error "Option -feat requires at least one feature." && exit 1;
-[[ ${features[*]} =~ "all" ]] && features=("${LIST_FEATURES[@]}")
+[[ " ${features[*]} " =~ " all " ]] && features=("${LIST_FEATURES[@]}")
 comma_separated_features=$(IFS=, ; echo "${features[*]}")
 
-# If no structures specified -> raise error - This only happens when user provides -struct with no values
+# If no resolutions specified -> raise error - This only happens when user provides -resolution with no values
 [[ ${#resolutions[*]} -eq 0 ]] && Error "Option -resolution requires at least one value." && exit 1;
-[[ ${resolutions[*]} =~ "all" ]] && resolutions=("${LIST_RESOLUTIONS[@]}")
+[[ " ${resolutions[*]} " =~ " all " ]] && resolutions=("${LIST_RESOLUTIONS[@]}")
+
+# If no approach specified -> raise error - This only happens when user provides -approach with no values
+[[ ${#approaches[*]} -eq 0 ]] && Error "Option -approach requires at least one value." && exit 1;
+[[ " ${approaches[*]} " =~ " all " ]] && approaches=("${LIST_APPROACHES[@]}")
+
+if [[ " ${tasks[*]} " =~ " regional " || " ${tasks[*]} " =~ " asymmetry " ]]; then
+  [[ -z "$demo_cn" ]] && Error "Option -demo_cn is required for regional/asymmetry analysis." && exit 1;
+  if [[ " ${approaches[*]} " =~ " norm " ]]; then
+    [[ -z "$demo_px" ]] && Error "Option -demo_px is required for when using normative modelling." && exit 1;
+    [[ ${#covariates[*]} -eq 0 ]] && Error "Option -covariates requires at least one value when using normative modelling." && exit 1;
+  fi
+fi
 
 
 # ------------------------------ Prepare variables ------------------------------ #
@@ -325,9 +375,6 @@ id=${id/sub-/}
 
 # Number of session session in the for 01, 02, etc or SINGLE
 if [ "${session}" != "SINGLE" ]; then session=$(printf "%02d" "${session/ses-/}"); fi
-
-# No print Do_cmd
-if [ "$quiet" = "true" ]; then export QUIET=true; fi
 
 # Get the real path of the Inputs
 raw_dir=$(realpath "$raw_dir")
@@ -341,34 +388,37 @@ if [ ! -d "${raw_dir}" ]; then Error "Subject $id was not found in the BIDS raw 
 # Assign variables names
 bids_variables "$id" "$raw_dir" "$hipp_dir" "$micapipe_dir" "$out_dir" "$session"
 
-## Set surface directory and check if subject has a surface directory
-#Nrecon=$(find "${DIR_QC}/${BIDS_ID}_module-proc_surf-"*.json 2>/dev/null | wc -l)
-#if [[ "$Nrecon" -lt 1 ]]; then
-#  Error "Subject $id doesn't have a module-proc_surf: run -proc_surf"; exit 1
-#elif [[ "$Nrecon" -eq 1 ]]; then
-#  module_qc=$(ls "${DIR_QC}/${BIDS_ID}_module-proc_surf-"*.json 2>/dev/null)
-#  recon="$(echo "${module_qc/.json/}" | awk -F 'proc_surf-' '{print $2}')"
-#elif [[ "$Nrecon" -gt 1 ]]; then
-#  Warning "${BIDS_ID} has been processed with freesurfer and fastsurfer."
+
+# Set surface directory and check if subject has a surface directory
+Nrecon=$(find "${DIR_QC}/${BIDS_ID}_module-proc_surf-"*.json 2>/dev/null | wc -l)
+
+if [[ "$Nrecon" -lt 1 ]]; then
+  Error "Subject $id doesn't have a module-proc_surf: run -proc_surf"; exit 1
+elif [[ "$Nrecon" -eq 1 ]]; then
+  module_qc=$(ls "${DIR_QC}/${BIDS_ID}_module-proc_surf-"*.json 2>/dev/null)
+  recon="$(echo "${module_qc/.json/}" | awk -F 'proc_surf-' '{print $2}')"
+elif [[ "$Nrecon" -gt 1 ]]; then
+  Error "${BIDS_ID} has been processed with freesurfer and fastsurfer. Not supported yet"
 #  if [[ "$FastSurfer" == "true" ]]; then                              # TODO: FastSurfer???
 #    Note "fastsurfer will run: $FastSurfer\n"; recon="fastsurfer";
 #  else
 #    Note "freesurfer is the default"; recon="freesurfer"
 #  fi
-#fi
-#
-#
-#set_surface_directory "${recon}"
-#if [ -z "${DIR_SUBJSURF}" ]; then fs_dir="false"; else  fs_dir=$(realpath "$DIR_SUBJSURF"); fi
-#
-#if [ ! -d "$fs_dir" ]; then
-#    Error "Subject ${id} freesurfer directory doesn't exist, run freesurfer or fastsurfer before running z-brains"
-#exit 1; fi
-#
-## Check if subject's micapipe directory exists
-#if [ ! -d "${SUBJECT_MICAPIPE}" ]; then
-#    Error "Subject ${id} micapipe directory doesn't exist, run micapipe v0.2.2 before running z-brains"
-#exit 1; fi
+fi
+
+set_surface_directory "${recon}"
+if [ -z "${DIR_SUBJSURF}" ]; then fs_dir="false"; else  fs_dir=$(realpath "$DIR_SUBJSURF"); fi
+
+if [ ! -d "$fs_dir" ]; then
+  Error "Subject ${id} freesurfer directory doesn't exist, run freesurfer or fastsurfer first."
+  exit 1;
+fi
+
+# Check if subject's micapipe directory exists
+if [ ! -d "${SUBJECT_MICAPIPE}" ]; then
+  Error "Subject ${id} micapipe directory doesn't exist, run micapipe v0.2.2 first."
+  exit 1;
+fi
 
 
 # ----------------------------------------------------------------------------------------------- #
@@ -377,16 +427,16 @@ bids_variables "$id" "$raw_dir" "$hipp_dir" "$micapipe_dir" "$out_dir" "$session
 Title "z-brains pipeline - (Version $VERSION) \n\t\tSubject: $id, Session: $session"
 
 # -------------------- Launch the init file for local processing at MICA lab -------------------- #
-#if [ "$micaq" = "true" ] || [ "$qall" = "true" ] || [ "$mica" = "true" ]; then
-#    source "${ZBRAINS}/functions/init.sh" "$threads"
-#else
-#    # tree display
-##    if [[ -z $(which tree) ]]; then Warn "tree function was not found"; fi # TODO: tree is so far not used here
-#    # ANTSx
-#    if [[ -z $(which antsRegistration) ]]; then Error "ANTs was not found"; exit 1; fi
-#    # workbench
-#    if [[ -z $(which wb_command) ]]; then Error "Workbench was not found"; exit 1; fi
-#fi
+if [ "$micaq" = "true" ] || [ "$qall" = "true" ] || [ "$mica" = "true" ]; then
+    source "${ZBRAINS}/functions/init.sh" "$threads"
+else
+    # tree display
+#    if [[ -z $(which tree) ]]; then Warn "tree function was not found"; fi # TODO: tree is so far not used here
+    # ANTSx
+    if [[ -z $(which antsRegistration) ]]; then Error "ANTs was not found"; exit 1; fi
+    # workbench
+    if [[ -z $(which wb_command) ]]; then Error "Workbench was not found"; exit 1; fi
+fi
 
 # Processing default
 if [[ -z $PROC ]]; then export PROC="LOCAL"; fi
@@ -398,7 +448,7 @@ Info "z-brains will use $threads threads for multicore processing"
 # If -force flag specified
 if [[ ${force} == true ]]; then
   Warning "$id processing directory will be overwritten"
-#  echo rm -rf "${out_dir:?}/${BIDS_ID:?}"; # TODO: uncomment
+  echo rm -rf "${out_dir:?}/${BIDS_ID:?}";
 fi
 
 
@@ -420,10 +470,12 @@ fi
 
 # Temp dir - within the z-brains folder of the subject
 tmp_dir=$(mktemp -d "$SUBJECT_OUT/z_brains_temp.XXXXXXXXXX")
-
+#hidden_dir=$(dirname "$tmp_dir")/.$(basename "$tmp_dir")  # TODO: uncomment
+#mv "$tmp_dir" ".$hidden_dir"
+#tmp_dir=$hidden_dir
 
 # TRAP in case the script fails
-# trap 'cleanup $tmp_dir' SIGINT SIGTERM EXIT  # TODO: uncomment
+ trap 'cleanup $tmp_dir' SIGINT SIGTERM EXIT
 
 
 # ----------------------------------------------------------------------------------------------- #
@@ -448,22 +500,22 @@ run_command() {
 
   args="-l h_vmem=6G -N ${job_name} -e ${std_error_log} -o ${std_output_log} $cmd"
 
-    if [[ $micaq == "true" ]]; then
-        Info "MICA qsub - ${info_msg}"
-        Warning "This option only works on the MICA workstations"
-#        export PROC="qsub-MICA"
-        qsub -q mica.q -pe smp $threads "$args"
+  if [[ $micaq == "true" ]]; then
+    Info "MICA qsub - ${info_msg}"
+    Warning "This option only works on the MICA workstations"
+#    export PROC="qsub-MICA"
+    qsub -q mica.q -pe smp $threads "$args"
 
-    elif [[ $qall == "true" ]]; then
-        Info "all.q qsub - ${info_msg}"
-        Warning "This option only works on the McGill BIC network"
-#        export PROC="qsub-all.q"
-        qsub -q all.q -pe all.pe $threads "$args"
-    else
-        #  LOCAL
-#        $cmd $PROC 2>&1 | tee -a "${std_output_log}.txt"
-        $cmd 2>&1 | tee -a "${std_output_log}.txt"
-    fi
+  elif [[ $qall == "true" ]]; then
+    Info "all.q qsub - ${info_msg}"
+    Warning "This option only works on the McGill BIC network"
+#      export PROC="qsub-all.q"
+    qsub -q all.q -pe all.pe $threads "$args"
+  else
+    #  LOCAL
+#     $cmd $PROC 2>&1 | tee -a "${std_output_log}"
+    $cmd 2>&1 | tee -a "${std_output_log}"
+  fi
 }
 
 
@@ -526,9 +578,10 @@ if [[ ${tasks[*]} =~ "regional" ]]; then
   std_error_log=${prefix_log}.e
 
   cmd="python ${script_dir}/run_analysis.py --subject_id $id --session $session --zbrains_dir $out_dir \
-                                            --controls $demo --structure ${structures[*]} --feature ${features[*]} \
-                                          --smooth-ctx $smooth_ctx --smooth-hipp $smooth_hipp \
-                                          --resolution ${resolutions[*]} --threshold $threshold_regional"
+                                            --demo $demo_cn --structure ${structures[*]} --feature ${features[*]} \
+                                            --smooth-ctx $smooth_ctx --smooth-hipp $smooth_hipp \
+                                            --resolution ${resolutions[*]} --threshold $threshold_regional"
+
   run_command "Multivariate analysis: REGIONAL" "q${id}_regionZ" "$std_output_log" "$std_error_log" "$cmd"
 fi
 
@@ -542,7 +595,7 @@ if [[ ${tasks[*]} =~ "asymmetry" ]]; then
   std_error_log=${prefix_log}.e
 
   cmd="python ${script_dir}/run_analysis.py --subject_id $id --session $session --zbrains_dir $out_dir \
-                                            --controls $demo --structure ${structures[*]} --feature ${features[*]} \
+                                            --demo $demo_cn --structure ${structures[*]} --feature ${features[*]} \
                                             --smooth-ctx $smooth_ctx --smooth-hipp $smooth_hipp \
                                             --resolution ${resolutions[*]} --threshold $threshold_asymmetry --asymmetry"
 

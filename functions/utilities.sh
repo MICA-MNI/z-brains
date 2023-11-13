@@ -67,7 +67,8 @@ bids_variables() {
 
 set_surface_directory() {
   local recon=${1}
-  export DIR_SURF=${out_dir/\/z-brains/}/${recon}    # surf
+  DIR_SURF=$(dirname "${out_dir}")/${recon}    # surf
+  export DIR_SURF
   export DIR_SUBJSURF=${DIR_SURF}/${BIDS_ID}  # Subject surface dir
   export T1SURF=${DIR_SUBJSURF}/mri/orig.mgz
 
@@ -227,35 +228,45 @@ function cleanup() {
 #     Note messages
 #     Warn messages
 #     Title messages
+
+COLOR_ERROR="\033[38;5;9m"
+COLOR_NOTE="\033[38;5;122m"
+COLOR_INFO="\033[38;5;75m"
+COLOR_WARNING="\033[38;5;184m"
+COLOR_TITLE="\033[38;5;141m"
+COLOR_NOTE="\033[0;36;10m"
+NC="\033[0m" # No color
+
 Error() {
-echo -e "\033[38;5;9m\n-------------------------------------------------------------\n\n[ ERROR ]..... $1\n
--------------------------------------------------------------\033[0m\n"
+echo -e "${COLOR_ERROR}\n-------------------------------------------------------------\n\n[ ERROR ]..... $1\n
+-------------------------------------------------------------${NC}\n"
 }
-Note(){
-# I replaced color \033[38;5;197m to \033[38;5;122m
-if [[ ${QUIET} != TRUE ]]; then echo -e "\t\t$1\t\033[38;5;122m$2\033[0m"; fi
+Note() {
+if [[ ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then echo -e "\t\t$1\t${COLOR_NOTE}$2 ${NC}"; fi
 }
 Info() {
-Col="38;5;75m" # Color code
-if [[ ${QUIET} != TRUE ]]; then echo  -e "\033[$Col\n[ INFO ]..... $1 \033[0m"; fi
+if [[ ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then echo  -e "${COLOR_INFO}\n[ INFO ]..... $1 ${NC}"; fi
 }
 Warning() {
-Col="38;5;184m" # Color code
-if [[ ${QUIET} != TRUE ]]; then echo  -e "\033[$Col\n[ WARNING ]..... $1 \033[0m"; fi
+if [[ ${VERBOSE} -gt 0 || ${VERBOSE} -lt 0 ]]; then echo  -e "${COLOR_WARNING}\n[ WARNING ]..... $1 ${NC}"; fi
 }
 Warn() {
-Col="38;5;184m" # Color code
-if [[ ${QUIET} != TRUE ]]; then echo  -e "\033[$Col
+if [[ ${VERBOSE} -gt 0 || ${VERBOSE} -lt 0 ]]; then echo  -e "${COLOR_WARNING}
 -------------------------------------------------------------\n
 [ WARNING ]..... $1
-\n-------------------------------------------------------------\033[0m"; fi
+\n-------------------------------------------------------------${NC}"; fi
 }
 Title() {
-if [[ ${QUIET} != TRUE ]]; then echo -e "\n\033[38;5;141m
+if [[ ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then echo -e "\n${COLOR_TITLE}
 -------------------------------------------------------------
 \t$1
--------------------------------------------------------------\033[0m"; fi
+-------------------------------------------------------------${NC}"; fi
 }
+
+
+# Export
+export -f Error Note Info Warning Warn Title
+
 
 function Do_cmd() {
 # do_cmd sends command to stdout before executing it.
@@ -283,7 +294,10 @@ while [ ${l_index} -le $# ]; do
     l_index=$((l_index+1))
    done
 
-[[ ${QUIET} != TRUE ]] && echo -e "\033[38;5;118m\n${str}:\nCOMMAND -->  \033[38;5;122m${l_command}  \033[0m";
+#[[ ${QUIET} != true ]] && echo -e "\033[38;5;118m\n${str}:\nCOMMAND -->  \033[38;5;122m${l_command}  \033[0m";
+if [[ ${VERBOSE} -gt 2 || ${VERBOSE} -lt 0 ]]; then
+  echo -e "\033[38;5;118m\n${str}:\nCOMMAND -->  \033[38;5;122m${l_command}  \033[0m";
+fi
 if [ -z "$TEST" ]; then $l_command; fi
 }
 

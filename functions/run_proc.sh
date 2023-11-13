@@ -3,6 +3,14 @@
 # Subcortical feature mapping
 
 
+if [[ -z ${ZBRAINS} ]]; then
+  echo "ZBRAINS not defined"
+  echo "This script should not be run standalone. Please use 'z-brains' directly."
+  exit 0;
+fi
+source "${ZBRAINS}/config.cfg" # Configuration file
+
+
 # Set umask
 umask 003
 
@@ -10,7 +18,7 @@ umask 003
 #------------------------------------------------------------------------------#
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --struct)
+    --structure)
       if [[ " ${LIST_STRUCTURES[*]} " != *" $2 "* ]]; then Error "Invalid argument for $1: $2"; exit 1; fi
       structure="$2"
       shift 2
@@ -65,11 +73,6 @@ if [ -z "$PROC" ]; then echo "Error: Mandatory arguments are missing."; exit 1; 
 
 #------------------------------------------------------------------------------#
 # Initialization of pertinent scripts and functions
-if [[ -z ${ZBRAINS} ]]; then
-  echo "ZBRAINS not defined"
-  echo "This script should not be run standalone. Please use 'z-brains' directly."
-  exit 0;
-fi
 
 # qsub configuration
 if [ "$PROC" = "qsub-MICA" ] || [ "$PROC" = "qsub-all.q" ];then
@@ -120,6 +123,7 @@ do_cortex_mapping() {
   local resolution=$2
 
   # Input & output locations
+  surf_dir="${DIR_CONTE69}"
   input_dir="${DIR_MAPS}"
   output_dir=${SUBJECT_OUT}/${FOLDER_MAPS}/${FOLDER_CTX}
 
@@ -137,13 +141,14 @@ do_cortex_mapping() {
   for h in L R;
   do
     # Set paths
-    surf_file="${input_dir}/${BIDS_ID}_hemi-${h}_space-nativepro_surf-fsLR-${resolution}_label-white.surf.gii"
+    surf_file="${surf_dir}/${BIDS_ID}_hemi-${h}_space-nativepro_surf-fsLR-${resolution}_label-white.surf.gii"
     input_file="${input_dir}/${BIDS_ID}_hemi-${h}_surf-fsLR-${resolution}_label-${input_feat}.func.gii"
     output_file="${output_dir}/${BIDS_ID}_hemi-${h}_surf-fsLR-${resolution}_feature-${output_feat}_smooth-${fwhm}mm.func.gii"
 
     # Check if file exists
     if [[ ! -f "${input_file}" ]]; then
-      Note "Processing of '${feat}' requested for ${BIDS_ID} but did not find pre-processed file: skipping"
+#      Note "Processing of '${feat}' requested for ${BIDS_ID} but did not find pre-processed file: skipping"
+      Warning "Subject ${BIDS_ID}: '${feat}' not available. Skipping..."
       break
     fi
 
@@ -152,7 +157,7 @@ do_cortex_mapping() {
     [[ -f "$output_file" ]] && n=$((n + 1)) && n_steps=$((n_steps + 1))
   done
 
-  [[ $n -eq 2 ]] && Note "Subject ${BIDS_ID} '${feat}' [resolution=${resolution}] is mapped to cortex";
+  [[ $n -eq 2 ]] && Note "Subject ${BIDS_ID}: '${feat}' [resolution=${resolution}] successfully mapped to cortex";
 }
 
 do_subcortex_mapping (){
@@ -167,7 +172,7 @@ do_subcortex_mapping (){
 
   # Mappings from features names to the way they appear in the input and output filenames
   declare -A map_input=([flair]='map-flair' [adc]='model-DTI_map-ADC' [fa]='model-DTI_map-FA' [qt1]='map-T1map')
-  declare -A map_output=([thickness]=thickness [flair]=flair [adc]=ADC [fa]=FA [qt1]=T1map)
+  declare -A map_output=([volume]=volume [flair]=flair [adc]=ADC [fa]=FA [qt1]=T1map)
 
   declare -A label2mean_intensity=()
   output_file="${output_dir}/${BIDS_ID}_feature-${map_output[$feat]}.csv"
@@ -176,7 +181,8 @@ do_subcortex_mapping (){
   if [[ "$feat" != "volume" ]]; then
     input_file="${input_dir}/${BIDS_ID}_space-nativepro_${map_input[$feat]}.nii.gz"
     if [[ ! -f "${input_file}" ]]; then
-      Note "Processing of '${feat}' requested but did not find pre-processed file: skipping"; return
+#      Note "Processing of '${feat}' requested but did not find pre-processed file: skipping"; return
+      Warning "Subject ${BIDS_ID}: '${feat}' not available. Skipping...";  return
     fi
 
     mapfile -t a < <(ImageIntensityStatistics 3 "${input_file}" "${T1FAST_SEG}" | tail -n +2 | awk '{ print $1 "=" $2 }')
@@ -186,7 +192,7 @@ do_subcortex_mapping (){
     done
   else
     if [[ ! -f "${vol_stats_file}" ]]; then
-      Note "Volumetric processing requested but did not find subcortical volume file: skipping"; return
+      Warning "Volumetric processing requested but did not find subcortical volume file: skipping"; return
     fi
   fi
 
@@ -203,7 +209,7 @@ do_subcortex_mapping (){
     if [[ "$feat" == "volume" ]]
     then
       struct_name=${label2struct[${label}]}
-      value=$(grep "${struct_name}" "${vol_stats_file}" | awk '{ print $4 }')
+      value=$(grep "${struct_name}" "${vol_stats_file}" | awk '{ gsub(/^ *| *$/, "", $4); print $4 }')
     else
       value=${label2mean_intensity[${label}]}
     fi
@@ -212,7 +218,7 @@ do_subcortex_mapping (){
 
   # If volume -> add intracranial volume to csv
   if [[ "$feat" == "volume" ]]; then
-    value=$(grep IntraCranialVol "${vol_stats_file}" | awk '{ print $4 }')
+    value=$(grep IntraCranialVol "${vol_stats_file}" | awk -F, '{ gsub(/^ *| *$/, "", $4); print $4 }')
     result+=("${value}")
   fi
 
@@ -260,7 +266,7 @@ do_hippocampus_mapping() {
     # Check if file exists
     [[ "$feat" != "thickness" ]] && check_file=${input_file} || check_file=${inter_file}
     if [[ ! -f "${check_file}" ]]; then
-      Note "Processing of '${feat}' requested for ${BIDS_ID} but did not find pre-processed file: skipping"
+      Warning "Subject ${BIDS_ID}: '${feat}' not available. Skipping..."
       break
     fi
 
@@ -273,7 +279,7 @@ do_hippocampus_mapping() {
     [[ -f "${output_file}" ]] && n=$((n + 1)) && n_steps=$((n_steps + 1))
   done
 
-  [[ $n -eq 2 ]] && Note "Subject ${BIDS_ID} '${feat}' [resolution=${resolution}] is mapped to hippocampus";
+  [[ $n -eq 2 ]] && Note "Subject ${BIDS_ID}: '${feat}' [resolution=${resolution}] successfully mapped to hippocampus.";
 }
 
 
@@ -309,4 +315,3 @@ done
 # Wrap up
 Title "${structure^} feature mapping ended in \033[38;5;220m $(bc <<< "scale=2; $SECONDS/60") minutes \033[38;5;141m.
 \tCheck logs      : $([ -n "$logfile" ] && echo "${logfile}" || echo "${DIR_LOGS}")"
-

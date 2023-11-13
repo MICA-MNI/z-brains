@@ -2,6 +2,7 @@ import os
 import sys
 import logging
 import argparse
+import time
 from pathlib import Path
 from typing import get_args, Literal
 
@@ -21,9 +22,15 @@ def _read_config(file_path):
     with open(file_path, 'r') as file:
         for line in file:
             line = line.strip()
-            if line and not line.startswith('#'):
-                key, value = map(str.strip, line.split('='))
-                conf[key] = value.strip('"')
+            if len(line) == 0 or line.startswith('#'):
+                continue
+
+            key, value = map(str.strip, line.split('='))
+            if value.startswith('('):  # Array
+                value = [v.strip('"\'') for v in value.strip('()').split()]
+            else:
+                value = value.strip('"\'')
+            conf[key] = value
 
     return conf
 
@@ -57,7 +64,7 @@ parser.add_argument('-f', '--feature', type=str, nargs='+', choices=LIST_FEATURE
                     help='Features maps.')
 parser.add_argument('-st', '--structure', type=str, nargs='+', choices=LIST_STRUCTURES + ['all'],
                     default='all', help='Structures.')
-parser.add_argument('-cl', '--controls', metavar='PATH', type=Path, required=True,
+parser.add_argument('-d', '--demo', metavar='PATH', type=Path, required=True,
                     help='CSV File with the list of control subjects, and potentially other demographic info.')
 parser.add_argument('--smooth-ctx', type=str,
                     help='Size of gaussian smoothing kernel for cortex (e.g., 5mm).', required=True)
@@ -74,7 +81,7 @@ parser.add_argument('-r', '--resolution', type=str, nargs='+', choices=LIST_RESO
 
 args = parser.parse_args()
 
-controls_list = args.controls
+controls_list = args.demo
 px_id = args.subject_id  # patient id
 px_id = f'sub-{px_id}'
 
@@ -107,7 +114,7 @@ pth_logs = f'{subject_dir}/{config["FOLDER_LOGS"]}'
 ##################################################################################################
 # Logging settings
 ##################################################################################################
-logging_filename = f'{pth_logs}/02_zscores.txt'
+logging_filename = f'{pth_logs}/analysis.txt'
 logging.basicConfig(filename=logging_filename, encoding='utf-8',
                     format='%(asctime)s - %(levelname)-10.10s: %(message)s', level=logging.DEBUG)
 
@@ -138,10 +145,10 @@ sys.excepthook = handle_unhandled_exception
 def _map_resolution(struct: Structure, resolution: Resolution):
     if struct == 'cortex':
         res_suffix = config['HIGH_RESOLUTION_CTX'] if resolution == 'high' else config['LOW_RESOLUTION_CTX']
-        return f'surf-fsLR-${res_suffix}'
+        return f'surf-fsLR-{res_suffix}'
 
     res_suffix = config['HIGH_RESOLUTION_HIPP'] if resolution == 'high' else config['LOW_RESOLUTION_HIPP']
-    return f'den-${res_suffix}'
+    return f'den-{res_suffix}'
 
 
 def _load_one(sid: str, ses: str, feat: Feature, struct: Structure = 'cortex', resolution: Resolution | None = None,
@@ -195,7 +202,7 @@ def _load_one(sid: str, ses: str, feat: Feature, struct: Structure = 'cortex', r
         x = []
         for hemi in ['L', 'R']:
             res = _map_resolution(struct, resolution)
-            ipth = f'{folder}/{sid}_{ses}_hemi-{hemi}_{res}_feature-{feat}_smooth-{smooth}.func.gii'
+            ipth = f'{folder}/{sid}_{ses}_hemi-{hemi}_{res}_feature-{feat}_smooth-{smooth}mm.func.gii'
             try:
                 x.append(nib.load(ipth).darrays[0].data)
             except FileNotFoundError as e:
@@ -228,7 +235,7 @@ def _load_data_cn(feat: Feature, df_controls: pd.DataFrame, struct: Structure = 
 
     Returns
     -------
-    data: np.ndarray of shape (n_hemispheres, n_subjects, n_points) or DataFrame of (n_subjects, n_points)
+    data: np.ndarray of shape (n_subjects, n_hemispheres, n_points) or DataFrame of (n_subjects, n_points)
         Data for CN. DataFrame is used for 'subcortex'.
     df_controls_available: DataFrame of shape (n_available_subjects, n_points)
         Dataframe only including those rows in 'df_controls' with available data in the maps folder
@@ -246,7 +253,7 @@ def _load_data_cn(feat: Feature, df_controls: pd.DataFrame, struct: Structure = 
 
     if struct == 'subcortex':
         return pd.concat(data, axis=0), df_controls[~missing_subjects]
-    return np.stack(data, axis=1), df_controls[~missing_subjects]
+    return np.stack(data, axis=0), df_controls[~missing_subjects]
 
 
 def _load_data_px(feat: Feature, struct: Structure = 'cortex', resolution: Resolution | None = None) \
@@ -320,7 +327,7 @@ def _save(x: np.ndarray | pd.DataFrame, sid: str, ses: str, feat: Feature, struc
         image = nib.gifti.GiftiImage()
         image.add_gifti_data_array(data_array)
 
-        opth_prefix = f'{folder}/{sid}_{ses}_hemi-{h}_{res}_feature-{feat}_smooth-{smooth}_analysis-{reg_or_asym}'
+        opth_prefix = f'{folder}/{sid}_{ses}_hemi-{h}_{res}_feature-{feat}_smooth-{smooth}mm_analysis-{reg_or_asym}'
         opth = f'{opth_prefix}.func.gii' if thresh is None else f'{opth_prefix}_threshold-{thresh}.func.gii'
         nib.save(image, opth)
 
@@ -349,11 +356,16 @@ def main():
     for feat_name in features:
         logger_both.info(f'Feature: {feat_name}')
         for struct_name, res in struct_res_pair:
+            if struct_name == 'subcortex':
+                prefix = f'{struct_name:<12}'
+            else:
+                prefix = f'{struct_name:<12} [res = {res:<4}]'
 
             try:
                 data_cn, df_cn = _load_data_cn(feat_name, df_controls=orig_df_cn, struct=struct_name, resolution=res)
                 data_px = _load_data_px(feat_name, struct=struct_name, resolution=res)
             except FileNotFoundError:  # When patient files not available
+                logger_both.info(f'\t{prefix:<25}: \tNo data available.')
                 continue
 
             data_px_as_df = None
@@ -363,46 +375,40 @@ def main():
                 data_px = data_px.to_numpy()
 
                 # TODO: some have 15 columns - an additional column for ICV - remove
-                data_cn = data_cn[..., :14]
-                data_px = data_px[..., :14]
+                data_cn = data_cn[..., :14].reshape(-1, 2, 7)
+                data_px = data_px[..., :14].reshape(2, 7)
                 data_px_as_df = data_px_as_df.iloc[:, :14]
 
-            n_available = data_cn.shape[-2]
-            if struct_name == 'subcortex':
-                prefix = f'\t{struct_name:<12}'
-            else:
-                prefix = f'\t{struct_name:<12} [res ={res:>6}]'
-            logger_both.info(f'\t{prefix:<30}: \t[{n_available}/{orig_n_cn} controls available]')
+            logger_both.info(f'\t{prefix:<25}: \t[{data_cn.shape[0]}/{orig_n_cn} controls available]')
 
             # Analysis
-            n_feat_hemi = data_cn.shape[-1] // 2
             if do_asymmetry:
-                if data_cn.ndim == 2:
-                    lh_data_cn, rh_data_cn = data_cn[:, :n_feat_hemi], data_cn[:, n_feat_hemi:]
-                    lh_data_px, rh_data_px = data_px[:, :n_feat_hemi], data_px[:, n_feat_hemi:]
-                else:
-                    lh_data_cn, rh_data_cn = data_cn[0], data_cn[1]
-                    lh_data_px, rh_data_px = data_cn[0], data_cn[1]
+                lh_data_cn, rh_data_cn = data_cn[:, 0], data_cn[:, 1]
+                den_cn = .5 * (lh_data_cn + rh_data_cn)
+                data_cn = np.divide(lh_data_cn - rh_data_cn, den_cn, out=den_cn, where=den_cn > 0)
 
-                asym_cn = 2 * (lh_data_cn - rh_data_cn) / (lh_data_cn + rh_data_cn)
-                asym_px = 2 * (lh_data_px - rh_data_px) / (lh_data_px + rh_data_px)
+                lh_data_px, rh_data_px = data_px[0], data_px[1]
+                den_px = .5 * (lh_data_px + rh_data_px)
+                data_px = np.divide(lh_data_px - rh_data_px, den_px, out=den_px, where=den_px > 0)
 
-                data_cn = asym_cn
-                data_px = asym_px
+            # zscores = data_px - np.nanmean(data_cn, axis=-2)
+            # zscores /= np.nanstd(data_cn, axis=-2)
 
-            zscores = data_px - np.nanmean(data_cn, axis=-2)
-            zscores /= np.nanstd(data_cn, axis=-2)
+            mask = np.any(data_cn != 0, axis=0)  # ignore all zeros
+            data_cn[:, ~mask] = np.finfo(float).eps
 
-            zscores = np.nan_to_num(zscores, copy=False)
+            zscores = data_px - np.nanmean(data_cn, axis=0)
+            zscores = np.divide(zscores, np.nanstd(data_cn, axis=0), out=zscores, where=mask)
+            zscores[~mask] = 0
 
             # zscores thresholding
             thresh_zscores = np.where((zscores >= -threshold) & (zscores <= threshold), 0, zscores)
 
             # Add header to dataframe, only for subcortex
             if data_px_as_df is not None:
-                cols = data_px_as_df.columns[:n_feat_hemi] if do_asymmetry else data_px_as_df.columns
-                zscores = pd.DataFrame(zscores, index=data_px_as_df.index, columns=cols)
-                thresh_zscores = pd.DataFrame(thresh_zscores, index=data_px_as_df.index, columns=cols)
+                cols = data_px_as_df.columns[:zscores.size] if do_asymmetry else data_px_as_df.columns
+                zscores = pd.DataFrame(zscores.reshape(1, -1), index=data_px_as_df.index, columns=cols)
+                thresh_zscores = pd.DataFrame(thresh_zscores.reshape(1, -1), index=data_px_as_df.index, columns=cols)
 
             _save(zscores, px_id, px_ses, feat_name, struct=struct_name, resolution=res)
             _save(thresh_zscores, px_id, px_ses, feat_name, struct=struct_name, thresh=threshold, resolution=res)
