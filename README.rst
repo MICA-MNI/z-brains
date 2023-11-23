@@ -50,6 +50,7 @@ ZBRAINS requires input and output directories
     micapipedir=${root_path}/derivatives/micapipe_folder
     hippdir=${root_path}/derivatives/hippunfold_folder
     outdir=${root_path}/derivatives/z-brains_folder
+::
 
 Preparing control data
 ---------------------------------------------
@@ -72,6 +73,7 @@ To process features for healthy controls, subject and session identifiers are re
       -verbose 2 
 
   done <<< "$(tail -n +2 "${PATH_CSV_CONTROLS}")"
+::
 
 Processing and analyzing patient features
 ------------------------------------------------
@@ -101,3 +103,4 @@ Processing and analyzing patient features
         i=$((i+1))
         
     done
+::
