@@ -24,14 +24,84 @@ This open access processing and analysis tool aims identify patient-specific ano
 `z-brains` uses a set of known software dependencies developped by other groups and aggregated in a published pipeline `micapipe <https://github.com/MICA-MNI/micapipe>`_.
 
     
-Installation
+.. Installation
+.. --------------------------------------------
+
+.. Make sure set MICAPIPE and ZBRAINS variables, and add their function to your PATH. For example:
+.. .. code-block bash::
+..    export MICAPIPE=/data_/mica1/01_programs/micapipe-v0.2.0
+..    export PATH=${PATH}:${MICAPIPE}:${MICAPIPE}/functions
+..    source ${MICAPIPE}/functions/init.sh
+   
+..    export ZBRAINS=/data/mica1/03_projects/jordand/z-brains
+..    export PATH=${PATH}:${ZBRAINS}:${ZBRAINS}/functions
+
+.. ::
+
+Tutorial
 --------------------------------------------
 
-Make sure set MICAPIPE and ZBRAINS variables, and add their function to your PATH. For example:
+ZBRAINS requires input and output directories
+
 .. code-block bash::
-   export MICAPIPE=/data_/mica1/01_programs/micapipe-v0.2.0
-   export PATH=${PATH}:${MICAPIPE}:${MICAPIPE}/functions
-   source ${MICAPIPE}/functions/init.sh
-   
-   export ZBRAINS=/data/mica1/03_projects/jordand/z-brains
-   export PATH=${PATH}:${ZBRAINS}:${ZBRAINS}/functions
+    # Path for dataset in BIDS structure
+    root_path=/path/to/BIDS_dataset
+
+    rawdir=${root_path}/rawdata
+    micapipedir=${root_path}/derivatives/micapipe_folder
+    hippdir=${root_path}/derivatives/hippunfold_folder
+    outdir=${root_path}/derivatives/z-brains_folder
+::
+
+Preparing control data
+---------------------------------------------
+
+To process features for healthy controls, subject and session identifiers are required
+
+..code-block bash::
+  # csv file with ID and session for control participants to be processed
+  PATH_CSV_CONTROLS='/path/to/control/participants.csv'
+
+  while IFS=',' read -r id ses rest
+  do
+      ./z-brains -sub "$id" -ses "$ses" \
+      -rawdir "${rawdir}" \
+      -micapipedir "${micapipedir}" \
+      -hippdir "${hippdir}" \
+      -outdir "${outdir}" \
+      -run proc \
+      -mica \ # image processing pre-requisites were run in lab and locally, see -help for flag corresponding to alternative workflow
+      -verbose 2 
+
+  done <<< "$(tail -n +2 "${PATH_CSV_CONTROLS}")"
+::
+
+Processing and analyzing patient features
+------------------------------------------------
+
+.. code-block bash::
+    # Specify the list of subject IDs along with corresponding session
+    px_id=(PX001 PX002 PX003)
+    px_ses=(1 1 1)
+
+    # csv file with ID and session for control participants for comparison
+    PATH_CSV_CONTROLS='/path/to/control/participants.csv'
+
+    i=0
+    for id in "${px_id[@]}"
+    do
+        ses=${px_ses[$i]}
+        
+        ./z-brains -sub "$id" -ses "$ses" \
+        -rawdir "${rawdir}" \
+        -micapipedir "${micapipedir}" \
+        -hippdir "${hippdir}" \
+        -outdir "${outdir}" \
+        -approach "zscore" \
+        -demo_cn "${PATH_CSV_CONTROLS}" \
+        -mica -verbose 2
+
+        i=$((i+1))
+        
+    done
+::
