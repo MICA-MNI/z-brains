@@ -57,21 +57,21 @@ Preparing control data
 To process features for healthy controls, subject and session identifiers are required
 
 .. code-block:: bash
-   # csv file with ID and session for control participants to be processed
-   PATH_CSV_CONTROLS='/path/to/control/participants.csv'
+    # csv file with ID and session for control participants to be processed
+    PATH_CSV_CONTROLS='/path/to/control/participants.csv'
    
-   while IFS=',' read -r id ses rest
-   do
-      ./z-brains -sub "$id" -ses "$ses" \
-      -rawdir "${rawdir}" \
-      -micapipedir "${micapipedir}" \
-      -hippdir "${hippdir}" \
-      -outdir "${outdir}" \
-      -run proc \
-      -mica \ # image processing pre-requisites were run in lab and locally, see -help for flag corresponding to alternative workflow
-      -verbose 2 
+    while IFS=',' read -r id ses rest
+    do
+       ./z-brains -sub "$id" -ses "$ses" \
+       -rawdir "${rawdir}" \
+       -micapipedir "${micapipedir}" \
+       -hippdir "${hippdir}" \
+       -outdir "${outdir}" \
+       -run proc \
+       -mica \ # image processing pre-requisites were run in lab and locally, see -help for flag corresponding to alternative workflow
+       -verbose 2 
    
-   done <<< "$(tail -n +2 "${PATH_CSV_CONTROLS}")"
+    done <<< "$(tail -n +2 "${PATH_CSV_CONTROLS}")"
 
 
 Processing and analyzing patient features
