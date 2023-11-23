@@ -43,7 +43,7 @@ Tutorial
 
 ZBRAINS requires input and output directories
 
-.. code-block bash::
+code-block bash::
     # Path for dataset in BIDS structure
     root_path=/path/to/BIDS_dataset
 
@@ -58,7 +58,7 @@ Preparing control data
 
 To process features for healthy controls, subject and session identifiers are required
 
-..code-block bash::
+code-block bash::
   # csv file with ID and session for control participants to be processed
   PATH_CSV_CONTROLS='/path/to/control/participants.csv'
 
@@ -79,7 +79,7 @@ To process features for healthy controls, subject and session identifiers are re
 Processing and analyzing patient features
 ------------------------------------------------
 
-.. code-block bash::
+code-block bash::
     # Specify the list of subject IDs along with corresponding session
     px_id=(PX001 PX002 PX003)
     px_ses=(1 1 1)
