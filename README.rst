@@ -73,10 +73,11 @@ To process features for healthy controls, subject and session identifiers are re
    
    done <<< "$(tail -n +2 "${PATH_CSV_CONTROLS}")"
 
+
 Processing and analyzing patient features
 ------------------------------------------------
 
-.. code-block:: bash
+.. code-block::
    # Specify the list of subject IDs along with corresponding session
    px_id=(PX001 PX002 PX003)
    px_ses=(1 1 1)
