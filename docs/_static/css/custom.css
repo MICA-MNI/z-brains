@@ -2,3 +2,7 @@
 .tight-table td {
     white-space: normal !important;
 }
+
+.wy-side-nav-search, .wy-nav-top {
+    background: #c8e6ff;
+}
