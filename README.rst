@@ -43,12 +43,15 @@ Tutorial
 ZBRAINS requires input and output directories
 
 .. code-block:: bash
-   root_path=/path/to/BIDS_dataset
+
+    # Path for dataset in BIDS structure
+    root_path=/path/to/BIDS_dataset
    
-   rawdir=${root_path}/rawdata
-   micapipedir=${root_path}/derivatives/micapipe_folder
-   hippdir=${root_path}/derivatives/hippunfold_folder
-   outdir=${root_path}/derivatives/z-brains_folder
+    rawdir=${root_path}/rawdata
+    micapipedir=${root_path}/derivatives/micapipe_folder
+    hippdir=${root_path}/derivatives/hippunfold_folder
+    outdir=${root_path}/derivatives/z-brains_folder
+
 
 Preparing control data
 ---------------------------------------------
@@ -56,6 +59,7 @@ Preparing control data
 To process features for healthy controls, subject and session identifiers are required
 
 .. code-block:: bash
+
     # csv file with ID and session for control participants to be processed
     PATH_CSV_CONTROLS='/path/to/control/participants.csv'
    
@@ -76,7 +80,8 @@ To process features for healthy controls, subject and session identifiers are re
 Processing and analyzing patient features
 ------------------------------------------------
 
-.. code-block::
+.. code-block:: bash
+
    # Specify the list of subject IDs along with corresponding session
    px_id=(PX001 PX002 PX003)
    px_ses=(1 1 1)
