@@ -14,14 +14,14 @@
     :alt: GitHub stars
 
     
-Multimodal lesion mapping in focal epilepsy with `z-brains`
+Multimodal lesion mapping in focal epilepsy with ``z-brains``
 --------------------------------------------
 
-`z-brains` is developed by `MICA-Lab <https://mica-mni.github.io>`_, affiliated with `McGill University <https://www.mcgill.ca/>`_, the Montreal Neurological Institute and Hospital "`the Neuro <https://www.mcgill.ca/neuro/>`_," and the McConnell Brain Imaging Center (`BIC <https://www.mcgill.ca/bic/>`_).
+``z-brains`` is developed by `MICA-Lab <https://mica-mni.github.io>`_, affiliated with `McGill University <https://www.mcgill.ca/>`_, the Montreal Neurological Institute and Hospital "`the Neuro <https://www.mcgill.ca/neuro/>`_," and the McConnell Brain Imaging Center (`BIC <https://www.mcgill.ca/bic/>`_).
 
 This open access processing and analysis tool aims identify patient-specific anomalies in brain morphology and microstructure, using features with previously demonstrated potential to accurately localize epileptogenic lesions. 
 
-`z-brains` uses a set of known software dependencies developped by other groups and aggregated in a published pipeline `micapipe <https://github.com/MICA-MNI/micapipe>`_.
+``z-brains`` uses a set of known software dependencies developped by other groups and aggregated in a published pipeline `micapipe <https://github.com/MICA-MNI/micapipe>`_.
 
     
 .. Installation
@@ -41,16 +41,17 @@ This open access processing and analysis tool aims identify patient-specific ano
 Tutorial
 --------------------------------------------
 
-ZBRAINS requires input and output directories:
-   `root_path` points to the BIDS-format dataset that stores imaging data
-   `rawdir` contains the raw imaging data
-   `micapipedir` contains the output of MICAPIPE previously run on the BIDS dataset
-   `hippdir` contains the output of HIPPUNFOLD previously run on the BIDS dataset
-   `outdir` points to the directory that will hold ZBRAINS outputs
+``z-brains`` requires input and output directories:
+   
+- ``root_path`` points to the BIDS-format dataset that stores imaging data
+- ``rawdir`` contains the raw imaging data
+- ``micapipedir`` contains the output of ``micapipe`` previously run on the BIDS dataset
+- ``hippdir`` contains the output of ``hippunfold`` previously run on the BIDS dataset
+- ``outdir`` points to the directory that will hold ``z-brains`` outputs
 
 .. code-block:: bash
 
-    # Path for dataset in BIDS structure
+    # path for dataset in BIDS structure
     root_path=/path/to/BIDS_dataset
 
     rawdir=${root_path}/rawdata
@@ -88,7 +89,7 @@ Processing and analyzing patient features
 
 .. code-block:: bash
 
-    # Specify the list of subject IDs along with corresponding session
+    # specify the list of subject IDs along with corresponding session
     px_id=(PX001 PX002 PX003)
     px_ses=(1 1 1)
 
