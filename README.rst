@@ -41,7 +41,12 @@ This open access processing and analysis tool aims identify patient-specific ano
 Tutorial
 --------------------------------------------
 
-ZBRAINS requires input and output directories
+ZBRAINS requires input and output directories:
+   `root_path` points to the BIDS-format dataset that stores imaging data
+   `rawdir` contains the raw imaging data
+   `micapipedir` contains the output of MICAPIPE previously run on the BIDS dataset
+   `hippdir` contains the output of HIPPUNFOLD previously run on the BIDS dataset
+   `outdir` points to the directory that will hold ZBRAINS outputs
 
 .. code-block:: bash
 
@@ -72,7 +77,7 @@ To process features for healthy controls, subject and session identifiers are re
       -hippdir "${hippdir}" \
       -outdir "${outdir}" \
       -run proc \
-      -mica \ # image processing pre-requisites were run in lab and locally, see -help for flag corresponding to alternative workflow
+      -mica \
       -verbose 2 
 
   done <<< "$(tail -n +2 "${PATH_CSV_CONTROLS}")"
