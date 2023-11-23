@@ -9,7 +9,7 @@
       hr {
       width: 100%;
       height: 1px;
-      background-color: #9E1B32;
+      background-color: #e8e8e8;
       margin-top: 24px;
       }
    </style>
@@ -27,6 +27,7 @@ using features with previously demonstrated potential for localization and later
 .. raw:: html
 
    <br>
+
 ___________________________________________________________________________________________________
 
 
@@ -55,8 +56,8 @@ FLAIR (intensity), and quantitative T1 (intensity) imaging data to standard neoc
    :hidden:
    :caption: Pre-processing requirements
 
-   pages/04.micapipe/index
-   pages/05.hippunfold/index
+   pages/04.cortexstcx/index
+   pages/05.hippocampus/index
    
 .. toctree::
    :maxdepth: 1
@@ -67,14 +68,6 @@ FLAIR (intensity), and quantitative T1 (intensity) imaging data to standard neoc
    pages/07.subcortex/index
    pages/08.hippocampus/index
 
-.. toctree::
-   :maxdepth: 1
-   :hidden:
-   :caption: Feature normalization
-
-   pages/09.zscoring/index
-   pages/10.normative/index
-   
 .. toctree::
    :maxdepth: 1
    :hidden:
