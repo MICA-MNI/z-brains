@@ -101,4 +101,3 @@ Processing and analyzing patient features
            i=$((i+1))
            
        done
-::
