@@ -42,7 +42,7 @@ Tutorial
 
 ZBRAINS requires input and output directories
 
-code-block bash::
+code-block :: bash
    # Path for dataset in BIDS structure
    root_path=/path/to/BIDS_dataset
    
