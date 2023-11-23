@@ -23,7 +23,7 @@ This open access processing and analysis tool aims identify patient-specific ano
 
 `z-brains` uses a set of known software dependencies developped by other groups and aggregated in a published pipeline `micapipe <https://github.com/MICA-MNI/micapipe>`_.
 
-    
+
 .. Installation
 .. --------------------------------------------
 
@@ -43,7 +43,6 @@ Tutorial
 ZBRAINS requires input and output directories
 
 .. code-block:: bash
-   # Path for dataset in BIDS structure
    root_path=/path/to/BIDS_dataset
    
    rawdir=${root_path}/rawdata
