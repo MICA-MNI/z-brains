@@ -345,10 +345,12 @@ done
 # If no structures specified -> raise error - This only happens when user provides -struct with no values
 [[ ${#structures[*]} -eq 0 ]] && Error "Option -struct requires at least one structure." && exit 1;
 [[ " ${structures[*]} " =~ " all " ]] && structures=("${LIST_STRUCTURES[@]}")
+mapfile -t structures < <(printf "%s\n" "${structures[@]}" | sort -f)  # case-insensitive sort
 
 # If no features specified -> raise error - This only happens when user provides -feat with no values
 [[ ${#features[*]} -eq 0 ]] && Error "Option -feat requires at least one feature." && exit 1;
 [[ " ${features[*]} " =~ " all " ]] && features=("${LIST_FEATURES[@]}")
+mapfile -t features < <(printf "%s\n" "${features[@]}" | sort -f)  # case-insensitive sort
 comma_separated_features=$(IFS=, ; echo "${features[*]}")
 
 # If no resolutions specified -> raise error - This only happens when user provides -resolution with no values
