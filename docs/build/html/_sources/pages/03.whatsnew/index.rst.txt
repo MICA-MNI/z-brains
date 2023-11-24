@@ -1,7 +1,8 @@
-.. _download_page3:
+.. _whatsnew:
 
-.. title:: test3
+.. title:: What's new?
 
-Test3
-============================================================
+What's new?
+======================================================================
 
+Beta release of z-brains v0.0.2 'Reborn'!

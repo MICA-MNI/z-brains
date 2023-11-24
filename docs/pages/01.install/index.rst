@@ -1,28 +1,21 @@
-.. _download_page:
+.. _installationGuide:
 
 .. title:: Install z-brains
 
 Installation
 ======================================================================
 
-**Z-BRAINS** is available in Python!
+You will need to clone the GitHub repository into the directory of your choice: ::
 
-.. tabs::
+    git clone https://github.com/MICA-MNI/z-brains.git
 
-    .. tab:: Python
-    
-        **Z-BRAINS** has the following dependencies:
+External Dependencies
+^^^^^^^^^^^^^^^^^^^^^
 
-        - `numpy <https://numpy.org/>`_
-        - `nibabel <https://nipy.org/nibabel/index.html>`_
-        - `pandas <https://pandas.pydata.org/>`_
-        - `python <https://www.python.org/>`_
-		- The **ENIGMA TOOLBOX**, which can be directly downloaded from Github as follows: ::
+You will need to install some dependencies to run ``z-brains`` on your machine:
 
-            git clone https://github.com/MICA-MNI/ENIGMA.git
-            cd ENIGMA
-            
-        **Z-BRAINS** can be directly downloaded from Github as follows: ::
+     - **ANTs**        2.3.3   (https://github.com/ANTsX/ANTs)
+     - **workbench**   1.3.2   (https://www.humanconnectome.org/software/connectome-workbench)\
+     - **python**      > 3.7   (https://www.python.org/downloads/)
 
-            git clone https://github.com/MICA-MNI/z-brains.git
-            cd z-brains
+Please consult the ``requirements.txt`` for a list of python package dependencies. 

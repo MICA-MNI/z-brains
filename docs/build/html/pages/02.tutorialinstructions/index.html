@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>test2 &mdash; z-brains  documentation</title>
+  <title>Getting started &mdash; z-brains  documentation</title>
       <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/custom.css" type="text/css" />
@@ -23,7 +23,7 @@
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Test3" href="../03.whatsnew/index.html" />
+    <link rel="next" title="What’s new?" href="../03.whatsnew/index.html" />
     <link rel="prev" title="Installation" href="../01.install/index.html" /> 
 </head>
 
@@ -50,29 +50,34 @@
               <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../01.install/index.html">Installation</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Test2</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../03.whatsnew/index.html">Test3</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Usage notes</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#supported-imaging-modalities">Supported imaging modalities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#data-format">Data format</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#usage-overview">Usage overview</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../03.whatsnew/index.html">What’s new?</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Pre-processing requirements</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../04.cortexstcx/index.html">Test4</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../05.hippocampus/index.html">Test5</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../04.micapipe/index.html">Pre-processing with <code class="docutils literal notranslate"><span class="pre">micapipe</span></code></a></li>
+<li class="toctree-l1"><a class="reference internal" href="../05.hippunfold/index.html">Pre-processing with <code class="docutils literal notranslate"><span class="pre">hippunfold</span></code></a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Feature post-processing</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../06.cortex/index.html">Test6</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../07.subcortex/index.html">Test7</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../08.hippocampus/index.html">Test8</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../06.cortex/index.html">Cortical feature post-processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../07.subcortex/index.html">Subcortical feature post-processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../08.hippocampus/index.html">Hippocampal feature post-processing</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Feature normalization</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../09.zscoring/index.html">Test9</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../10.normative/index.html">Test10</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../09.zscoring/index.html">Z-scoring</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../10.normative/index.html">Normative modelling</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Summary reports</span></p>
+<p class="caption" role="heading"><span class="caption-text">Main outputs</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../11.features/index.html">Test11</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../12.reports/index.html">Test12</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../11.features/index.html">Exploring <code class="docutils literal notranslate"><span class="pre">z-brains</span></code> outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../12.reports/index.html">Summary reports</a></li>
 </ul>
 
         </div>
@@ -89,7 +94,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">test2</li>
+      <li class="breadcrumb-item active">Getting started</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../../_sources/pages/02.tutorialinstructions/index.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -99,8 +104,68 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="test2">
-<span id="download-page2"></span><h1>Test2<a class="headerlink" href="#test2" title="Permalink to this heading"></a></h1>
+  <section id="usage-notes">
+<span id="tutinstruc"></span><h1>Usage notes<a class="headerlink" href="#usage-notes" title="Permalink to this heading"></a></h1>
+<section id="supported-imaging-modalities">
+<h2>Supported imaging modalities<a class="headerlink" href="#supported-imaging-modalities" title="Permalink to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">z-brains</span></code> software  currently supports four MRI modalities and associated feature maps for normalization:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 1%" />
+<col style="width: 99%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Modalities</strong></p></th>
+<th class="head"><p><strong>Features</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>T1-weighted (T1w)</p></td>
+<td><p>Vertexwise neocortical &amp; hippocampal thickness, and average volume in 14 subcortical structures</p></td>
+</tr>
+<tr class="row-odd"><td><p>Quantitative T1 (qT1)</p></td>
+<td><p>Vertexwise neocortical &amp; hippocampal T1 relaxation time, and average T1 relaxation time in 14 subcortical structures</p></td>
+</tr>
+<tr class="row-even"><td><p>Fluid-attenuated inversion recovery (FLAIR)</p></td>
+<td><p>Normalized vertexwise neocortical &amp; hippocampal FLAIR intensity, and average FLAIR intensity in 14 subcortical structures</p></td>
+</tr>
+<tr class="row-odd"><td><p>Diffusion-weighted imaging (DWI)</p></td>
+<td><p>Vertexwise neocortical &amp; hippocampal mean diffusivity and fractional anisotropy, and average mean diffusivity and fractional anisotropy in 14 subcortical structures</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="data-format">
+<h2>Data format<a class="headerlink" href="#data-format" title="Permalink to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">z-brains</span></code> requires that your data be formatted in accordance with the <a class="reference external" href="https://bids.neuroimaging.io">Brain Imaging Data Structure (BIDS)</a> format.
+You can find the information about the BIDS specification <a class="reference external" href="https://bids-specification.readthedocs.io/en/stable/">here</a>.
+We strongly recommend that you validate your data structure after the conversion, notably using the <a class="reference external" href="https://bids-standard.github.io/bids-validator/">BIDS Validator</a>.</p>
+</section>
+<section id="usage-overview">
+<h2>Usage overview<a class="headerlink" href="#usage-overview" title="Permalink to this heading"></a></h2>
+<p>To see a list of available options type:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">z</span><span class="o">-</span><span class="n">brains</span> <span class="o">-</span><span class="n">help</span>
+</pre></div>
+</div>
+<p>The following help menu should then pop up with a description of available arguments for a customized run of <code class="docutils literal notranslate"><span class="pre">z-brains</span></code> :</p>
+<blockquote>
+<div><figure class="align-default">
+<a class="reference internal image-reference" href="../../_images/help_menu.png"><img alt="../../_images/help_menu.png" src="../../_images/help_menu.png" style="width: 700px; height: 760px;" /></a>
+</figure>
+</div></blockquote>
+<p>Additional optional arguments are also available:</p>
+<blockquote>
+<div><figure class="align-default">
+<a class="reference internal image-reference" href="../../_images/help_menu2.png"><img alt="../../_images/help_menu2.png" src="../../_images/help_menu2.png" style="width: 700px; height: 115px;" /></a>
+</figure>
+</div></blockquote>
+<p>Code snippets relevant to running each module can be found in the appropriate section in the menu.</p>
+<p>See <cite>Pre-processing requirements</cite> for requirements on data formatting and minimal pre-procecessing to run <code class="docutils literal notranslate"><span class="pre">z-brains</span></code>.
+Note that pre-processing relies heavily on <a class="reference external" href="https://https://micapipe.readthedocs.io/">micapipe</a> and <a class="reference external" href="https://https://hippunfold.readthedocs.io/">hippunfold</a>.</p>
+<p>The section <cite>Feature post-processing</cite> includes code snippets to map and smooth whole-brain feature maps along neocortical and hippocampal surface meshes, as well as sample mean volume and intensity values within each subcortical structure.</p>
+<p>We provide code examples to perform feature normalization in the <cite>Feature normalization</cite> section, including z-scoring and normative modelling approaches.</p>
+<p>Lastly, instructions on how to generate summary reports are presented in the <cite>Summary reports</cite> section.</p>
+</section>
 </section>
 
 
@@ -110,7 +175,7 @@
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="../03.whatsnew/index.html" class="btn btn-neutral float-right" title="Test3" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="../03.whatsnew/index.html" class="btn btn-neutral float-right" title="What’s new?" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="../01.install/index.html" class="btn btn-neutral float-left" title="Installation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>

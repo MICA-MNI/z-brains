@@ -1,6 +1,6 @@
-.. _download_page9:
+.. _normz:
 
-.. title:: test9
+.. title:: Z-scoring
 
-Test9
+Z-scoring
 ============================================================

@@ -28,8 +28,6 @@ using features with previously demonstrated potential for localization and later
 
    <br>
 
-___________________________________________________________________________________________________
-
 
 Breaking news ️‍📰
 --------------------------------------------------------
@@ -56,8 +54,8 @@ FLAIR (intensity), and quantitative T1 (intensity) imaging data to standard neoc
    :hidden:
    :caption: Pre-processing requirements
 
-   pages/04.cortexstcx/index
-   pages/05.hippocampus/index
+   pages/04.micapipe/index
+   pages/05.hippunfold/index
    
 .. toctree::
    :maxdepth: 1
@@ -79,7 +77,7 @@ FLAIR (intensity), and quantitative T1 (intensity) imaging data to standard neoc
 .. toctree::
    :maxdepth: 1
    :hidden:
-   :caption: Summary reports
+   :caption: Main outputs
 
    pages/11.features/index
    pages/12.reports/index

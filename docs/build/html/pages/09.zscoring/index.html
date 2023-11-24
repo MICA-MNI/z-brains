@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>test9 &mdash; z-brains  documentation</title>
+  <title>Z-scoring &mdash; z-brains  documentation</title>
       <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/custom.css" type="text/css" />
@@ -23,8 +23,8 @@
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Test10" href="../10.normative/index.html" />
-    <link rel="prev" title="Test8" href="../08.hippocampus/index.html" /> 
+    <link rel="next" title="Normative modelling" href="../10.normative/index.html" />
+    <link rel="prev" title="Hippocampal feature post-processing" href="../08.hippocampus/index.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -50,29 +50,29 @@
               <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../01.install/index.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../02.tutorialinstructions/index.html">Test2</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../03.whatsnew/index.html">Test3</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../02.tutorialinstructions/index.html">Usage notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../03.whatsnew/index.html">What’s new?</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Pre-processing requirements</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../04.cortexstcx/index.html">Test4</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../05.hippocampus/index.html">Test5</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../04.micapipe/index.html">Pre-processing with <code class="docutils literal notranslate"><span class="pre">micapipe</span></code></a></li>
+<li class="toctree-l1"><a class="reference internal" href="../05.hippunfold/index.html">Pre-processing with <code class="docutils literal notranslate"><span class="pre">hippunfold</span></code></a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Feature post-processing</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../06.cortex/index.html">Test6</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../07.subcortex/index.html">Test7</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../08.hippocampus/index.html">Test8</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../06.cortex/index.html">Cortical feature post-processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../07.subcortex/index.html">Subcortical feature post-processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../08.hippocampus/index.html">Hippocampal feature post-processing</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Feature normalization</span></p>
 <ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Test9</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../10.normative/index.html">Test10</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Z-scoring</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../10.normative/index.html">Normative modelling</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Summary reports</span></p>
+<p class="caption" role="heading"><span class="caption-text">Main outputs</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../11.features/index.html">Test11</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../12.reports/index.html">Test12</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../11.features/index.html">Exploring <code class="docutils literal notranslate"><span class="pre">z-brains</span></code> outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../12.reports/index.html">Summary reports</a></li>
 </ul>
 
         </div>
@@ -89,7 +89,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">test9</li>
+      <li class="breadcrumb-item active">Z-scoring</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../../_sources/pages/09.zscoring/index.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -99,8 +99,8 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="test9">
-<span id="download-page9"></span><h1>Test9<a class="headerlink" href="#test9" title="Permalink to this heading"></a></h1>
+  <section id="z-scoring">
+<span id="normz"></span><h1>Z-scoring<a class="headerlink" href="#z-scoring" title="Permalink to this heading"></a></h1>
 </section>
 
 
@@ -110,10 +110,10 @@
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="../10.normative/index.html" class="btn btn-neutral float-right" title="Test10" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="../10.normative/index.html" class="btn btn-neutral float-right" title="Normative modelling" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="../08.hippocampus/index.html" class="btn btn-neutral float-left" title="Test8" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="../08.hippocampus/index.html" class="btn btn-neutral float-left" title="Hippocampal feature post-processing" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   

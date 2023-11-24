@@ -1,6 +1,6 @@
-.. _download_page7:
+.. _postsubcortex:
 
-.. title:: test7
+.. title:: Subcortical post-processing
 
-Test7
+Subcortical feature post-processing
 ============================================================

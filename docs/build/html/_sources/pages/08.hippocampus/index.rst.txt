@@ -1,6 +1,6 @@
-.. _download_page8:
+.. _posthippocampus:
 
-.. title:: test8
+.. title:: Hippocampal post-processing
 
-Test8
+Hippocampal feature post-processing
 ============================================================

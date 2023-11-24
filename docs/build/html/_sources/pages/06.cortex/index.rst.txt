@@ -1,6 +1,7 @@
-.. _download_page6:
+.. _postcortex:
 
-.. title:: test6
+.. title:: Cortical post-processing
 
-Test6
+Cortical feature post-processing
 ============================================================
+

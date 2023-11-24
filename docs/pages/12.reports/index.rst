@@ -1,6 +1,6 @@
-.. _download_page12:
+.. _reports:
 
-.. title:: test12
+.. title:: Summary reports
 
-Test12
+Summary reports
 ============================================================
