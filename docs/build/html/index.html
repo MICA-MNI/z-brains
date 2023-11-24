@@ -1,19 +1,25 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Welcome to z-brains’s documentation! &mdash; z-brains  documentation</title><link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <title>Welcome to z-brains’s documentation! &mdash; z-brains  documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="_static/css/custom.css" type="text/css" />
+      <link rel="stylesheet" href="_static/tabs.css" type="text/css" />
       <link rel="stylesheet" href="_static/css/mica-pipe_colors.css" type="text/css" />
   <!--[if lt IE 9]>
     <script src="_static/js/html5shiv.min.js"></script>
   <![endif]-->
-  <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
         <script src="_static/jquery.js"></script>
         <script src="_static/underscore.js"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -24,13 +30,13 @@
   <div class="wy-grid-for-nav">
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
-        <div class="wy-side-nav-search"  style="background: #9E1B32" >
+        <div class="wy-side-nav-search"  style="background: #e8e8e8" >
 
           
           
           <a href="#">
             
-              <img src="_static/tmp.png" class="logo" alt="Logo"/>
+              <img src="_static/zbrains_alpha.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
@@ -40,16 +46,39 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <p class="caption"><span class="caption-text">Getting started</span></p>
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="pages/01.install/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pages/02.tutorialinstructions/index.html">Usage notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pages/03.whatsnew/index.html">What’s new?</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Pre-processing requirements</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="pages/04.micapipe/index.html">Pre-processing with <code class="docutils literal notranslate"><span class="pre">micapipe</span></code></a></li>
+<li class="toctree-l1"><a class="reference internal" href="pages/05.hippunfold/index.html">Pre-processing with <code class="docutils literal notranslate"><span class="pre">hippunfold</span></code></a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Feature post-processing</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="pages/06.cortex/index.html">Cortical feature post-processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pages/07.subcortex/index.html">Subcortical feature post-processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pages/08.hippocampus/index.html">Hippocampal feature post-processing</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Feature normalization</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="pages/09.zscoring/index.html">Z-scoring</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pages/10.normative/index.html">Normative modelling</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Main outputs</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="pages/11.features/index.html">Exploring <code class="docutils literal notranslate"><span class="pre">z-brains</span></code> outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pages/12.reports/index.html">Summary reports</a></li>
 </ul>
 
         </div>
       </div>
     </nav>
 
-    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu"  style="background: #9E1B32" >
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu"  style="background: #e8e8e8" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="#">z-brains</a>
       </nav>
@@ -73,36 +102,49 @@
    hr {
    width: 100%;
    height: 1px;
-   background-color: #9E1B32;
+   background-color: #e8e8e8;
    margin-top: 24px;
    }
-</style><div class="section" id="welcome-to-z-brains-s-documentation">
-<h1><strong>Welcome to z-brains’s documentation!</strong><a class="headerlink" href="#welcome-to-z-brains-s-documentation" title="Permalink to this headline">¶</a></h1>
-<p><em>z-brains</em> is dope.</p>
-<br><div class="section" id="breaking-news">
-<h2>Breaking news ️‍📰<a class="headerlink" href="#breaking-news" title="Permalink to this headline">¶</a></h2>
-<p><cite>z-brains</cite> is almost a thing!</p>
+</style><section id="welcome-to-z-brains-s-documentation">
+<h1><strong>Welcome to z-brains’s documentation!</strong><a class="headerlink" href="#welcome-to-z-brains-s-documentation" title="Permalink to this heading"></a></h1>
+<p><cite>z-brains</cite> identifies patient-specific signal alterations in brain morphology and microstructure,
+using features with previously demonstrated potential for localization and lateralization of epileptogenic lesions.</p>
+<br><section id="breaking-news">
+<h2>Breaking news ️‍📰<a class="headerlink" href="#breaking-news" title="Permalink to this heading"></a></h2>
+<p><cite>z-brains version 0.0.2 “Reborn”</cite> is up and running!</p>
+</section>
+<section id="about">
+<h2>About 👁️‍🗨️<a class="headerlink" href="#about" title="Permalink to this heading"></a></h2>
+<p><cite>z-brains</cite> is an open toolbox promoting standardized procedures to map and normalize structural imaging features in epilepsy research.
+This pipeline integrates processing streams to map and normalize T1-weighted (cortical thickness, subcortical volume), diffusion-weighted (mean diffusivity, fractional anisotropy),
+FLAIR (intensity), and quantitative T1 (intensity) imaging data to standard neocortical, subcortical, and hippocampal spaces.</p>
+<div class="toctree-wrapper compound">
 </div>
-<div class="section" id="about">
-<h2>About 👁️‍🗨️<a class="headerlink" href="#about" title="Permalink to this headline">¶</a></h2>
-<p><em>z-brains</em> identify patient-specific anomalies in brain morphology and microstructure,
-using features with previously demonstrated potential to accurately localize epileptogenic lesions.</p>
+<div class="toctree-wrapper compound">
+</div>
+<div class="toctree-wrapper compound">
+</div>
+<div class="toctree-wrapper compound">
+</div>
 <div class="toctree-wrapper compound">
 </div>
 <hr class="docutils" />
-<br></div>
-<div class="section" id="core-development-team">
-<h2>Core development team 🧠<a class="headerlink" href="#core-development-team" title="Permalink to this headline">¶</a></h2>
-<p>z-brains is developed by members of the MICA-lab (<a class="reference external" href="https://mica-mni.github.io">https://mica-mni.github.io</a>) and collaborators at the McConnell Brain Imaging Centre of the Montreal Neurological Institute and Harvard Medical School.</p>
+<br></section>
+<section id="core-development-team">
+<h2>Core development team 🧠<a class="headerlink" href="#core-development-team" title="Permalink to this heading"></a></h2>
+<p><cite>z-brains</cite> is developed by members of the MICA-lab (<a class="reference external" href="https://mica-mni.github.io">https://mica-mni.github.io</a>) and collaborators
+at the McConnell Brain Imaging Centre of the Montreal Neurological Institute and Harvard Medical School.</p>
 <ul class="simple">
 <li><p><strong>Jessica Royer</strong>, <em>MICA Lab - Montreal Neurological Institute</em></p></li>
 <li><p><strong>Sara Larivière</strong>, <em>Brigham and Women’s Hospital | Harvard Medical School</em></p></li>
 <li><p><strong>Raúl Rodríguez-Cruces</strong>, <em>MICA Lab - Montreal Neurological Institute</em></p></li>
+<li><p><strong>Oualid Benkarim</strong>, <em>MICA Lab - Montreal Neurological Institute</em></p></li>
+<li><p><strong>Jordan Dekraker</strong>, <em>MICA Lab - Montreal Neurological Institute</em></p></li>
 <li><p><strong>Judy Chen</strong>, <em>MICA Lab - Montreal Neurological Institute</em></p></li>
 <li><p><strong>Boris Bernhardt</strong>, <em>MICA Lab - Montreal Neurological Institute</em></p></li>
 </ul>
-</div>
-</div>
+</section>
+</section>
 
 
            </div>
@@ -122,7 +164,7 @@ using features with previously demonstrated potential to accurately localize epi
   <div role="contentinfo">
     <p>
         
-        &copy; Copyright 2022, micapipe
+        &copy; Copyright 2022, zbrains
 
     </p>
   </div>
