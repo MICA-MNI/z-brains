@@ -107,7 +107,6 @@ ${pcolor}OPTIONS:${nc}
 
 ${pcolor}USAGE:${nc}
     ${pcolor}$(basename "$0")${nc} ${rcolor}-sub${nc} <BIDS_ID>
-              ${rcolor}-rawdir${nc} <raw_data_directory>
               ${rcolor}-hippdir${nc} <hippunfold_directory>
               ${rcolor}-micapipedir${nc} <micapipe_directory>
               ${rcolor}-outdir${nc} <output_directory>
