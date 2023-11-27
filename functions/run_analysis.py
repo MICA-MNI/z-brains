@@ -429,7 +429,9 @@ def _save_results(x: np.ndarray, feat: Feature | list[Feature], index: list[str]
 ##################################################################################################
 def main():
     logger_file.info(f'Logging call: {sys.argv[0]} {" ".join(sys.argv[1:])}')
-    logger_both.debug(f'Logging to {logging_filename}\n')
+    logger_both.debug(f'Logging to {logging_filename}\n\n')
+
+    logger_both.debug(f'{"Asymmetry" if do_asymmetry else "Regional"} analysis\n')
 
     # Data frame of control subjects
     orig_df_cn = pd.read_csv(controls_list, header=[0], index_col=0)
