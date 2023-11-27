@@ -77,7 +77,7 @@ export OMP_NUM_THREADS=$threads
 #------------------------------------------------------------------------------#
 declare -A map_struct=([cortex]=Cortical [subcortex]=Subcortical [hippocampus]=Hippocampal)
 
-Title "${map_struct[${structure}]} feature mapping\n\t\tz-brains $VERSION"
+SHOW_TITLE "${map_struct[${structure}]} feature mapping"
 
 
 #------------------------------------------------------------------------------#
@@ -141,7 +141,7 @@ do_cortex_mapping() {
     [[ -f "$output_file" ]] && n=$((n + 1))
   done
 
-  [[ $n -eq 2 ]] && SHOW_NOTE "Subject ${BIDS_ID}: '${feat}' [resolution=${resolution}] successfully mapped to cortex";
+  [[ $n -eq 2 ]] && SHOW_NOTE "Subject ${BIDS_ID}: '${feat}' [resolution=${resolution}] successfully mapped.";
 }
 
 do_subcortex_mapping (){
@@ -210,7 +210,7 @@ do_subcortex_mapping (){
   printf -v csv_line "%s," "${result[@]}"
   printf "%s\n" "${csv_line%?}" >> "${output_file}" # Remove last comma and add newline
 
-  [[ -f "$output_file" ]] && SHOW_NOTE "Subject ${BIDS_ID}: '${feat}' successfully mapped to subcortex.";
+  [[ -f "$output_file" ]] && SHOW_NOTE "Subject ${BIDS_ID}: '${feat}' successfully mapped.";
 }
 
 do_hippocampus_mapping() {
@@ -264,7 +264,7 @@ do_hippocampus_mapping() {
     [[ -f "${output_file}" ]] && n=$((n + 1))
   done
 
-  [[ $n -eq 2 ]] && SHOW_NOTE "Subject ${BIDS_ID}: '${feat}' [resolution=${resolution}] successfully mapped to hippocampus.";
+  [[ $n -eq 2 ]] && SHOW_NOTE "Subject ${BIDS_ID}: '${feat}' [resolution=${resolution}] successfully mapped.";
 }
 
 
@@ -298,5 +298,5 @@ done
 
 #------------------------------------------------------------------------------#
 # Wrap up
-SHOW_TITLE "${structure^} feature mapping ended in \033[38;5;220m $(bc <<< "scale=2; $SECONDS/60") minutes \033[38;5;141m.
-\tCheck logs      : $([ -n "$logfile" ] && echo "${logfile}")"
+SHOW_TITLE "${structure^} feature mapping ended in \033[38;5;220m$(printf "%.2f" "$(bc <<< "scale=2; $SECONDS/60")") minutes${COLOR_TITLE}
+$([ -n "$logfile" ] && printf "\tCheck logs: %s" "\033[0;32m${logfile}")${COLOR_TITLE}"

@@ -305,7 +305,6 @@ for arg in "$@"; do
   ;;
   -*)
     SHOW_ERROR "Unknown option ${2}"
-    help
     exit 1
   ;;
     esac
@@ -432,7 +431,7 @@ if [[ " ${tasks[*]} " =~ " proc " ]]; then
     fi
 
     # recon is 'freesurfer' or 'fastsurfer'
-    SUBJECT_SURF_DIR=${out_dir}/${recon}/${BIDS_ID}
+    SUBJECT_SURF_DIR=$(dirname "${out_dir}")/${recon}/${BIDS_ID}
     if [ ! -d "${SUBJECT_SURF_DIR}" ]; then SHOW_ERROR "${BIDS_ID} ${recon} directory does not exist."; exit 1; fi
     export SUBJECT_SURF_DIR
   fi
@@ -470,16 +469,16 @@ if [ ! -d "${SUBJECT_OUTPUT_DIR}" ]; then
 fi
 
 # Folder for logs
-Do_cmd mkdir -m 770 -p "${SUBJECT_OUTPUT_DIR}/${FOLDER_LOGS}"
+DO_CMD mkdir -m 770 -p "${SUBJECT_OUTPUT_DIR}/${FOLDER_LOGS}"
 
 # Folders for processing
 if [[ " ${tasks[*]} " =~ " proc " ]]; then
-  Do_cmd mkdir -m 770 -p "${SUBJECT_OUTPUT_DIR}"/"${FOLDER_MAPS}"/{"${FOLDER_SCTX}","${FOLDER_CTX}","${FOLDER_HIPP}"}
+  DO_CMD mkdir -m 770 -p "${SUBJECT_OUTPUT_DIR}"/"${FOLDER_MAPS}"/{"${FOLDER_SCTX}","${FOLDER_CTX}","${FOLDER_HIPP}"}
 fi
 
 # Folders for regional/asymmetry analysis
 if [[ " ${tasks[*]} " =~ " regional " || " ${tasks[*]} " =~ " asymmetry " ]]; then
-  Do_cmd mkdir -m 770 -p "${SUBJECT_OUTPUT_DIR}"/{"${FOLDER_NORM_Z}","${FOLDER_NORM_MODEL}"}/{"${FOLDER_SCTX}","${FOLDER_CTX}","${FOLDER_HIPP}"}
+  DO_CMD mkdir -m 770 -p "${SUBJECT_OUTPUT_DIR}"/{"${FOLDER_NORM_Z}","${FOLDER_NORM_MODEL}"}/{"${FOLDER_SCTX}","${FOLDER_CTX}","${FOLDER_HIPP}"}
 fi
 
 # Temporary folder
@@ -509,12 +508,10 @@ cleanup() { # This script will clean the temporary directory
 
 # ----------------------------------------------------------------------------------------------- #
 run_command() {
-  info_msg=$1
-  local std_output_log=$2
-  shift 2
+  local std_output_log=$1
+  shift 1
   local cmd="$*"
 
-  SHOW_INFO "${info_msg}"
   $cmd 2>&1 | tee -a "${std_output_log}"
 }
 
@@ -537,7 +534,7 @@ if [[ ${tasks[*]} =~ "proc" ]]; then
     cmd="${script_dir}/run_proc.sh --structure cortex --features $comma_separated_features --fwhm $smooth_ctx \
                                    --resolution $comma_separated_resolutions --tmp $tmp_dir --threads $threads \
                                    --logfile $std_output_log"
-    run_command "Structural processing: Cortex" "$std_output_log" "$cmd"
+    run_command "$std_output_log" "$cmd"
   fi
 
   # Hippocampus
@@ -551,7 +548,7 @@ if [[ ${tasks[*]} =~ "proc" ]]; then
     cmd="${script_dir}/run_proc.sh --structure hippocampus --features $comma_separated_features --fwhm $smooth_hipp \
                                    --resolution $comma_separated_resolutions --tmp $tmp_dir --threads $threads \
                                    --logfile $std_output_log"
-    run_command "Structural processing: Hippocampus" "$std_output_log" "$cmd"
+    run_command "$std_output_log" "$cmd"
   fi
 
   # Subcortex
@@ -560,7 +557,7 @@ if [[ ${tasks[*]} =~ "proc" ]]; then
 
     cmd="${script_dir}/run_proc.sh --structure subcortex --features $comma_separated_features --tmp $tmp_dir \
                                    --threads $threads --logfile $std_output_log"
-    run_command "Structural processing: Subcortex" "$std_output_log" "$cmd"
+    run_command "$std_output_log" "$cmd"
   fi
 fi
 
@@ -576,7 +573,7 @@ if [[ ${tasks[*]} =~ "regional" ]]; then
                                             --smooth-ctx $smooth_ctx --smooth-hipp $smooth_hipp \
                                             --resolution ${resolutions[*]} --threshold $threshold_regional"
 
-  run_command "Multivariate analysis: REGIONAL" "$std_output_log" "$cmd"
+  run_command "$std_output_log" "$cmd"
 fi
 
 
@@ -591,11 +588,11 @@ if [[ ${tasks[*]} =~ "asymmetry" ]]; then
                                             --smooth-ctx $smooth_ctx --smooth-hipp $smooth_hipp \
                                             --resolution ${resolutions[*]} --threshold $threshold_asymmetry --asymmetry"
 
-  run_command "Multivariate analysis: ASYMMETRY" "$std_output_log" "$cmd"
+  run_command "$std_output_log" "$cmd"
 fi
 
 
 # ----------------------------------------------------------------------------------------------- #
 # -------------------------------------- Total running time ------------------------------------- #
 # ----------------------------------------------------------------------------------------------- #
-SHOW_TITLE "GLOBAL z-brains elapsed time:\033[38;5;220m $(bc <<< "scale=2; $SECONDS/60") minutes \033[38;5;141m"
+SHOW_TITLE "GLOBAL z-brains elapsed time: \033[38;5;220m$(printf "%.2f" "$(bc <<< "scale=2; $SECONDS/60")") minutes${COLOR_TITLE}"
