@@ -54,7 +54,6 @@ Tutorial
     # path for dataset in BIDS structure
     root_path=/path/to/BIDS_dataset
 
-    rawdir=${root_path}/rawdata
     micapipedir=${root_path}/derivatives/micapipe_folder
     hippdir=${root_path}/derivatives/hippunfold_folder
     outdir=${root_path}/derivatives/z-brains_folder
@@ -70,10 +69,9 @@ To process features for healthy controls, subject and session identifiers are re
   # csv file with ID and session for control participants to be processed
   PATH_CSV_CONTROLS='/path/to/control/participants.csv'
 
-  while IFS=',' read -r id ses rest
+  while IFS=',' read -r id ses _
   do
       ./z-brains -sub "$id" -ses "$ses" \
-      -rawdir "${rawdir}" \
       -micapipedir "${micapipedir}" \
       -hippdir "${hippdir}" \
       -outdir "${outdir}" \
@@ -102,7 +100,6 @@ Processing and analyzing patient features
         ses=${px_ses[$i]}
         
         ./z-brains -sub "$id" -ses "$ses" \
-        -rawdir "${rawdir}" \
         -micapipedir "${micapipedir}" \
         -hippdir "${hippdir}" \
         -outdir "${outdir}" \
