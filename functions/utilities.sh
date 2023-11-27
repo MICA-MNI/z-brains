@@ -80,39 +80,41 @@ $l_command
 #     Title messages
 # VERBOSE is defined by the z-brains main script
 
-color_error="\033[38;5;9m"
-color_info="\033[38;5;75m"
-color_warning="\033[38;5;184m"
-color_title="\033[38;5;141m"
-color_note="\033[0;36;10m"
-no_color="\033[0m" # No color
+COLOR_ERROR="\033[38;5;9m"
+COLOR_WARNING="\033[38;5;184m"
+COLOR_INFO="\033[38;5;75m"
+COLOR_NOTE="\033[0;36;10m"
+COLOR_TITLE="\033[38;5;141m"
+
+NO_COLOR="\033[0m" # No color
 
 SHOW_ERROR() {
-echo -e "${color_error}\n-------------------------------------------------------------\n\n[ ERROR ]..... $1\n
--------------------------------------------------------------${no_color}\n"
+echo -e "${COLOR_ERROR}\n-------------------------------------------------------------\n\n[ ERROR ]..... $1\n
+-------------------------------------------------------------${NO_COLOR}\n"
 }
 
 SHOW_WARNING() {
-  if [[ ${VERBOSE} -gt 0 || ${VERBOSE} -lt 0 ]]; then echo  -e "${color_warning}\n[ WARNING ]..... $1 ${no_color}"; fi
+  if [[ ${VERBOSE} -gt 0 || ${VERBOSE} -lt 0 ]]; then echo  -e "${COLOR_WARNING}\n[ WARNING ]..... $1 ${NO_COLOR}"; fi
 }
 
 SHOW_NOTE() {
-  if [[ ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then echo -e "\t\t$1\t${color_note}$2 ${no_color}"; fi
+  if [[ ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then echo -e "\t\t$1\t${COLOR_NOTE}$2 ${NO_COLOR}"; fi
 }
 
 SHOW_INFO() {
-  if [[ ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then echo  -e "${color_info}\n[ INFO ]..... $1 ${no_color}"; fi
+  if [[ ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then echo  -e "${COLOR_INFO}\n[ INFO ]..... $1 ${NO_COLOR}"; fi
 }
 
 SHOW_TITLE() {
-if [[ ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then echo -e "\n${color_title}
+if [[ ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then echo -e "\n${COLOR_TITLE}
 -------------------------------------------------------------
 \t$1
--------------------------------------------------------------${no_color}"
+-------------------------------------------------------------${NO_COLOR}"
 fi
 }
 
 
 # Export
+export COLOR_ERROR COLOR_WARNING COLOR_NOTE COLOR_INFO COLOR_TITLE NO_COLOR
 export -f DO_CMD SHOW_ERROR SHOW_WARNING SHOW_NOTE SHOW_INFO SHOW_TITLE
 
