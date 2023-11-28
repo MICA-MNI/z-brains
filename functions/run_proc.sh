@@ -103,7 +103,7 @@ label2struct[51]="Right-Putamen"
 label2struct[49]="Right-Thalamus-Proper"
 
 
-do_cortex_mapping() {
+map_cortex() {
   local feat=$1
   local resolution=$2
 
@@ -137,14 +137,14 @@ do_cortex_mapping() {
     fi
 
     # Perform mapping
-    DO_CMD wb_command -metric-smoothing "${surf_file}" "${input_file}" "${fwhm}" "${output_file}";
+    DO_CMD "${WORKBENCH_PATH}/wb_command -metric-smoothing ${surf_file} ${input_file} ${fwhm} ${output_file}"
     [[ -f "$output_file" ]] && n=$((n + 1))
   done
 
   [[ $n -eq 2 ]] && SHOW_NOTE "Subject ${BIDS_ID}: '${feat}' [resolution=${resolution}] successfully mapped.";
 }
 
-do_subcortex_mapping (){
+map_subcortex (){
   local feat=$1
 
   SHOW_INFO "Map '${feat}' to subcortical structures"
@@ -169,7 +169,7 @@ do_subcortex_mapping (){
       SHOW_WARNING "Subject ${BIDS_ID}: '${feat}' not available. Skipping...";  return
     fi
 
-    mapfile -t a < <(ImageIntensityStatistics 3 "${input_file}" "${seg_file}" | tail -n +2 | awk '{ print $1 "=" $2 }')
+    mapfile -t a < <("${ANTSPATH}"/ImageIntensityStatistics 3 "${input_file}" "${seg_file}" | tail -n +2 | awk '{ print $1 "=" $2 }')
     for entry in "${a[@]}"; do
       IFS="=" read -r label mean_intensity <<< "$entry"
       label2mean_intensity+=([$label]=${mean_intensity})
@@ -213,7 +213,7 @@ do_subcortex_mapping (){
   [[ -f "$output_file" ]] && SHOW_NOTE "Subject ${BIDS_ID}: '${feat}' successfully mapped.";
 }
 
-do_hippocampus_mapping() {
+map_hippocampus() {
   local feat=$1
   local resolution=$2
 
@@ -257,9 +257,9 @@ do_hippocampus_mapping() {
 
     # Perform mapping
     if [[ "$feat" != "thickness" ]]; then
-      DO_CMD wb_command -volume-to-surface-mapping "${input_file}" "${surf_file}" "${inter_file}" -trilinear
+      DO_CMD "${WORKBENCH_PATH}/wb_command -volume-to-surface-mapping ${input_file} ${surf_file} ${inter_file} -trilinear"
     fi
-    DO_CMD wb_command -metric-smoothing "${surf_file}" "${inter_file}" "${fwhm}" "${output_file}"
+    DO_CMD "${WORKBENCH_PATH}/wb_command -metric-smoothing ${surf_file} ${inter_file} ${fwhm} ${output_file}"
 
     [[ -f "${output_file}" ]] && n=$((n + 1))
   done
@@ -283,14 +283,14 @@ do
   case $structure in
     cortex)
       IFS=',' read -ra resolution_list <<< "${comma_separated_resolutions}"
-      for res in "${resolution_list[@]}"; do do_cortex_mapping "${feat}" "${res}"; done
+      for res in "${resolution_list[@]}"; do map_cortex "${feat}" "${res}"; done
       ;;
     subcortex)
-      do_subcortex_mapping "${feat}";
+      map_subcortex "${feat}";
       ;;
     hippocampus)
       IFS=',' read -ra resolution_list <<< "${comma_separated_resolutions}"
-      for res in "${resolution_list[@]}"; do do_hippocampus_mapping "${feat}" "${res}"; done
+      for res in "${resolution_list[@]}"; do map_hippocampus "${feat}" "${res}"; done
       ;;
   esac
 done

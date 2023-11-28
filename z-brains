@@ -115,8 +115,11 @@ ${pcolor}USAGE:${nc}
 
 ${pcolor}DEPENDENCIES:${nc}
     > workbench   1.4.2   (https://www.humanconnectome.org/software/workbench-command)
-    > ANTs        2.3.3   (https://github.com/ANTsX/ANTs)
-    > python      3.7.6   (https://www.python.org)
+    > ANTs        2.3.4   (https://github.com/ANTsX/ANTs)
+    > python      3.10    (https://www.python.org)
+
+    You can provide the location of ANTs and Workbench binaries by setting the ANTSPATH and WORKBENCH_PATH environment
+    variables.
 
 
 McGill University, MNI, MICA lab, April 2023
@@ -366,13 +369,23 @@ fi
 # ------------------------------------------------ Check dependencies ----------------------------------------------- #
 # Dependencies required for processing
 if [[ " ${tasks[*]} " =~ " proc " ]]; then
-  ! type -P antsRegistration >/dev/null 2>&1 && echo "ANTs not found" && exit 1;
-  ! type -P wb_command >/dev/null 2>&1 && echo "Workbench not found" && exit 1;
+
+  binary=$(type -P ${ANTSPATH:+${ANTSPATH%/}/}antsRegistration)
+  [[ -z "${binary}" ]] && SHOW_ERROR "ANTs not found. Please set the ANTSPATH variable to the location of ANTs binaries." && exit 1
+  ANTSPATH=$(dirname "$(which "$binary")")
+  export ANTSPATH
+
+  binary=$(type -P ${WORKBENCH_PATH:+${WORKBENCH_PATH%/}/}wb_command)
+  [[ -z "${binary}" ]] && SHOW_ERROR "Workbench not found. Please set the WORKBENCH_PATH variable to the location of Workbench binaries." && exit 1
+  WORKBENCH_PATH=$(dirname "$(which "$binary")")
+  export WORKBENCH_PATH
 fi
 
 # Dependencies required for analysis
 if [[ " ${tasks[*]} " =~ " regional " || " ${tasks[*]} " =~ " asymmetry " ]]; then
-  ! type -P python >/dev/null 2>&1 && echo "Python not found" && exit 1;
+  ! type -P python >/dev/null 2>&1 && SHOW_ERROR "Python not found" && exit 1;
+
+  python -c 'import sys; exit(sys.version_info < (3, 10))' || { SHOW_ERROR "Python version must be >=3.10"; exit 1; }
 fi
 
 
@@ -444,11 +457,14 @@ SHOW_TITLE "z-brains pipeline - (Version $VERSION) \n\t\tSubject: $id, Session: 
 
 SHOW_INFO "z-brains is running with:"
 if [[ " ${tasks[*]} " =~ " proc " ]]; then
-  SHOW_NOTE "ANTs........" "$(antsRegistration --version | awk -F ':' 'NR==1{print $2}')"
-  SHOW_NOTE "WorkBench..." "$(wb_command -version | awk 'NR==3{print $2}')"
+  SHOW_NOTE "ANTs........" "$("${ANTSPATH}/antsRegistration" --version | awk -F '[: ]' '/ANTs Version/{print $4}')"
+  SHOW_NOTE "            " "$(which "${ANTSPATH}/antsRegistration")"
+  SHOW_NOTE "WorkBench..." "$("${WORKBENCH_PATH}/wb_command" -version | awk -F ': ' '/^Version/{print $2}')"
+  SHOW_NOTE "            " "$(which "${WORKBENCH_PATH}/wb_command")"
 fi
 if [[ " ${tasks[*]} " =~ " regional " || " ${tasks[*]} " =~ " asymmetry " ]]; then
-  SHOW_NOTE "python......" "$(python --version | awk 'NR==1{print $2}')"
+  SHOW_NOTE "python......" "$(python --version | awk '{print $2}')"
+  SHOW_NOTE "            " "$(which python)"
 fi
 
 # Number of THREADS used by ANTs and workbench, default is 6 if not defined by -threads
@@ -520,10 +536,10 @@ run_command() {
 # ----------------------------------------------------------------------------------------------- #
 logs_dir=${SUBJECT_OUTPUT_DIR}/${FOLDER_LOGS}
 
-if [[ ${tasks[*]} =~ "proc" ]]; then
+if [[ " ${tasks[*]} " =~ " proc " ]]; then
 
   # Cortex
-  if [[ ${structures[*]} =~ "cortex" ]]; then
+  if [[ " ${structures[*]} " =~ " cortex " ]]; then
     std_output_log=${logs_dir}/ctx_proc_$(date +'%d-%m-%Y').txt
 
     list_res=()
@@ -537,7 +553,7 @@ if [[ ${tasks[*]} =~ "proc" ]]; then
   fi
 
   # Hippocampus
-  if [[ ${structures[*]} =~ "hippocampus" ]]; then
+  if [[ " ${structures[*]} " =~ " hippocampus " ]]; then
     std_output_log=${logs_dir}/hippo_proc_$(date +'%d-%m-%Y').txt
 
     list_res=()
@@ -551,7 +567,7 @@ if [[ ${tasks[*]} =~ "proc" ]]; then
   fi
 
   # Subcortex
-  if [[ ${structures[*]} =~ "subcortex" ]]; then
+  if [[ " ${structures[*]} " =~ " subcortex " ]]; then
     std_output_log=${logs_dir}/sctx_proc_$(date +'%d-%m-%Y').txt
 
     cmd="${script_dir}/run_proc.sh --structure subcortex --features $comma_separated_features --tmp $tmp_dir \
@@ -564,7 +580,7 @@ fi
 # ----------------------------------------------------------------------------------------------- #
 # -------------------------------- Multivariate regional analysis ------------------------------- #
 # ----------------------------------------------------------------------------------------------- #
-if [[ ${tasks[*]} =~ "regional" ]]; then
+if [[ " ${tasks[*]} " =~ " regional " ]]; then
   std_output_log=${logs_dir}/regional_$(date +'%d-%m-%Y').txt
 
   cmd="python ${script_dir}/run_analysis.py --subject_id $id --session $session --zbrains_dir $out_dir \
@@ -579,7 +595,7 @@ fi
 # ----------------------------------------------------------------------------------------------- #
 # ------------------------------- Multivariate asymmetry analysis ------------------------------- #
 # ----------------------------------------------------------------------------------------------- #
-if [[ ${tasks[*]} =~ "asymmetry" ]]; then
+if [[ " ${tasks[*]} " =~ " asymmetry " ]]; then
   std_output_log=${logs_dir}/asymmetry_$(date +'%d-%m-%Y').txt
 
   cmd="python ${script_dir}/run_analysis.py --subject_id $id --session $session --zbrains_dir $out_dir \
