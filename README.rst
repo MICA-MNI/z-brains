@@ -4,6 +4,13 @@
    :alt: alternate text
    :align: center
 
+Multimodal lesion mapping in focal epilepsy with ``z-brains``
+--------------------------------------------
+
+.. image:: https://img.shields.io/github/v/tag/MICA-MNI/z-brains
+  :target: https://github.com/MICA-MNI/z-brains
+  :alt: version
+
 .. image:: https://img.shields.io/badge/license-BSD-brightgreen
    :target: https://opensource.org/licenses/BSD-3-Clause
 
@@ -18,10 +25,6 @@
 .. image:: https://img.shields.io/github/stars/MICA-MNI/z-brains.svg?style=flat&label=%E2%9C%A8%EF%B8%8F%20be%20a%20stargazer&color=brightgreen
     :target: https://github.com/MICA-MNI/z-brains/stargazers
     :alt: GitHub stars
-
-
-Multimodal lesion mapping in focal epilepsy with ``z-brains``
---------------------------------------------
 
 ``z-brains`` is developed by `MICA-Lab <https://mica-mni.github.io>`_, affiliated with `McGill University <https://www.mcgill.ca/>`_, the Montreal Neurological Institute and Hospital "`the Neuro <https://www.mcgill.ca/neuro/>`_," and the McConnell Brain Imaging Center (`BIC <https://www.mcgill.ca/bic/>`_).
 
