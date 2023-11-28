@@ -1,10 +1,8 @@
-
-
 .. figure:: ./data/zbrains_banner.png
    :alt: alternate text
    :align: center
 
-Multimodal lesion mapping in focal epilepsy with ``z-brains``
+Multimodal lesion mapping in focal epilepsy with ``zbrains``
 --------------------------------------------
 
 .. image:: https://img.shields.io/github/v/tag/MICA-MNI/z-brains
@@ -26,12 +24,12 @@ Multimodal lesion mapping in focal epilepsy with ``z-brains``
     :target: https://github.com/MICA-MNI/z-brains/stargazers
     :alt: GitHub stars
 
-``z-brains`` is developed by `MICA-Lab <https://mica-mni.github.io>`_, affiliated with `McGill University <https://www.mcgill.ca/>`_, the Montreal Neurological Institute and Hospital "`the Neuro <https://www.mcgill.ca/neuro/>`_," and the McConnell Brain Imaging Center (`BIC <https://www.mcgill.ca/bic/>`_).
+\
 
-This open access processing and analysis tool aims identify patient-specific anomalies in brain morphology and microstructure, using features with previously demonstrated potential to accurately localize epileptogenic lesions.
+``zbrains`` is developed by `MICA-Lab <https://mica-mni.github.io>`_, affiliated with `McGill University <https://www.mcgill.ca/>`_, the Montreal Neurological Institute and Hospital "`the Neuro <https://www.mcgill.ca/neuro/>`_," and the McConnell Brain Imaging Center (`BIC <https://www.mcgill.ca/bic/>`_).
 
-``z-brains`` uses a set of known software dependencies developped by other groups and aggregated in a published pipeline `micapipe <https://github.com/MICA-MNI/micapipe>`_.
-
+   This open access processing and analysis tool aims identify patient-specific anomalies in brain morphology and microstructure, using features with previously demonstrated potential to accurately localize epileptogenic lesions.
+   ``zbrains`` uses a set of known software dependencies developed by other groups and aggregated in a published pipeline `micapipe <https://github.com/MICA-MNI/micapipe>`_.
 
 .. Installation
 .. --------------------------------------------
