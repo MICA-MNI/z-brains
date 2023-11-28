@@ -4,6 +4,7 @@ import logging
 import argparse
 import time
 from pathlib import Path
+from functools import reduce
 from typing import get_args, Literal
 
 import numpy as np
@@ -141,6 +142,57 @@ sys.excepthook = handle_unhandled_exception
 ##################################################################################################
 # Read/write functions
 ##################################################################################################
+def mahalanobis_distance(x_cn: np.ndarray, x_px: np.ndarray):
+    """Compute mahalanobis distance for multiple vertices
+
+    Parameters
+    ----------
+    x_cn: ndarray of shape=(n_subjects, n_vertices, n_features)
+         Data for controls.
+    x_px: ndarray of shape=(n_vertices, n_features)
+        Patient data.
+
+    Returns
+    -------
+    dist: np.ndarray of shape=(n_vertices,)
+        Mahalanobis distance.
+    """
+
+    n_subjects, n_vertices, _ = x_cn.shape
+
+    dist = np.zeros(n_vertices, dtype=np.float32)
+    for i, xp in enumerate(x_px):
+        xc = x_cn[:, i]
+        mu = xc.mean(axis=0)
+
+        xc = xc - mu
+        xp = xp - mu
+
+        cov = xc.T @ xc
+        cov /= n_subjects - 1
+        try:
+            cov_inv = np.linalg.inv(cov)
+            dist[i] = np.sqrt(xp.T @ cov_inv @ xp)
+        except np.linalg.LinAlgError:
+            pass  # set distance to zero (default)
+
+    return dist
+
+    # Faster but cannot handle singular matrix exception
+    # x_cn = x_cn.swapaxes(0, 1)
+    # n_vertices, n_subjects, n_features = x_cn.shape
+    #
+    # mu = x_cn.mean(axis=1, keepdims=True)
+    # x_cn_centered = x_cn - mu
+    #
+    # cov = (x_cn_centered.swapaxes(1, 2) @ x_cn_centered)
+    # cov /= n_subjects - 1
+    # cov_inv = np.linalg.inv(cov)
+    #
+    # x_px_centered = x_px - mu.squeeze()
+    # dist = np.sqrt(x_px_centered[:, None] @ cov_inv @ x_px_centered[..., None]).squeeze()
+    # return dist
+
 
 def _map_resolution(struct: Structure, resolution: Resolution):
     if struct == 'cortex':
@@ -279,7 +331,7 @@ def _load_data_px(feat: Feature, struct: Structure = 'cortex', resolution: Resol
     return _load_one(px_id, px_ses, feat, struct=struct, resolution=resolution, raise_error=True)
 
 
-def _save(x: np.ndarray | pd.DataFrame, sid: str, ses: str, feat: Feature, struct: Structure = 'cortex',
+def _save(x: np.ndarray | pd.DataFrame, sid: str, ses: str, feat: Feature | list[Feature], struct: Structure = 'cortex',
           resolution: Resolution | None = None, thresh: float | None = None):
     """ Save results
 
@@ -291,8 +343,8 @@ def _save(x: np.ndarray | pd.DataFrame, sid: str, ses: str, feat: Feature, struc
         Subject id in the form 'sub-XXXXX'
     ses: str
         Session, in the form 'ses-XX'
-    feat: str
-        Feature name
+    feat: str or list[str]
+        Feature name or names for Mahalanobis
     struct: str, default='cortex'
         Structure.
     resolution: str, optional
@@ -304,9 +356,11 @@ def _save(x: np.ndarray | pd.DataFrame, sid: str, ses: str, feat: Feature, struc
     folder = f'{pth_analysis}/{map_struct_to_folder[struct]}'
     smooth = smooth_ctx if struct == 'cortex' else smooth_hipp
 
-    if struct == 'subcortex' and feat == 'thickness':
-        feat = 'volume'
-    feat = map_feature[feat]
+    # Handle the case when feat is a list of string (used for Mahalanobis)
+    is_list = isinstance(feat, list)
+    feat = feat if is_list else [feat]
+    feat = [map_feature['volume' if k == 'thickness' else k] for k in feat]
+    feat = '-'.join(feat) if is_list else feat[0]
 
     reg_or_asym = 'asymmetry' if do_asymmetry else 'regional'
 
@@ -335,6 +389,41 @@ def _save(x: np.ndarray | pd.DataFrame, sid: str, ses: str, feat: Feature, struc
             break
 
 
+def _prepare_data(data_cn: np.ndarray | pd.DataFrame, data_px: np.ndarray | pd.DataFrame, make_asymmetric: bool = False):
+    df_index, df_cols = None, None
+    if isinstance(data_px, pd.DataFrame):
+        df_index, df_cols = data_px.index, data_px.columns
+
+        # TODO: some have 15 columns - an additional column for ICV - remove
+        data_cn = data_cn.to_numpy()[..., :14].reshape(-1, 2, 7)
+        data_px = data_px.to_numpy()[..., :14].reshape(2, 7)
+        df_cols = df_cols[:14]
+
+    if make_asymmetric:
+        lh_data_cn, rh_data_cn = data_cn[:, 0], data_cn[:, 1]
+        den_cn = .5 * (lh_data_cn + rh_data_cn)
+        data_cn = np.divide(lh_data_cn - rh_data_cn, den_cn, out=den_cn, where=den_cn > 0)
+
+        lh_data_px, rh_data_px = data_px[0], data_px[1]
+        den_px = .5 * (lh_data_px + rh_data_px)
+        data_px = np.divide(lh_data_px - rh_data_px, den_px, out=den_px, where=den_px > 0)
+
+        if df_cols is not None:
+            df_cols = df_cols[:df_cols.size // 2]
+
+    return data_cn, data_px, df_index, df_cols
+
+
+def _save_results(x: np.ndarray, feat: Feature | list[Feature], index: list[str] | None = None,
+                  columns: list[str] | None = None, **kwargs):
+
+    # Add header and index to dataframe if available
+    if columns is not None:
+        x = pd.DataFrame(x.reshape(1, -1), index=index, columns=columns)
+
+    _save(x, px_id, px_ses, feat, **kwargs)
+
+
 ##################################################################################################
 # Analysis
 ##################################################################################################
@@ -353,65 +442,73 @@ def main():
         else:
             struct_res_pair.extend([(st, res) for res in resolutions])
 
-    for feat_name in features:
-        logger_both.info(f'Feature: {feat_name}')
-        for struct_name, res in struct_res_pair:
-            if struct_name == 'subcortex':
-                prefix = f'{struct_name:<12}'
-            else:
-                prefix = f'{struct_name:<12} [res = {res:<4}]'
+    for struct_name, res in struct_res_pair:
+        msg = f' [res = {res:<4}]' if struct_name != 'subcortex' else ''
+        logger_both.info(f'\nStructure: {struct_name}{msg}')
 
+        # Collect data for Mahalanobis
+        list_df_cn = []  # Because some subjects may not have some features
+        list_data_cn = []
+        list_data_px = []
+        index_df, cols_df = None, None
+        available_feat = []
+
+        for feat_name in features:
+            # Load data
             try:
                 data_cn, df_cn = _load_data_cn(feat_name, df_controls=orig_df_cn, struct=struct_name, resolution=res)
                 data_px = _load_data_px(feat_name, struct=struct_name, resolution=res)
             except FileNotFoundError:  # When patient files not available
-                logger_both.info(f'\t{prefix:<25}: \tNo data available.')
+                logger_both.info(f'\t{feat_name:<15}: \tNo data available.')
                 continue
 
-            data_px_as_df = None
-            if struct_name == 'subcortex':
-                data_px_as_df = data_px
-                data_cn = data_cn.to_numpy()
-                data_px = data_px.to_numpy()
+            data_cn, data_px, index_df, cols_df = _prepare_data(data_cn, data_px, make_asymmetric=do_asymmetry)
 
-                # TODO: some have 15 columns - an additional column for ICV - remove
-                data_cn = data_cn[..., :14].reshape(-1, 2, 7)
-                data_px = data_px[..., :14].reshape(2, 7)
-                data_px_as_df = data_px_as_df.iloc[:, :14]
+            # Save data for mahalanobis
+            available_feat.append(feat_name)
+            list_data_cn.append(data_cn)
+            list_df_cn.append(df_cn)
+            list_data_px.append(data_px)
 
-            logger_both.info(f'\t{prefix:<25}: \t[{data_cn.shape[0]}/{orig_n_cn} controls available]')
-
-            # Analysis
-            if do_asymmetry:
-                lh_data_cn, rh_data_cn = data_cn[:, 0], data_cn[:, 1]
-                den_cn = .5 * (lh_data_cn + rh_data_cn)
-                data_cn = np.divide(lh_data_cn - rh_data_cn, den_cn, out=den_cn, where=den_cn > 0)
-
-                lh_data_px, rh_data_px = data_px[0], data_px[1]
-                den_px = .5 * (lh_data_px + rh_data_px)
-                data_px = np.divide(lh_data_px - rh_data_px, den_px, out=den_px, where=den_px > 0)
-
-            # zscores = data_px - np.nanmean(data_cn, axis=-2)
-            # zscores /= np.nanstd(data_cn, axis=-2)
-
+            # Analysis: z-scoring
             mask = np.any(data_cn != 0, axis=0)  # ignore all zeros
             data_cn[:, ~mask] = np.finfo(float).eps
 
-            zscores = data_px - np.nanmean(data_cn, axis=0)
-            zscores = np.divide(zscores, np.nanstd(data_cn, axis=0), out=zscores, where=mask)
-            zscores[~mask] = 0
+            z = data_px - np.nanmean(data_cn, axis=0)
+            z = np.divide(z, np.nanstd(data_cn, axis=0), out=z, where=mask)
+            z[~mask] = 0
 
-            # zscores thresholding
-            thresh_zscores = np.where((zscores >= -threshold) & (zscores <= threshold), 0, zscores)
+            # thresholding
+            thresh_z = np.where((z >= -threshold) & (z <= threshold), 0, z)
 
-            # Add header to dataframe, only for subcortex
-            if data_px_as_df is not None:
-                cols = data_px_as_df.columns[:zscores.size] if do_asymmetry else data_px_as_df.columns
-                zscores = pd.DataFrame(zscores.reshape(1, -1), index=data_px_as_df.index, columns=cols)
-                thresh_zscores = pd.DataFrame(thresh_zscores.reshape(1, -1), index=data_px_as_df.index, columns=cols)
+            # Save results
+            kwds = dict(index=index_df, columns=cols_df, struct=struct_name, resolution=res)
+            _save_results(z, feat_name, **kwds)
+            _save_results(thresh_z, feat_name, thresh=threshold, **kwds)
 
-            _save(zscores, px_id, px_ses, feat_name, struct=struct_name, resolution=res)
-            _save(thresh_zscores, px_id, px_ses, feat_name, struct=struct_name, thresh=threshold, resolution=res)
+            logger_both.info(f'\t{feat_name:<15}: \t[{data_cn.shape[0]}/{orig_n_cn} controls available]')
+
+        # Mahalanobis
+        if len(available_feat) < 2:
+            continue
+
+        common_ids = reduce(np.intersect1d, [df.index for df in list_df_cn])
+        for i, (df, x) in enumerate(zip(list_df_cn, list_data_cn)):
+            mask = df.index.isin(common_ids)
+            list_data_cn[i] = x[mask].reshape(x[mask].shape[0], -1)
+        x_cn = np.stack(list_data_cn, axis=-1)
+        x_px = np.stack(list_data_px, axis=-1).reshape(-1, len(list_data_px))
+
+        md = mahalanobis_distance(x_cn, x_px)
+        thresh_md = np.where((md >= -threshold) & (md <= threshold), 0, md)  # thresholding
+
+        # Save results
+        # feat_name = '&'.join(available_feat)
+        kwds = dict(index=index_df, columns=cols_df, struct=struct_name, resolution=res)
+        _save_results(md, available_feat, **kwds)
+        _save_results(thresh_md, available_feat, thresh=threshold, **kwds)
+
+        logger_both.info(f'\n\t{"Mahalanobis":<15}: \t[{x_cn.shape[0]}/{orig_n_cn} controls available]\n')
 
     logger_both.info('Done!\n\n')
 
