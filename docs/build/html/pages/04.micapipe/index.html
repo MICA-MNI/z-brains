@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>micapipe &mdash; z-brains  documentation</title>
       <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
-      <link rel="stylesheet" href="../../_static/tabs.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/custom.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/tabs.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/mica-pipe_colors.css" type="text/css" />
   <!--[if lt IE 9]>
     <script src="../../_static/js/html5shiv.min.js"></script>
@@ -16,7 +17,9 @@
         <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
         <script src="../../_static/jquery.js"></script>
         <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
@@ -29,12 +32,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search"  style="background: #e8e8e8" >
-            <a href="../../index.html">
-            <img src="../../_static/zbrains_alpha.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../index.html">
+            
+              <img src="../../_static/zbrains_alpha.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -87,7 +94,7 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../index.html" class="icon icon-home"></a></li>
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
       <li class="breadcrumb-item active">micapipe</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../../_sources/pages/04.micapipe/index.rst.txt" rel="nofollow"> View page source</a>
@@ -98,8 +105,8 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <div class="section" id="pre-processing-with-micapipe">
-<span id="micapipeproc"></span><h1>Pre-processing with <code class="docutils literal notranslate"><span class="pre">micapipe</span></code><a class="headerlink" href="#pre-processing-with-micapipe" title="Permalink to this headline"></a></h1>
+  <section id="pre-processing-with-micapipe">
+<span id="micapipeproc"></span><h1>Pre-processing with <code class="docutils literal notranslate"><span class="pre">micapipe</span></code><a class="headerlink" href="#pre-processing-with-micapipe" title="Permalink to this heading"></a></h1>
 <p>Neocortical and subcortial feature post-processing with <code class="docutils literal notranslate"><span class="pre">z-brains</span></code> relies heavily on <a class="reference external" href="https://https://micapipe.readthedocs.io/">micapipe</a>,
 an openly available, multimodal MRI pre-processing pipeline. The sections below outline the minimal pre-processing that should be perfomed with
 <code class="docutils literal notranslate"><span class="pre">micapipe</span></code> prior to running <code class="docutils literal notranslate"><span class="pre">z-brains</span></code>, for each modality available in your dataset.</p>
@@ -108,11 +115,11 @@ an openly available, multimodal MRI pre-processing pipeline. The sections below 
 <p>The <a class="reference external" href="https://bids.neuroimaging.io">Brain Imaging Data Structure (BIDS)</a> is a widely used directory and file naming convention in brain imaging. To run <code class="docutils literal notranslate"><span class="pre">micapipe</span></code>, and subsequently <code class="docutils literal notranslate"><span class="pre">z-brains</span></code>, your raw data needs to be conform to BIDS standards.</p>
 </div>
 <p>Core to the <code class="docutils literal notranslate"><span class="pre">z-brains</span></code> architecture are the computation and resampling of neocortical surface segmentations via <code class="docutils literal notranslate"><span class="pre">micapipe</span></code>. This allows for smoothing and normalization of available features across participants.</p>
-<div class="section" id="neocortical-thickness-and-subcortical-volume">
-<h2>Neocortical thickness and subcortical volume<a class="headerlink" href="#neocortical-thickness-and-subcortical-volume" title="Permalink to this headline"></a></h2>
+<section id="neocortical-thickness-and-subcortical-volume">
+<h2>Neocortical thickness and subcortical volume<a class="headerlink" href="#neocortical-thickness-and-subcortical-volume" title="Permalink to this heading"></a></h2>
 <p>Generation of these features rely on the <a class="reference external" href="https://micapipe.readthedocs.io/en/latest/pages/02.structuralproc/index.html">structural processing of micapipe</a></p>
 <p>Key outputs of these modules for <code class="docutils literal notranslate"><span class="pre">z-brains</span></code> are:</p>
-<table class="colwidths-given docutils align-default">
+<table class="docutils align-default">
 <colgroup>
 <col style="width: 1%" />
 <col style="width: 99%" />
@@ -140,12 +147,12 @@ an openly available, multimodal MRI pre-processing pipeline. The sections below 
 </tr>
 </tbody>
 </table>
-</div>
-<div class="section" id="flair-intensity">
-<h2>FLAIR intensity<a class="headerlink" href="#flair-intensity" title="Permalink to this headline"></a></h2>
+</section>
+<section id="flair-intensity">
+<h2>FLAIR intensity<a class="headerlink" href="#flair-intensity" title="Permalink to this heading"></a></h2>
 <p>Generation of these features rely on the <a class="reference external" href="https://micapipe.readthedocs.io/en/latest/pages/02.flairproc/index.html">FLAIR processing of micapipe</a></p>
 <p>Key outputs of this module for <code class="docutils literal notranslate"><span class="pre">z-brains</span></code> are:</p>
-<table class="colwidths-given docutils align-default">
+<table class="docutils align-default">
 <colgroup>
 <col style="width: 1%" />
 <col style="width: 99%" />
@@ -164,12 +171,12 @@ an openly available, multimodal MRI pre-processing pipeline. The sections below 
 </tr>
 </tbody>
 </table>
-</div>
-<div class="section" id="quantitative-t1-intensity">
-<h2>Quantitative T1 intensity<a class="headerlink" href="#quantitative-t1-intensity" title="Permalink to this headline"></a></h2>
+</section>
+<section id="quantitative-t1-intensity">
+<h2>Quantitative T1 intensity<a class="headerlink" href="#quantitative-t1-intensity" title="Permalink to this heading"></a></h2>
 <p>Generation of these features rely on the <a class="reference external" href="https://micapipe.readthedocs.io/en/latest/pages/02.microstructproc/index.html">Microstructural profile covariance module of micapipe</a></p>
 <p>Key outputs of this module for <code class="docutils literal notranslate"><span class="pre">z-brains</span></code> are:</p>
-<table class="colwidths-given docutils align-default">
+<table class="docutils align-default">
 <colgroup>
 <col style="width: 1%" />
 <col style="width: 99%" />
@@ -188,12 +195,12 @@ an openly available, multimodal MRI pre-processing pipeline. The sections below 
 </tr>
 </tbody>
 </table>
-</div>
-<div class="section" id="mean-diffusivity-md-and-fractional-anisotropy-fa">
-<h2>Mean diffusivity (MD) and fractional anisotropy (FA)<a class="headerlink" href="#mean-diffusivity-md-and-fractional-anisotropy-fa" title="Permalink to this headline"></a></h2>
+</section>
+<section id="mean-diffusivity-md-and-fractional-anisotropy-fa">
+<h2>Mean diffusivity (MD) and fractional anisotropy (FA)<a class="headerlink" href="#mean-diffusivity-md-and-fractional-anisotropy-fa" title="Permalink to this heading"></a></h2>
 <p>Generation of these features rely on the <a class="reference external" href="hhttps://micapipe.readthedocs.io/en/latest/pages/02.dwiproc/index.html">diffusion-weighted imaging module of micapipe</a></p>
 <p>Key outputs of this module for <code class="docutils literal notranslate"><span class="pre">z-brains</span></code> are:</p>
-<table class="colwidths-given docutils align-default">
+<table class="docutils align-default">
 <colgroup>
 <col style="width: 1%" />
 <col style="width: 99%" />
@@ -215,8 +222,8 @@ an openly available, multimodal MRI pre-processing pipeline. The sections below 
 </tr>
 </tbody>
 </table>
-</div>
-</div>
+</section>
+</section>
 
 
            </div>
