@@ -230,7 +230,7 @@ def _load_one(sid: str, ses: str, feat: Feature, struct: Structure = 'cortex', r
         Return None if no data for one or 2 hemispheres.
     """
 
-    folder = f'{zbrains_dir}/{sid}/{px_ses}/{config["FOLDER_MAPS"]}/{map_struct_to_folder[struct]}'
+    folder = f'{zbrains_dir}/{sid}/{ses}/{config["FOLDER_MAPS"]}/{map_struct_to_folder[struct]}'
     smooth = smooth_ctx if struct == 'cortex' else smooth_hipp
     if struct == 'subcortex' and feat == 'thickness':
         feat = 'volume'
