@@ -359,7 +359,7 @@ def _save(x: np.ndarray | pd.DataFrame, sid: str, ses: str, feat: Feature | list
     # Handle the case when feat is a list of string (used for Mahalanobis)
     is_list = isinstance(feat, list)
     feat = feat if is_list else [feat]
-    feat = [map_feature['volume' if k == 'thickness' else k] for k in feat]
+    feat = [map_feature['volume' if (k == 'thickness' and struct == 'subcortex') else k] for k in feat]
     feat = '-'.join(feat) if is_list else feat[0]
 
     reg_or_asym = 'asymmetry' if do_asymmetry else 'regional'
