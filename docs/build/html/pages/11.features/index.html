@@ -1,19 +1,24 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>``z-brains`` outputs &mdash; z-brains  documentation</title><link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
-    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+  <title>``z-brains`` outputs &mdash; z-brains  documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/custom.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/mica-pipe_colors.css" type="text/css" />
   <!--[if lt IE 9]>
     <script src="../../_static/js/html5shiv.min.js"></script>
   <![endif]-->
-  <script id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
         <script src="../../_static/jquery.js"></script>
         <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
@@ -26,41 +31,51 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search"  style="background: #e8e8e8" >
-            <a href="../../index.html"><img src="../../_static/zbrains_alpha.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../../index.html">
+            
+              <img src="../../_static/zbrains_alpha.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <p class="caption"><span class="caption-text">Getting started</span></p>
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../01.install/index.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../02.tutorialinstructions/index.html">Usage notes</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../03.whatsnew/index.html">What’s new?</a></li>
 </ul>
-<p class="caption"><span class="caption-text">Pre-processing requirements</span></p>
+<p class="caption" role="heading"><span class="caption-text">Pre-processing requirements</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../04.micapipe/index.html">Pre-processing with <code class="docutils literal notranslate"><span class="pre">micapipe</span></code></a></li>
 <li class="toctree-l1"><a class="reference internal" href="../05.hippunfold/index.html">Pre-processing with <code class="docutils literal notranslate"><span class="pre">hippunfold</span></code></a></li>
 </ul>
-<p class="caption"><span class="caption-text">Feature post-processing</span></p>
+<p class="caption" role="heading"><span class="caption-text">Feature post-processing</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../06.cortex/index.html">Cortical feature post-processing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../07.subcortex/index.html">Subcortical feature post-processing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../08.hippocampus/index.html">Hippocampal feature post-processing</a></li>
 </ul>
-<p class="caption"><span class="caption-text">Feature normalization</span></p>
+<p class="caption" role="heading"><span class="caption-text">Feature normalization</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../09.zscoring/index.html">Z-scoring</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../10.normative/index.html">Normative modelling</a></li>
 </ul>
-<p class="caption"><span class="caption-text">Main outputs</span></p>
+<p class="caption" role="heading"><span class="caption-text">Main outputs</span></p>
 <ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Exploring <code class="docutils literal notranslate"><span class="pre">z-brains</span></code> outputs</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Exploring <code class="docutils literal notranslate"><span class="pre">z-brains</span></code> outputs</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#raw-features-maps">Raw features: maps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#normalized-features-z-scored">Normalized features: Z-scored</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#normalized-features-normative-model">Normalized features: Normative model</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="../12.reports/index.html">Summary reports</a></li>
 </ul>
 
@@ -77,7 +92,7 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../index.html" class="icon icon-home"></a></li>
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
       <li class="breadcrumb-item active">``z-brains`` outputs</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../../_sources/pages/11.features/index.rst.txt" rel="nofollow"> View page source</a>
@@ -88,9 +103,52 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <div class="section" id="exploring-z-brains-outputs">
-<span id="outputs"></span><h1>Exploring <code class="docutils literal notranslate"><span class="pre">z-brains</span></code> outputs<a class="headerlink" href="#exploring-z-brains-outputs" title="Permalink to this headline">¶</a></h1>
+  <section id="exploring-z-brains-outputs">
+<span id="outputs"></span><h1>Exploring <code class="docutils literal notranslate"><span class="pre">z-brains</span></code> outputs<a class="headerlink" href="#exploring-z-brains-outputs" title="Permalink to this heading"></a></h1>
+<p>What can you expect to find in your z-brains output directory? Let’s investigate…</p>
+<section id="raw-features-maps">
+<h2>Raw features: maps<a class="headerlink" href="#raw-features-maps" title="Permalink to this heading"></a></h2>
+<p>Raw features sampled from neocortical and hippocampal surfaces, as well as subcortical structure volumes, can be found under the patients <code class="docutils literal notranslate"><span class="pre">maps</span></code> directory: <code class="docutils literal notranslate"><span class="pre">&lt;outputDirectory&gt;/z-brains/&lt;sub&gt;/&lt;ses&gt;/maps</span></code>.
+The <code class="docutils literal notranslate"><span class="pre">maps</span></code> directory thus contains three subdirectories:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">-</span> <span class="o">&lt;</span><span class="n">mapsdir</span><span class="o">&gt;/</span><span class="n">cortex</span>
+<span class="o">-</span> <span class="o">&lt;</span><span class="n">mapsdir</span><span class="o">&gt;/</span><span class="n">hippocampus</span>
+<span class="o">-</span> <span class="o">&lt;</span><span class="n">mapsdir</span><span class="o">&gt;/</span><span class="n">subcortex</span>
+</pre></div>
 </div>
+<p>The outputs can be broadly categorized according to the region and modality they are sampling.</p>
+<pre class="literal-block">- <strong>Cortical outputs:</strong>
+    - &lt;mapsdir&gt;/cortex&gt;/&lt;BIDS_ID&gt;_hemi-&lt;X&gt;_surf-fsLR-&lt;X&gt;k_feature-&lt;X&gt;_smooth-&lt;X&gt;mm.func.gii
+
+- <strong>Hippocampal outputs:</strong>
+    - &lt;mapsdir&gt;/hippocampus&gt;/&lt;BIDS_ID&gt;_hemi-&lt;X&gt;_den-&lt;X&gt;mm_feature-&lt;X&gt;_smooth-&lt;X&gt;mm.func.gii
+
+- <strong>Subcortical outputs:</strong>
+    - &lt;mapsdir&gt;/subcortex&gt;/&lt;BIDS_ID&gt;_feature-&lt;X&gt;.csv</pre>
+</section>
+<section id="normalized-features-z-scored">
+<h2>Normalized features: Z-scored<a class="headerlink" href="#normalized-features-z-scored" title="Permalink to this heading"></a></h2>
+<p>Z-scored features sampled from neocortical and hippocampal surfaces, as well as subcortical structure volumes, can be found under the patients <code class="docutils literal notranslate"><span class="pre">norm-z</span></code> directory: <code class="docutils literal notranslate"><span class="pre">&lt;outputDirectory&gt;/z-brains/&lt;sub&gt;/&lt;ses&gt;/norm-z</span></code>.
+The <code class="docutils literal notranslate"><span class="pre">norm-z</span></code> directory thus contains three subdirectories:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">-</span> <span class="o">&lt;</span><span class="n">norm</span><span class="o">-</span><span class="n">z</span><span class="o">&gt;/</span><span class="n">cortex</span>
+<span class="o">-</span> <span class="o">&lt;</span><span class="n">norm</span><span class="o">-</span><span class="n">z</span><span class="o">&gt;/</span><span class="n">hippocampus</span>
+<span class="o">-</span> <span class="o">&lt;</span><span class="n">norm</span><span class="o">-</span><span class="n">z</span><span class="o">&gt;/</span><span class="n">subcortex</span>
+</pre></div>
+</div>
+<p>The outputs can be broadly categorized according to the region and modality they are sampling, as well as the analysis performed (regional vs. asymmetry) and the threshold defined by the user.</p>
+<pre class="literal-block">- <strong>Cortical outputs:</strong>
+    - &lt;norm-z&gt;/cortex&gt;/&lt;BIDS_ID&gt;_hemi-&lt;X&gt;_surf-fsLR-&lt;X&gt;k_feature-&lt;X&gt;_smooth-&lt;X&gt;mm_&lt;analysis&gt;_&lt;threshold&gt;.func.gii
+
+- <strong>Hippocampal outputs:</strong>
+    - &lt;norm-z&gt;/hippocampus&gt;/&lt;BIDS_ID&gt;_hemi-&lt;X&gt;_den-&lt;X&gt;mm_feature-&lt;X&gt;_smooth-&lt;X&gt;mm_&lt;analysis&gt;_&lt;threshold&gt;.func.gii
+
+- <strong>Subcortical outputs:</strong>
+    - &lt;norm-z&gt;/subcortex&gt;/&lt;BIDS_ID&gt;_feature-&lt;X&gt;_&lt;analysis&gt;_&lt;threshold&gt;.csv</pre>
+</section>
+<section id="normalized-features-normative-model">
+<h2>Normalized features: Normative model<a class="headerlink" href="#normalized-features-normative-model" title="Permalink to this heading"></a></h2>
+<p>🚧 🚧 🚧 Under construction 🚧 🚧 🚧</p>
+</section>
+</section>
 
 
            </div>
