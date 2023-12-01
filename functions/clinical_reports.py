@@ -5,7 +5,7 @@ USAGE:
     
 
 """
-
+# libraries
 from xhtml2pdf import pisa
 import os
 import numpy as np
@@ -172,57 +172,69 @@ def report_cortex(feature='', smooth_ctx=5, analysis='', norm='z', cmap='cmo.bal
     file_lh = f'{outdir}/norm-{norm}/cortex/{bidsid}_hemi-L_surf-fsLR-32k_feature-{feature}_smooth-{smooth_ctx}mm_analysis-{analysis}.func.gii'
     file_rh = f'{outdir}/norm-{norm}/cortex/{bidsid}_hemi-R_surf-fsLR-32k_feature-{feature}_smooth-{smooth_ctx}mm_analysis-{analysis}.func.gii'
 
+    # Make figure
+    def make_png(data_lh, data_rh):
+        
+        # threshold
+        if thr != None:
+            data_lh[np.abs(data_lh)<thr]*=thr_alpha
+            data_rh[np.abs(data_rh)<thr]*=thr_alpha
+            thr_str=f' | threshold={thr}'
+        else:
+            thr_str=''
+        
+        # outname of the plot
+        out_png=f'{tmp}/{bidsid}_cortex_feature-{feature}_smooth-{smooth_ctx}mm_analysis-{analysis}{thr}.png'
+
+        # Replace values in f with NaN where mask_32k is False
+        feat_map = np.hstack(np.concatenate((data_lh, data_rh), axis=0))
+        feat_map[mask == False] = np.nan
+        
+        # Plot the mean FEATURE on fsLR-32k
+        plot_hemispheres(inf_lh, inf_rh, array_name=feat_map, layout_style='grid',
+                         label_text={'left': ['Lateral', 'Medial'], 'top': ['Left', 'Right']},
+                         cmap=cmap, color_bar=color_bar, color_range=Range,
+                         share=None, transparent_bg=False, nan_color=(0, 0, 0, 1),
+                         zoom=1.25, size=(600, 600), embed_nb=True, offscreen=True,
+                         interactive=False, screenshot=True, filename=out_png)
+        
+        # Plot cortex with different views
+        plot_surfs(surfaces=[inf_lh, inf_rh, inf_rh, inf_lh],
+                   values=[data_lh, data_rh, data_rh, data_lh],
+                   views=['dorsal', 'dorsal', 'ventral', 'ventral'],
+                   text={'bottom':['Left Superior','Right Superior','Right Inferior','Left Inferior']},
+                   cmap=cmap, color_bar=color_bar, Color_range=Range,
+                   share='both', transparent_bg=False, nan_color=(0, 0, 0, 1),
+                   zoom=2.95, size=(550,350), embed=True,
+                   interactive=False, save=True, filename=out_png.replace('.png', '_SI.png'))
+        
+        # create html chunck
+        png_block = report_1x2_table(fig1=out_png, fig2=out_png.replace('.png', '_SI.png'), height=300)
+        
+        return(png_block, thr_str)
+    
     # If the FEATURE is not found it will plot an array of nans
     if not os.path.exists(file_lh):
         print(f"\n[WARNING] cortex file was not found: \n{file_lh}")
-        file_warning='<p style="margin-bottom:0;margin-top:0;font-family:gill sans,sans-serif;text-align:center;font-size:14px;color:#ffb311"> <b> [WARNING] </b>cortex file was not found </p>'
-        data_lh = np.full([inf_lh.points.shape[0]], 0.)
-        data_rh = np.full([inf_rh.points.shape[0]], 0.)
-    else:
-        # Load the feature data
-        file_warning=''
-        data_lh = nib.load(file_lh).darrays[0].data
-        data_rh =nib.load(file_rh).darrays[0].data
-    
-    # threshold
-    if thr != None:
-        data_lh[np.abs(data_lh)<thr]*=thr_alpha
-        data_rh[np.abs(data_rh)<thr]*=thr_alpha
-        thr_str=f' | threshold={thr}'
-    else:
+        png_block = '<p style="margin-bottom:0;margin-top:0;font-family:gill sans,sans-serif;text-align:center;font-size:14px;color:#ffb311"> <b> [WARNING] </b>cortex file was not found </p>'
         thr_str=''
+    else:
+        # Load the LEFT feature data
+        data_lh = nib.load(file_lh).darrays[0].data
+        # Load the RIGHT feature data
+        if analysis != 'asymmetry':
+            data_rh =nib.load(file_rh).darrays[0].data
+        else:
+            data_rh =nib.load(file_lh).darrays[0].data
+            cmap='PRGn'
+            Range=(-1,1)
+        # Create HTML png chunck
+        png_block, thr_str = make_png(data_lh, data_rh)
         
-    # outname of the plot
-    out_png=f'{tmp}/{bidsid}_cortex_feature-{feature}_smooth-{smooth_ctx}mm_analysis-{analysis}{thr}.png'
-
-    # Replace values in f with NaN where mask_32k is False
-    feat_map = np.hstack(np.concatenate((data_lh, data_rh), axis=0))
-    feat_map[mask == False] = np.nan
-    
-    # Plot the mean FEATURE on fsLR-32k
-    plot_hemispheres(inf_lh, inf_rh, array_name=feat_map, layout_style='grid',
-                     label_text={'left': ['Lateral', 'Medial'], 'top': ['Left', 'Right']},
-                     cmap=cmap, color_bar=color_bar, color_range=Range,
-                     share=None, transparent_bg=False, nan_color=(0, 0, 0, 1),
-                     zoom=1.25, size=(600, 600), embed_nb=True, offscreen=True,
-                     interactive=False, screenshot=True, filename=out_png)
-    
-    # Plot cortex with different views
-    plot_surfs(surfaces=[inf_lh, inf_rh, inf_rh, inf_lh],
-               values=[data_lh, data_rh, data_rh, data_lh],
-               views=['dorsal', 'dorsal', 'ventral', 'ventral'],
-               text={'bottom':['Left Superior','Right Superior','Right Inferior','Left Inferior']},
-               cmap=cmap, color_bar=color_bar, Color_range=Range,
-               share='both', transparent_bg=False, nan_color=(0, 0, 0, 1),
-               zoom=2.95, size=(550,350), embed=True,
-               interactive=False, save=True, filename=out_png.replace('.png', '_SI.png'))
-    
     # Create cortical chunck
     ctx_block = (f'<p style="margin-bottom:0;margin-top:0;font-family:gill sans,sans-serif;'
-          f'text-align:left;font-size:14px;color:#5d5070"> <b>Cortical {feature}</b> | {smooth_ctx}mm smooth | {analysis} analysis | norm-{norm} {thr_str}</p>'
-          f'{file_warning}'
-        )
-    ctx_block += report_1x2_table(fig1=out_png, fig2=out_png.replace('.png', '_SI.png'), height=300)
+          f'text-align:left;font-size:14px;color:#5d5070"> <b>Cortical {feature}</b> | {smooth_ctx}mm smooth | {analysis} analysis | norm-{norm} {thr_str}</p>')
+    ctx_block += png_block
     
     return(ctx_block)
 
@@ -262,57 +274,66 @@ def report_subcortex(feature='', analysis='', cmap='cmo.balance', norm='z', thr=
     surf_lh = read_surface(f'{zbrains}/data/sctx.L.surf.gii', itype='gii')
     surf_rh = read_surface(f'{zbrains}/data/sctx.R.surf.gii', itype='gii')
     
-    # Read CSV file
+    # List CSV file
     sctx_file = f'{outdir}/norm-{norm}/subcortex/{bidsid}_feature-{feature}_analysis-{analysis}.csv'
+    
+    # Make figure
+    def make_png(array_values, cmap='cmo.balance'):
+        # threshold
+        if thr != None:
+            array_values[np.abs(array_values)<thr]*=thr_alpha
+            thr_str=f' | threshold={thr}'
+        else:
+            thr_str=''
+        
+        # Array of data
+        array_16 = np.full(16, np.nan)
+        array_16[0:7] = array_values[0:7]
+        if analysis != 'asymmetry':
+            array_16[8:15] = array_values[7:]
+        else:
+            array_16[8:15] = array_values[0:7]
+            cmap='PRGn'
+            Range=(-1,1)
+        
+        # Map array to vertices of surfaces
+        feat_map = subcorticalvertices(array_16)
+            
+        # Map array to left and right surfaces
+        data_lh = feat_map[0:25910]
+        data_rh = feat_map[25910:]
+        
+        # Plot subcortical structures
+        out_png=f'{tmp}/{bidsid}_subcortex_feature-{feature}_analysis-{analysis}{thr}.png'
+        plot_surfs(surfaces=[surf_lh, surf_lh, surf_rh, surf_rh],
+                   values=[data_lh, data_lh, data_rh, data_rh], 
+                   views=['lateral', 'medial', 'lateral', 'medial'],
+                   text={'left':['left'], 'right':['right']},
+                   cmap=cmap, color_bar='bottom', Color_range=Range,
+                   share='both', transparent_bg=True, nan_color=(0, 0, 0, 0),
+                   zoom=1.4, size=(900, 250), embed=True,
+                   interactive=False, save=True, filename=out_png)
+        png_block = (f'<p style="text-align:center;margin-left=0px;"> <a href="{out_png}" target="_blank">'
+        f'<img style="height:150px;margin-top:-100px;" src="{out_png}"> </a> </p>')
+        return(png_block, thr_str)
     
     # If the FEATURE is not found it will plot an array of nans
     if not os.path.exists(sctx_file):
         print(f"\n[WARNING] subcortex file was not found: \n{sctx_file}")
-        file_warning='<p style="margin-bottom:0;margin-top:0;font-family:gill sans,sans-serif;text-align:center;font-size:14px;color:#ffb311"> <b> [WARNING] </b>subcortex file was not found </p>'
-        array_values = np.full([14], 0.)
+        png_block='<p style="margin-bottom:0;margin-top:0;font-family:gill sans,sans-serif;text-align:center;font-size:14px;color:#ffb311"> <b> [WARNING] </b>subcortex file was not found </p>'
+        thr_str=''
     else:
         # Load CSV data
         sctx_data = pd.read_csv(sctx_file, sep=',')
         # Get the values into an array
         array_values = sctx_data.iloc[:, 1:].values.reshape(-1)
-        file_warning=''
-    
-    # threshold
-    if thr != None:
-        array_values[np.abs(array_values)<thr]*=thr_alpha
-        thr_str=f' | threshold={thr}'
-    else:
-        thr_str=''
-    
-    # Array of data
-    array_16 = np.full(16, np.nan)
-    array_16[0:7] = array_values[0:7]
-    array_16[8:15] = array_values[7:]
-    
-    # Map array to vertices of surfaces
-    feat_map = subcorticalvertices(array_16)
-        
-    # Map array to left and right surfaces
-    data_lh = feat_map[0:25910]
-    data_rh = feat_map[25910:]
-    
-    # Plot subcortical structures
-    out_png=f'{tmp}/{bidsid}_subcortex_feature-{feature}_analysis-{analysis}{thr}.png'
-    plot_surfs(surfaces=[surf_lh, surf_lh, surf_rh, surf_rh],
-               values=[data_lh, data_lh, data_rh, data_rh], 
-               views=['lateral', 'medial', 'lateral', 'medial'],
-               text={'left':['left'], 'right':['right']},
-               cmap=cmap, color_bar='bottom', Color_range=Range,
-               share='both', transparent_bg=True, nan_color=(0, 0, 0, 0),
-               zoom=1.4, size=(900, 250), embed=True,
-               interactive=False, save=True, filename=out_png)
+        # Create figure
+        png_block, thr_str = make_png(array_values)
     
     # Create subcortical chunck
     sctx_block = (f'<p style="margin-bottom:0;margin-top:0;font-family:gill sans,sans-serif;'
-          f'text-align:left;font-size:14px;color:#5d5070"> <b>Subcortical {feature}</b> | {analysis} analysis | norm-{norm} {thr_str}</p>'
-          f'{file_warning}'
-          f'<p style="text-align:center;margin-left=0px;"> <a href="{out_png}" target="_blank">'
-          f'<img style="height:150px;margin-top:-100px;" src="{out_png}"> </a> </p>' )
+          f'text-align:left;font-size:14px;color:#5d5070"> <b>Subcortical {feature}</b> | {analysis} analysis | norm-{norm} {thr_str}</p>')
+    sctx_block += png_block
 
     return(sctx_block)
 
@@ -357,42 +378,55 @@ def report_hippocampus(feature='', analysis='', smooth_hipp=2, den='0p5', norm='
     file_lh=f'{outdir}/norm-{norm}/hippocampus/{bidsid}_hemi-L_den-{den}mm_feature-{feature}_smooth-{smooth_hipp}mm_analysis-{analysis}.func.gii'
     file_rh=f'{outdir}/norm-{norm}/hippocampus/{bidsid}_hemi-R_den-{den}mm_feature-{feature}_smooth-{smooth_hipp}mm_analysis-{analysis}.func.gii'
     
+    # Make figure
+    def make_png(feat_lh, feat_rh):
+        
+        # threshold
+        if thr != None:
+            feat_lh[np.abs(feat_lh)<thr]*=thr_alpha
+            feat_rh[np.abs(feat_rh)<thr]*=thr_alpha
+            thr_str=f' | threshold={thr}'
+        else:
+            thr_str=''
+        out_png=f'{tmp}/{bidsid}_hippocampus_feature-{feature}_smooth-{smooth_ctx}mm_analysis-{analysis}{thr}.png'
+        
+        # Plot the hippocampal data
+        plot_surfs(surfaces=[hipp_lat_l, hipp_mid_l, hipp_unf_l, hipp_unf_r, hipp_mid_r, hipp_lat_r], 
+                        values=[feat_lh, feat_lh, feat_lh, feat_rh, feat_rh, feat_rh], 
+                        views=['dorsal', 'dorsal', 'lateral', 'lateral', 'dorsal', 'dorsal'], color_bar=color_bar,
+                        zoom=1.75, cmap=cmap, Color_range=Range, interactive=False, save=True, filename=out_png)
+        
+        png_block = (f'<p style="text-align:center;margin-left=0px;"> <a href="{out_png}" target="_blank">'
+                     f'<img style="height:175px;margin-top:-100px;" src="{out_png}"> </a> </p>' )
+    
+        return(png_block, thr_str)
+    
     # If the FEATURE is not found it will plot an array of nans
     if not os.path.exists(file_lh):
         print(f"\n[WARNING] hippocampal file was not found: \n{file_lh}")
-        file_warning='<p style="margin-bottom:0;margin-top:0;font-family:gill sans,sans-serif;text-align:center;font-size:14px;color:#ffb311"> <b> [WARNING] </b>hippocampal file was not found </p>'
-        feat_lh = np.full([hipp_mid_r.points.shape[0]], 0.)
-        feat_rh = np.full([hipp_mid_l.points.shape[0]], 0.)
-    else:
-        # Load the feature data
-        feat_lh = nib.load(file_lh).darrays[0].data
-        feat_rh = nib.load(file_rh).darrays[0].data
-        file_warning=''
-    
-    # threshold
-    if thr != None:
-        feat_lh[np.abs(feat_lh)<thr]*=thr_alpha
-        feat_rh[np.abs(feat_rh)<thr]*=thr_alpha
-        thr_str=f' | threshold={thr}'
-    else:
+        png_block = '<p style="margin-bottom:0;margin-top:0;font-family:gill sans,sans-serif;text-align:center;font-size:14px;color:#ffb311"> <b> [WARNING] </b>hippocampal file was not found </p>'
         thr_str=''
-    out_png=f'{tmp}/{bidsid}_hippocampus_feature-{feature}_smooth-{smooth_ctx}mm_analysis-{analysis}{thr}.png'
-    
-    # Plot the hippocampal data
-    plot_surfs(surfaces=[hipp_lat_l, hipp_mid_l, hipp_unf_l, hipp_unf_r, hipp_mid_r, hipp_lat_r], 
-                    values=[feat_lh, feat_lh, feat_lh, feat_rh, feat_rh, feat_rh], 
-                    views=['dorsal', 'dorsal', 'lateral', 'lateral', 'dorsal', 'dorsal'], color_bar=color_bar,
-                    zoom=1.75, cmap=cmap, Color_range=Range, interactive=False, save=True, filename=out_png)
+    else:
+        # Load the LEFT feature data
+        feat_lh = nib.load(file_lh).darrays[0].data
+        # Load the RIGHT feature data
+        if analysis != 'asymmetry':
+            feat_rh = nib.load(file_rh).darrays[0].data
+        else:
+            feat_rh =nib.load(file_lh).darrays[0].data
+            cmap='PRGn'
+            Range=(-1,1)
+        # create HTML chunck
+        png_block, thr_str = make_png(feat_lh, feat_rh)
     
     # Create cortical chunck
-    hipp_block = (f'<p style="margin-bottom:0;margin-top:0;font-family:gill sans,sans-serif;'
+    hipp_block = ('<p style="margin-bottom:0;margin-top:0;font-family:gill sans,sans-serif;'
           'text-align:left;font-size:14px;color:#5d5070"> <b>Hippocampal {feature}</b> | {smooth_hipp}mm smooth | density {den}mm | {analysis} analysis | norm-{norm} {thr_str}</p>'
-          f'{file_warning}'
-          f'<p style="text-align:center;margin-left=0px;"> <a href="{out_png}" target="_blank">'
-          f'<img style="height:175px;margin-top:-100px;" src="{out_png}"> </a> </p>' ).format(out_png=out_png, analysis=analysis, feature=feature, smooth_hipp=smooth_hipp, norm=norm, thr_str=thr_str, den=den.replace('p','.'))
-
+          ).format(analysis=analysis, feature=feature, smooth_hipp=smooth_hipp, norm=norm, thr_str=thr_str, den=den.replace('p','.'))
+    hipp_block += png_block
+    
     return(hipp_block)
-
+# F-string is missing place holders (pyflakes E)
 
 # -----------------------------------------------------------------------------
 def clinical_reports(norm, cmap='cmo.balance', Range=(-2,2), thr=1.96, color_bar='bottom', den='0p5', smooth_ctx=5, smooth_hipp=2,
@@ -476,6 +510,8 @@ def clinical_reports(norm, cmap='cmo.balance', Range=(-2,2), thr=1.96, color_bar
             static_report +=  report_hippocampus(feature=feat, analysis=A, cmap=cmap, thr=None, norm=norm, Range=Range,
                                                  color_bar=color_bar, den=den, smooth_hipp=smooth_hipp)
             static_report += report_colors(analysis=A)
+            
+            # page break
             static_report += '<div style="page-break-after: always;"></div>'
             
             # -------------------------------------------------------------------------
@@ -493,6 +529,9 @@ def clinical_reports(norm, cmap='cmo.balance', Range=(-2,2), thr=1.96, color_bar
             static_report +=  report_hippocampus(feature=feat, analysis=A, cmap=cmap, thr=thr, norm=norm, Range=Range,
                                                  thr_alpha=thr_alpha, color_bar=color_bar, den=den, smooth_hipp=smooth_hipp)
             static_report += report_colors(analysis=A)
+            
+            # page break
+            static_report += '<div style="page-break-after: always;"></div>'
     
     # Stop display for headless plotting
     display.stop()
@@ -523,13 +562,13 @@ for norm in norms:
         print(error)
 
 # Issues
-# ADC-FA-flair-T1map-volume fails
+# ADC-FA-flair-T1map-volume fails 
 # ADC-FA-flair-qT1-thickness fails
 # Assymmetry might fails
 
 clinical_reports(norm, cmap='cmo.balance', Range=(-3,3),
                  thr=1.96, thr_alpha=0.3, color_bar='left', den='0p5', 
-                 analysis=['regional'], feature=['T1map', 'qT1', 'ADC', 'FA', 'flair', 'thickness', 'volume'])
+                 analysis=None, feature=['T1map', 'qT1', 'ADC', 'FA', 'flair', 'thickness', 'volume'])
 
 clinical_reports(norm, cmap='cmo.balance', Range=(-3,3),
                  thr=1.96, thr_alpha=0.3, color_bar='left', den='0p5', 
