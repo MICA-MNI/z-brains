@@ -1,8 +1,31 @@
 """
 Generate the clinical reports for ZBRAINS
 
+zbrains MUST exist on the global environment
+
 USAGE:
     
+    outdir='<PATH to output directory>/derivatives/z-brains'
+    zbrains='<PATH to repository>/z-brains'
+
+    # Run the function per norm ['z', 'normative'] to create one PDF per norm
+    clinical_reports(norm='z', 
+                     sub='sub-PX069', 
+                     ses='ses-01', 
+                     outdir=outdir, 
+                     cmap='cmo.balance', 
+                     cmap_asymmetry='PRGn',
+                     Range=(-3,3),
+                     thr=1.96, 
+                     thr_alpha=0.3, 
+                     color_bar='left', 
+                     den='0p5', 
+                     tmp='/tmp', 
+                     sex='F', 
+                     age='40',
+                     analysis=['asymmetry', 'regional'], 
+                     feature=['ADC', 'FA', 'T1map', 'flair', 'thickness', 'volume']
+                     )
 
 """
 # libraries
@@ -22,37 +45,6 @@ from pyvirtualdisplay import Display
 import pandas as pd
 import cmocean
 cmaps = cmocean.cm.cmap_d
-
-
-# -----------------------------------------------------------------------------
-# variables
-# 'zbrains' variable is the PATH to the z-brain repository
-zbrains='/host/yeatman/local_raid/rcruces/git_here/z-brains'
-# I created a new directory under `zbrains/data` it contains the png logo and all the surfaces for plotting.
-# The variable `zbrains` MUST exist and is the path to the main repository <path_to/z-brains>
-
-analysis='regional' # ['regional', 'assymetry']
-sub='sub-PX069'
-ses='ses-01'
-bidsid=f'{sub}_{ses}'
-sex='F'
-age='40'
-outdir=f'/data_/mica3/BIDS_MICs/derivatives/z-brains_testOualid/{sub}/{ses}'
-thr=1.96
-tmp='/tmp'
-feature='ADC'
-smooth_ctx=5
-smooth_hipp=2
-den='0p5' 
-
-# 1. Question: I suggest to remove all the 5k derived data, unless it is used for the SVM models, it does not look good for plotting.
-# 5. QUestion: Hippocampus why we have den=2 and 0p5 shall we remove one? The 0.5 den is wy nicer
-
-# # Permissions to write in the 'outdir'
-# 2. Remove _hemi-L_surf from the asymmetry names
-# 3. All maps with the the string _threshold-* can be removed since this feature can be plotted this function. I didn't use them.
-# 4. Additionally I recomend to have only one variable thr for all the brain areas (cortex, subxortex and hippocampus). It is currently implemented like this
-
 
 # -----------------------------------------------------------------------------
 # Funtions for plotting
@@ -128,7 +120,7 @@ def report_colors(analysis='regional'):
             '<p style="margin-bottom:0;margin-top:0;font-family:gill sans,sans-serif;text-align:center;font-size:14px;'
             'color:#7532a8"> <b> Purple </b> = <b>right</b> MORE THAN <b>left</b> </p>'
             '<p style="margin-bottom:0;margin-top:0;font-family:gill sans,sans-serif;text-align:center;font-size:14px;'
-            'color:#32a852"> <b> Green </b> = <b>left</b> LESS THAN <b>right</b> </p>'
+            'color:#32a852"> <b> Green </b> = <b>left</b> MORE THAN <b>right</b> </p>'
             )
     else:
         report += (
@@ -161,7 +153,8 @@ def report_1x2_table(fig1='', fig2='', height=250):
     )
     return report_fig_table
 
-def report_cortex(feature='', smooth_ctx=5, analysis='', norm='z', cmap='cmo.balance', Range=(-2,2), thr=None, color_bar='bottom', thr_alpha=0.5):
+def report_cortex(feature='', smooth_ctx=5, analysis='', norm='z', cmap='cmo.balance', Range=(-2,2), thr=None, 
+                  color_bar='bottom', thr_alpha=0.5, subjdir=None, ses=None, sub=None,  cmap_asymmetry='PRGn', tmp='/tmp'):
     
     # Load native mid CORTICAL surface
     inf_lh = read_surface(f'{zbrains}/data/fsLR-32k.L.inflated.surf.gii', itype='gii')
@@ -169,11 +162,11 @@ def report_cortex(feature='', smooth_ctx=5, analysis='', norm='z', cmap='cmo.bal
     mask = load_mask(join=True)
     
     # Path to the feature data
-    file_lh = f'{outdir}/norm-{norm}/cortex/{bidsid}_hemi-L_surf-fsLR-32k_feature-{feature}_smooth-{smooth_ctx}mm_analysis-{analysis}.func.gii'
-    file_rh = f'{outdir}/norm-{norm}/cortex/{bidsid}_hemi-R_surf-fsLR-32k_feature-{feature}_smooth-{smooth_ctx}mm_analysis-{analysis}.func.gii'
+    file_lh = f'{subjdir}/norm-{norm}/cortex/{sub}_{ses}_hemi-L_surf-fsLR-32k_feature-{feature}_smooth-{smooth_ctx}mm_analysis-{analysis}.func.gii'
+    file_rh = f'{subjdir}/norm-{norm}/cortex/{sub}_{ses}_hemi-R_surf-fsLR-32k_feature-{feature}_smooth-{smooth_ctx}mm_analysis-{analysis}.func.gii'
 
     # Make figure
-    def make_png(data_lh, data_rh):
+    def make_png(data_lh, data_rh, Range=(-2,2)):
         
         # threshold
         if thr != None:
@@ -184,7 +177,7 @@ def report_cortex(feature='', smooth_ctx=5, analysis='', norm='z', cmap='cmo.bal
             thr_str=''
         
         # outname of the plot
-        out_png=f'{tmp}/{bidsid}_cortex_feature-{feature}_smooth-{smooth_ctx}mm_analysis-{analysis}{thr}.png'
+        out_png=f'{tmp}/{sub}_{ses}_cortex_feature-{feature}_smooth-{smooth_ctx}mm_analysis-{analysis}{thr}.png'
 
         # Replace values in f with NaN where mask_32k is False
         feat_map = np.hstack(np.concatenate((data_lh, data_rh), axis=0))
@@ -213,7 +206,7 @@ def report_cortex(feature='', smooth_ctx=5, analysis='', norm='z', cmap='cmo.bal
         
         return(png_block, thr_str)
     
-    # If the FEATURE is not found it will plot an array of nans
+    # If the FEATURE is not found it will print a warning
     if not os.path.exists(file_lh):
         print(f"\n[WARNING] cortex file was not found: \n{file_lh}")
         png_block = '<p style="margin-bottom:0;margin-top:0;font-family:gill sans,sans-serif;text-align:center;font-size:14px;color:#ffb311"> <b> [WARNING] </b>cortex file was not found </p>'
@@ -226,10 +219,13 @@ def report_cortex(feature='', smooth_ctx=5, analysis='', norm='z', cmap='cmo.bal
             data_rh =nib.load(file_rh).darrays[0].data
         else:
             data_rh =nib.load(file_lh).darrays[0].data
-            cmap='PRGn'
-            Range=(-1,1)
+            # LEFT is possitive RIGHT is negative
+            data_lh[(data_lh)<0] = 0
+            data_rh[(data_rh)>0] = 0
+            cmap=cmap_asymmetry
+            Range=(-1.5,1.5)
         # Create HTML png chunck
-        png_block, thr_str = make_png(data_lh, data_rh)
+        png_block, thr_str = make_png(data_lh, data_rh, Range=Range)
         
     # Create cortical chunck
     ctx_block = (f'<p style="margin-bottom:0;margin-top:0;font-family:gill sans,sans-serif;'
@@ -268,17 +264,18 @@ def subcorticalvertices(subcortical_values=None):
     return data
 
 
-def report_subcortex(feature='', analysis='', cmap='cmo.balance', norm='z', thr=None, Range=(-2,2), thr_alpha=0.5):
+def report_subcortex(feature='', analysis='', cmap='cmo.balance', norm='z', thr=None, Range=(-2,2), 
+                     thr_alpha=0.5, subjdir=None, ses=None, sub=None, cmap_asymmetry='PRGn', tmp='/tmp'):
 
     # Read subcortical surfaces
     surf_lh = read_surface(f'{zbrains}/data/sctx.L.surf.gii', itype='gii')
     surf_rh = read_surface(f'{zbrains}/data/sctx.R.surf.gii', itype='gii')
     
     # List CSV file
-    sctx_file = f'{outdir}/norm-{norm}/subcortex/{bidsid}_feature-{feature}_analysis-{analysis}.csv'
+    sctx_file = f'{subjdir}/norm-{norm}/subcortex/{sub}_{ses}_feature-{feature}_analysis-{analysis}.csv'
     
     # Make figure
-    def make_png(array_values, cmap='cmo.balance'):
+    def make_png(array_values, cmap='cmo.balance', Range=(-2,2)):
         # threshold
         if thr != None:
             array_values[np.abs(array_values)<thr]*=thr_alpha
@@ -293,8 +290,11 @@ def report_subcortex(feature='', analysis='', cmap='cmo.balance', norm='z', thr=
             array_16[8:15] = array_values[7:]
         else:
             array_16[8:15] = array_values[0:7]
-            cmap='PRGn'
-            Range=(-1,1)
+            # LEFT [0:7] is positive RiGHT [8:15] is negative
+            array_16[0:7][(array_16[0:7])<0] = 0
+            array_16[8:15][(array_16[8:15])>0] = 0
+            cmap=cmap_asymmetry
+            Range=(-1.5,1.5)
         
         # Map array to vertices of surfaces
         feat_map = subcorticalvertices(array_16)
@@ -304,7 +304,7 @@ def report_subcortex(feature='', analysis='', cmap='cmo.balance', norm='z', thr=
         data_rh = feat_map[25910:]
         
         # Plot subcortical structures
-        out_png=f'{tmp}/{bidsid}_subcortex_feature-{feature}_analysis-{analysis}{thr}.png'
+        out_png=f'{tmp}/{sub}_{ses}_subcortex_feature-{feature}_analysis-{analysis}{thr}.png'
         plot_surfs(surfaces=[surf_lh, surf_lh, surf_rh, surf_rh],
                    values=[data_lh, data_lh, data_rh, data_rh], 
                    views=['lateral', 'medial', 'lateral', 'medial'],
@@ -317,7 +317,7 @@ def report_subcortex(feature='', analysis='', cmap='cmo.balance', norm='z', thr=
         f'<img style="height:150px;margin-top:-100px;" src="{out_png}"> </a> </p>')
         return(png_block, thr_str)
     
-    # If the FEATURE is not found it will plot an array of nans
+    # If the FEATURE is not found it will print a warning
     if not os.path.exists(sctx_file):
         print(f"\n[WARNING] subcortex file was not found: \n{sctx_file}")
         png_block='<p style="margin-bottom:0;margin-top:0;font-family:gill sans,sans-serif;text-align:center;font-size:14px;color:#ffb311"> <b> [WARNING] </b>subcortex file was not found </p>'
@@ -328,7 +328,7 @@ def report_subcortex(feature='', analysis='', cmap='cmo.balance', norm='z', thr=
         # Get the values into an array
         array_values = sctx_data.iloc[:, 1:].values.reshape(-1)
         # Create figure
-        png_block, thr_str = make_png(array_values)
+        png_block, thr_str = make_png(array_values, Range=Range)
     
     # Create subcortical chunck
     sctx_block = (f'<p style="margin-bottom:0;margin-top:0;font-family:gill sans,sans-serif;'
@@ -338,7 +338,8 @@ def report_subcortex(feature='', analysis='', cmap='cmo.balance', norm='z', thr=
     return(sctx_block)
 
 
-def report_hippocampus(feature='', analysis='', smooth_hipp=2, den='0p5', norm='z', thr=None, Range=(-2,2), cmap='cmo.balance', color_bar='bottom', thr_alpha=0.5):
+def report_hippocampus(feature='', analysis='', smooth_hipp=2, den='0p5', norm='z', thr=None, Range=(-2,2), cmap_asymmetry='PRGn',
+                       cmap='cmo.balance', color_bar='bottom', thr_alpha=0.5, subjdir=None, ses=None, sub=None, tmp='/tmp'):
     
     # Load the cannonical HIPPOCAMPAL surfaces    
     hipp_mid_r=read_surface(f'{zbrains}/data/tpl-avg_space-canonical_den-{den}mm_label-hipp_midthickness.surf.gii', itype='gii')
@@ -375,11 +376,11 @@ def report_hippocampus(feature='', analysis='', smooth_hipp=2, den='0p5', norm='
     hipp_lat_l.Points = rY90.apply(hipp_mid_l.Points)
     
     # Load the feature data
-    file_lh=f'{outdir}/norm-{norm}/hippocampus/{bidsid}_hemi-L_den-{den}mm_feature-{feature}_smooth-{smooth_hipp}mm_analysis-{analysis}.func.gii'
-    file_rh=f'{outdir}/norm-{norm}/hippocampus/{bidsid}_hemi-R_den-{den}mm_feature-{feature}_smooth-{smooth_hipp}mm_analysis-{analysis}.func.gii'
+    file_lh=f'{subjdir}/norm-{norm}/hippocampus/{sub}_{ses}_hemi-L_den-{den}mm_feature-{feature}_smooth-{smooth_hipp}mm_analysis-{analysis}.func.gii'
+    file_rh=f'{subjdir}/norm-{norm}/hippocampus/{sub}_{ses}_hemi-R_den-{den}mm_feature-{feature}_smooth-{smooth_hipp}mm_analysis-{analysis}.func.gii'
     
     # Make figure
-    def make_png(feat_lh, feat_rh):
+    def make_png(feat_lh, feat_rh, Range=(-2,2)):
         
         # threshold
         if thr != None:
@@ -388,7 +389,7 @@ def report_hippocampus(feature='', analysis='', smooth_hipp=2, den='0p5', norm='
             thr_str=f' | threshold={thr}'
         else:
             thr_str=''
-        out_png=f'{tmp}/{bidsid}_hippocampus_feature-{feature}_smooth-{smooth_ctx}mm_analysis-{analysis}{thr}.png'
+        out_png=f'{tmp}/{sub}_{ses}_hippocampus_feature-{feature}_smooth-{smooth_hipp}mm_analysis-{analysis}{thr}.png'
         
         # Plot the hippocampal data
         plot_surfs(surfaces=[hipp_lat_l, hipp_mid_l, hipp_unf_l, hipp_unf_r, hipp_mid_r, hipp_lat_r], 
@@ -401,7 +402,7 @@ def report_hippocampus(feature='', analysis='', smooth_hipp=2, den='0p5', norm='
     
         return(png_block, thr_str)
     
-    # If the FEATURE is not found it will plot an array of nans
+    # If the FEATURE is not found it will print a warning
     if not os.path.exists(file_lh):
         print(f"\n[WARNING] hippocampal file was not found: \n{file_lh}")
         png_block = '<p style="margin-bottom:0;margin-top:0;font-family:gill sans,sans-serif;text-align:center;font-size:14px;color:#ffb311"> <b> [WARNING] </b>hippocampal file was not found </p>'
@@ -414,10 +415,13 @@ def report_hippocampus(feature='', analysis='', smooth_hipp=2, den='0p5', norm='
             feat_rh = nib.load(file_rh).darrays[0].data
         else:
             feat_rh =nib.load(file_lh).darrays[0].data
-            cmap='PRGn'
-            Range=(-1,1)
+            # left is positive RIGHT negative
+            feat_lh[(feat_lh)<0] = 0
+            feat_rh[(feat_rh)>0] = 0
+            cmap=cmap_asymmetry
+            Range=(-1.5,1.5)
         # create HTML chunck
-        png_block, thr_str = make_png(feat_lh, feat_rh)
+        png_block, thr_str = make_png(feat_lh, feat_rh, Range=Range)
     
     # Create cortical chunck
     hipp_block = ('<p style="margin-bottom:0;margin-top:0;font-family:gill sans,sans-serif;'
@@ -426,13 +430,20 @@ def report_hippocampus(feature='', analysis='', smooth_hipp=2, den='0p5', norm='
     hipp_block += png_block
     
     return(hipp_block)
-# F-string is missing place holders (pyflakes E)
+
 
 # -----------------------------------------------------------------------------
-def clinical_reports(norm, cmap='cmo.balance', Range=(-2,2), thr=1.96, color_bar='bottom', den='0p5', smooth_ctx=5, smooth_hipp=2,
-                     thr_alpha=0.3, analysis=None, feature=None):
+def clinical_reports(norm='z', sub=None, ses=None, outdir=None, cmap='cmo.balance', Range=(-2,2), 
+                     thr=1.96, color_bar='bottom', den='0p5', smooth_ctx=5, smooth_hipp=2, sex='unknown', age='unknown',
+                     thr_alpha=0.3, analysis=None, feature=None, cmap_asymmetry='PRGn', tmp='/tmp'):
     ''' Zbrains: Clinical report generator
+    
         Global Parameters
+        -----------------
+        zbrains  :  str
+        MUST exist and is the PATH to the z-brain repository <path_to/z-brains>
+        
+        Parameters
         ----------
         outdir  : str
             Output directory for processed z-brains derivatives.
@@ -440,32 +451,49 @@ def clinical_reports(norm, cmap='cmo.balance', Range=(-2,2), thr=1.96, color_bar
             BIDS_ID identification
         ses     : str
             OPTIONAL flag that indicates the session name (if omitted will manage as SINGLE session)
-        thr     : float
-            OPTIONAL Threshold for the maps
-        smooth_ctx     : float
-            OPTIONAL Smoothing for the cortical data in mm (default=5)
-        smooth_hipp     : float
-            OPTIONAL Smoothing for the cortical data in mm (default=2)
-        age     : int
-            OPTIONAL Covariate for the normative model.
-        sex     : str
-            OPTIONAL MUST be [F,M] Covariate for the normative model.
+        norm    : str
+            Default='z' MUST be one of the models used ['z', 'normative']
         features     : [] list or None
-            OPTIONAL MUST be [F,M] Covariate for the normative model.
-        analysis     : [] list or None
-            OPTIONAL MUST be [F,M] Covariate for the normative model.
+            Default=None it will run all the features unless a list of features is provided
+        analysis     : ['regional', 'asymmetry'] list or None
+            Default=None it will run all the analyses unless a list of analyses is provided
+        cmap    : str
+            Default='cmo.balance'. Colormap for plotting the regional changes.
+        cmap_asymmetry
+            Default='PRGn'. Colormap for plotting the regional changes.
+        Range   : tuple
+            Default=(-2,2). Range of values for the regional plot
+        color_bar: str
+            Default='right' position of the color bar for hippocampal and cortical plots
+        den     : str
+            Default='0p5' Density of the hippocampal maps ['2', '0p5']
+        thr     : float
+            Default=1.96. Threshold for the maps
+        thr_alpha : float
+            Default=0.3 Alpha channel for the colormap when thr is applied 0=white, 1=full color
+        smooth_ctx     : int
+            Default=5 Smoothing for the cortical data in mm.
+        smooth_hipp     : int
+            default=2 Smoothing for the hippocampal data in mm.
+        age     : int
+            Defaul='unknown'. OPTIONAL Covariate for the normative model. 
+        sex     : str
+            Defaul='unknown'. OPTIONAL MUST be [F,M] Covariate for the normative model.
         tmp     : str
-            Working directory for temporary files
+            Default='/tmp'. Working directory for temporary files
     
-      McGill University, MNI, MICA-lab, Created 24 November 2023 'Zbrains Hackathon, '
+      NOTE: clinical_reports does not take 'volume' as an feature.
+            if it exist it will be removed. To process morphometry only 'thickness' is allowed
+            
+      McGill University, MNI, MICA-lab, Created 24 November 2023 'Zbrains Hackathon', MICA collective
       https://github.com/MICA-MNI/micapipe
       http://mica-mni.github.io/
     '''  
-    # NOTE: clinical_reports does not take 'volume' as an feature, 
-    # if it exist it will be removed. To process morphometry only 'thickness' is allowed
-    
-    # List all files of each norm
-    subses_files = glob.glob(f"{outdir}/norm-{norm}/*/*")
+
+    # subject directory
+    subjdir=f"{outdir}/{sub}/{ses}"
+    # List all files of norm
+    subses_files = glob.glob(f"{subjdir}/norm-{norm}/*/*")
     
     # If ANALYSIS is empty run all avaliable analysis
     if analysis == None:
@@ -503,12 +531,15 @@ def clinical_reports(norm, cmap='cmo.balance', Range=(-2,2), thr=1.96, color_bar
             
             # Report cortex
             static_report +=  report_cortex(feature=feat, analysis=A, cmap=cmap, thr=None, norm=norm, Range=Range,
-                                            color_bar=color_bar, smooth_ctx=smooth_ctx)
+                                            color_bar=color_bar, smooth_ctx=smooth_ctx, 
+                                            subjdir=subjdir, ses=ses, sub=sub, cmap_asymmetry=cmap_asymmetry, tmp=tmp)
             # Report subcortical
-            static_report +=  report_subcortex(feature=feat_sctx, analysis=A, cmap=cmap, thr=None, norm=norm, Range=Range)
+            static_report +=  report_subcortex(feature=feat_sctx, analysis=A, cmap=cmap, thr=None, norm=norm, Range=Range,
+                                               subjdir=subjdir, ses=ses, sub=sub, cmap_asymmetry=cmap_asymmetry, tmp=tmp)
             # Report hippocampis
             static_report +=  report_hippocampus(feature=feat, analysis=A, cmap=cmap, thr=None, norm=norm, Range=Range,
-                                                 color_bar=color_bar, den=den, smooth_hipp=smooth_hipp)
+                                                 color_bar=color_bar, den=den, smooth_hipp=smooth_hipp, 
+                                                 subjdir=subjdir, ses=ses, sub=sub, cmap_asymmetry=cmap_asymmetry, tmp=tmp)
             static_report += report_colors(analysis=A)
             
             # page break
@@ -521,13 +552,15 @@ def clinical_reports(norm, cmap='cmo.balance', Range=(-2,2), thr=1.96, color_bar
             
             # THRESHOLDED: Report cortex
             static_report +=  report_cortex(feature=feat, analysis=A, cmap=cmap, thr=thr, norm=norm, Range=Range,
-                                            color_bar=color_bar, smooth_ctx=smooth_ctx, thr_alpha=thr_alpha)
+                                            color_bar=color_bar, smooth_ctx=smooth_ctx, thr_alpha=thr_alpha, 
+                                            subjdir=subjdir, ses=ses, sub=sub, cmap_asymmetry=cmap_asymmetry, tmp=tmp)
             # THRESHOLDED: Report subcortical 
             static_report +=  report_subcortex(feature=feat_sctx, analysis=A, cmap=cmap, thr=thr, norm=norm, Range=Range,
-                                               thr_alpha=thr_alpha)
+                                               thr_alpha=thr_alpha, subjdir=subjdir, ses=ses, sub=sub, cmap_asymmetry=cmap_asymmetry, tmp=tmp)
             # THRESHOLDED: Report hippocampis
-            static_report +=  report_hippocampus(feature=feat, analysis=A, cmap=cmap, thr=thr, norm=norm, Range=Range,
-                                                 thr_alpha=thr_alpha, color_bar=color_bar, den=den, smooth_hipp=smooth_hipp)
+            static_report +=  report_hippocampus(feature=feat, analysis=A, cmap=cmap, thr=thr, norm=norm, Range=Range, 
+                                                 thr_alpha=thr_alpha, color_bar=color_bar, den=den, smooth_hipp=smooth_hipp, 
+                                                 subjdir=subjdir, ses=ses, sub=sub, cmap_asymmetry=cmap_asymmetry, tmp=tmp)
             static_report += report_colors(analysis=A)
             
             # page break
@@ -537,40 +570,8 @@ def clinical_reports(norm, cmap='cmo.balance', Range=(-2,2), thr=1.96, color_bar
     display.stop()
     
     # Report file name
-    #file_pdf=f'{outdir}/{sub}_{ses}_norm-{norm}_summary-report.pdf'
-    file_pdf=f'{tmp}/{sub}_{ses}_norm-{norm}_summary-report.pdf'
+    file_pdf=f'{subjdir}/{sub}_{ses}_norm-{norm}_summary-report.pdf'
     print(f"Out file: {file_pdf}")
     
     # Create the HTML file
     convert_html_to_pdf(static_report, file_pdf)
-
-# -----------------------------------------------------------------------------
-# Generate the clinical report (INTENDED USAGE)
-# -----------------------------------------------------------------------------
-# get unique NORM
-norm_dirs = glob.glob(f"{outdir}/norm*")
-norms = sorted(list(set([file.split('norm-')[1] for file in norm_dirs])))
-
-# create one PDF per norm (DONE REGIONAL analysis, test ASYMMETRY analysis )
-for norm in norms:
-    try: 
-        clinical_reports(norm, cmap='cmo.balance', Range=(-3,3),
-                         thr=1.96, thr_alpha=0.3, color_bar='left', den='0p5', 
-                         analysis=['regional'], feature=['ADC', 'FA', 'T1map', 'flair', 'qT1', 'thickness', 'volume'])
-    except Exception as error:
-        print(f'[ERROR]  clinical summary of norm-{norm} FAILED\n')
-        print(error)
-
-# Issues
-# ADC-FA-flair-T1map-volume fails 
-# ADC-FA-flair-qT1-thickness fails
-# Assymmetry might fails
-
-clinical_reports(norm, cmap='cmo.balance', Range=(-3,3),
-                 thr=1.96, thr_alpha=0.3, color_bar='left', den='0p5', 
-                 analysis=None, feature=['T1map', 'qT1', 'ADC', 'FA', 'flair', 'thickness', 'volume'])
-
-clinical_reports(norm, cmap='cmo.balance', Range=(-3,3),
-                 thr=1.96, thr_alpha=0.3, color_bar='left', den='0p5', 
-                 analysis=['regional'], feature=['ADC-FA-flair-qT1-thickness'])
-
