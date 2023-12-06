@@ -21,7 +21,7 @@
 **Welcome to z-brains's documentation!**
 ========================================================
 
-`z-brains` identifies patient-specific signal alterations in brain morphology and microstructure, 
+`z-brains` identifies patient-specific signal alterations in brain morphology and microstructure,
 using features with previously demonstrated potential for localization and lateralization of epileptogenic lesions.
 
 .. raw:: html
@@ -48,7 +48,7 @@ FLAIR (intensity), and quantitative T1 (intensity) imaging data to standard neoc
    pages/01.install/index
    pages/02.tutorialinstructions/index
    pages/03.whatsnew/index
-   
+
 .. toctree::
    :maxdepth: 1
    :hidden:
@@ -56,7 +56,7 @@ FLAIR (intensity), and quantitative T1 (intensity) imaging data to standard neoc
 
    pages/04.micapipe/index
    pages/05.hippunfold/index
-   
+
 .. toctree::
    :maxdepth: 1
    :hidden:
@@ -73,7 +73,7 @@ FLAIR (intensity), and quantitative T1 (intensity) imaging data to standard neoc
 
    pages/09.zscoring/index
    pages/10.normative/index
-   
+
 .. toctree::
    :maxdepth: 1
    :hidden:
@@ -81,7 +81,7 @@ FLAIR (intensity), and quantitative T1 (intensity) imaging data to standard neoc
 
    pages/11.features/index
    pages/12.reports/index
-   
+
 
 ___________________________________________________________________________________________________
 
@@ -92,7 +92,7 @@ ________________________________________________________________________________
 Core development team 🧠
 --------------------------------------------------------
 
-`z-brains` is developed by members of the MICA-lab (https://mica-mni.github.io) and collaborators 
+`z-brains` is developed by members of the MICA-lab (https://mica-mni.github.io) and collaborators
 at the McConnell Brain Imaging Centre of the Montreal Neurological Institute and Harvard Medical School.
 
 - **Jessica Royer**, *MICA Lab - Montreal Neurological Institute*
@@ -100,5 +100,7 @@ at the McConnell Brain Imaging Centre of the Montreal Neurological Institute and
 - **Raúl Rodríguez-Cruces**, *MICA Lab - Montreal Neurological Institute*
 - **Oualid Benkarim**, *MICA Lab - Montreal Neurological Institute*
 - **Jordan Dekraker**, *MICA Lab - Montreal Neurological Institute*
+- **Yigu Zhou**, *MICA Lab - Montreal Neurological Institute*
+- **Youngeun Hwang**, *MICA Lab - Montreal Neurological Institute*
 - **Judy Chen**, *MICA Lab - Montreal Neurological Institute*
 - **Boris Bernhardt**, *MICA Lab - Montreal Neurological Institute*
