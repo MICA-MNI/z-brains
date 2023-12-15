@@ -50,7 +50,7 @@ $l_command
 #    \"BIDSVersion\": \"${BIDSVersion}\",
 #    \"DatasetType\": \"derivative\",
 #    \"GeneratedBy\": [{
-#        \"Name\": \"z-brains\",
+#        \"Name\": \"zbrains\",
 #        \"Version\": \"${VERSION}\",
 #        \"Reference\": \"tbd\",
 #        \"DOI\": \"tbd\",
@@ -78,7 +78,7 @@ $l_command
 #     Note messages
 #     Info messages
 #     Title messages
-# VERBOSE is defined by the z-brains main script
+# VERBOSE is defined by the zbrains main script
 
 COLOR_ERROR="\033[38;5;9m"
 COLOR_WARNING="\033[38;5;184m"
@@ -94,27 +94,153 @@ echo -e "${COLOR_ERROR}\n-------------------------------------------------------
 }
 
 SHOW_WARNING() {
-  if [[ ${VERBOSE} -gt 0 || ${VERBOSE} -lt 0 ]]; then echo  -e "${COLOR_WARNING}\n[ WARNING ]..... $1 ${NO_COLOR}"; fi
+  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 0 || ${VERBOSE} -lt 0 ]]; then echo  -e "${COLOR_WARNING}\n[ WARNING ]..... $1 ${NO_COLOR}"; fi
 }
 
 SHOW_NOTE() {
-  if [[ ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then echo -e "\t\t$1\t${COLOR_NOTE}$2 ${NO_COLOR}"; fi
+  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then echo -e "\t\t$1\t${COLOR_NOTE}$2 ${NO_COLOR}"; fi
 }
 
 SHOW_INFO() {
-  if [[ ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then echo  -e "${COLOR_INFO}\n[ INFO ]..... $1 ${NO_COLOR}"; fi
+  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then echo  -e "${COLOR_INFO}\n[ INFO ]..... $1 ${NO_COLOR}"; fi
 }
 
 SHOW_TITLE() {
-if [[ ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then echo -e "\n${COLOR_TITLE}
+if [[ -z ${VERBOSE} || ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then echo -e "\n${COLOR_TITLE}
 -------------------------------------------------------------
 \t$1
 -------------------------------------------------------------${NO_COLOR}"
 fi
 }
 
+PARSE_OPTION_SINGLE_VALUE() {
+  # PARSE_OPTION_SINGLE_VALUE args allowed_values
+  # or
+  # PARSE_OPTION_SINGLE_VALUE args
+  local -n _args="$1"
+  local -n _allowed_values
+
+  [[ $# -gt 1 ]] && _allowed_values="$2" && allowed_regex=$(allowed_to_regex "${_allowed_values[@]}")
+
+  local option="${_args[0]}"
+  local value="${_args[1]}"
+
+  # Check if the option has a value and if the value is not another option
+  if [[ -z "$value" || "$value" == --* ]]; then
+      SHOW_ERROR "${option} option requires a value."
+      exit 1
+  fi
+
+  # Check if value is in the list of allowed values
+  if [[ -v allowed_regex && ! " ${value} " =~ ${allowed_regex} ]]; then
+      SHOW_ERROR "Invalid value '$value' for ${option} option. \nAllowed values are: [${_allowed_values[*]}]."
+      exit 1
+  fi
+
+  echo "$value"
+}
+
+
+PARSE_OPTION_MULTIPLE_VALUES() {
+  # PARSE_OPTION_MULTIPLE_VALUES args allowed_values all
+  # or
+  # PARSE_OPTION_MULTIPLE_VALUES args allowed_values
+  # or
+  # PARSE_OPTION_MULTIPLE_VALUES args
+  local -n _args="$1"
+  local -n _allowed_values
+  local all  # accept all as a value, additional to those in allowed_values -> denoting all allowed values
+
+  # Check if allowed values and "all" option are provided
+  [[ $# -gt 1 ]] && _allowed_values="$2";
+  [[ $# -gt 2 ]] && all="$3" && _allowed_values+=("$all");
+  [[ -v _allowed_values ]] && allowed_regex=$(allowed_to_regex "${_allowed_values[@]}")
+
+  local option="${_args[0]}"
+  _args=("${_args[@]:1}")
+
+  local values=()
+  while [[ ${#_args[@]} -gt 0 && "${_args[0]}" != --* ]]; do
+    local value="${_args[0]}"
+
+    # Check if the value is in the list of allowed values
+    if [[ -v allowed_regex && ! " ${value} " =~ ${allowed_regex} ]]; then
+      SHOW_ERROR "Invalid value '$value' for ${option} option. \nAllowed values are: [${_allowed_values[*]}]."
+      exit 1
+    fi
+
+    values+=("$value")
+    _args=("${_args[@]:1}")  # Shift 2 elements from _args
+  done
+
+  [[ ${#values[@]} == 0 ]] && SHOW_ERROR "${option} option requires at least one value." && exit 1;
+
+  # If "all" option is set, replace values with all allowed values
+  #  if [[ -v all || " ${values[*]} " != *" $all "* ]]; then
+  #    values=("${_allowed_values[@]}")
+  #  fi
+
+  printf "%s\n" "${values[@]}"
+}
+
+
+ASSERT_REQUIRED() {
+  local option_name="$1"
+  local option_value="$2"
+  local error_message="${3:-$option_name option is required}"
+
+  [[ -z "${option_value}" ]] && SHOW_ERROR "$error_message" && exit 1;
+}
+
+
+SUBMIT_JOB() {
+  if [ $# -lt 2 ]; then
+    echo "Error: Not enough arguments"
+    echo "Usage: submit_job scheduler [scheduler_options] command"
+    return 1
+  fi
+
+  local scheduler="${1,,}"  # Convert to lower case
+  local cmd="${*:2}"
+#  shift
+
+  echo scheduler=$scheduler
+  case "$scheduler" in
+    "local")
+    echo $cmd
+      $cmd
+      ;;
+    "sge"|"pbs")
+      # Check if qsub is installed
+      if ! command -v qsub &> /dev/null; then
+          echo "Error: qsub could not be found"
+          return 1
+      fi
+      qsub "$cmd"
+      ;;
+    "slurm")
+      # Check if sbatch is installed
+      if ! command -v sbatch &> /dev/null; then
+          echo "Error: sbatch could not be found"
+          return 1
+      fi
+      sbatch "$cmd"
+      ;;
+    *)
+      echo "Error: Unsupported scheduler '$scheduler'"
+      return 1
+      ;;
+  esac
+}
+
+
+PRINT_VERSION() {
+  echo -e "\z-brains April 2023 (Version ${VERSION})\n"
+}
+
 
 # Export
 export COLOR_ERROR COLOR_WARNING COLOR_NOTE COLOR_INFO COLOR_TITLE NO_COLOR
-export -f DO_CMD SHOW_ERROR SHOW_WARNING SHOW_NOTE SHOW_INFO SHOW_TITLE
+export -f DO_CMD SHOW_ERROR SHOW_WARNING SHOW_NOTE SHOW_INFO SHOW_TITLE SUBMIT_JOB PRINT_VERSION \
+          PARSE_OPTION_SINGLE_VALUE PARSE_OPTION_MULTIPLE_VALUES ASSERT_REQUIRED
 
