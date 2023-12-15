@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.abspath('..'))
 
 # -- Project information -----------------------------------------------------
 
-project = 'z-brains'
+project = 'zbrains'
 copyright = '2022, micapipe'
 author = 'Jessica Royer,  Sara Larivière, Raul-Rodriguez-Cruces, Judy Chen, Boris Bernhardt'
 
