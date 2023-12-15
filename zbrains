@@ -387,7 +387,6 @@ fi
 # -------------------------------------------- Check files & directories -------------------------------------------- #
 sid=${sid/sub-/} # Remove "sub-" prefix if present
 ses=${ses/ses-/}  # Remove 'ses-' prefix if present
-#out_dir=$(realpath "$out_dir")
 dataset_dir=$(realpath "$dataset_dir")
 out_dir=${dataset_dir}/${zbrains_dir}
 
@@ -559,7 +558,6 @@ if [[ " ${tasks[*]} " =~ " analysis " ]]; then
   run_command "$logfile" "$cmd"
 fi
 
-# ----------------------------------------------------------------------------------------------- #
-# -------------------------------------- Total running time ------------------------------------- #
-# ----------------------------------------------------------------------------------------------- #
+
+# ----------------------------------------------- Total running time ---------------------------------------------- #
 SHOW_TITLE "GLOBAL z-brains elapsed time: \033[38;5;220m$(printf "%.2f" "$(bc <<< "scale=2; $SECONDS/60")") minutes${COLOR_TITLE}"
