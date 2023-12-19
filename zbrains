@@ -5,10 +5,14 @@
 
 ZBRAINS=$(dirname "$(realpath "$0")")
 export ZBRAINS
+script_dir=${ZBRAINS}/functions
 
 # Source utilities functions
-source "${ZBRAINS}/config.cfg" # Configuration file
-script_dir=${ZBRAINS}/functions
+# source "${ZBRAINS}/config.cfg" # Configuration file
+while IFS= read -r line; do
+  export "${line?}"
+done < <(python "${script_dir}/constants.py")
+
 source "${script_dir}/utilities.sh"
 
 
@@ -23,7 +27,8 @@ help() {
 local pcolor="\033[38;5;141m" # Purple
 local rcolor="\033[38;5;197m" # Red
 local gcolor="\033[38;5;120m" # Green
-local bcolor="\033[0;36;10m" # Green
+local bcolor="\033[0;36;10m" # Blue
+local gray="\033[38;5;243m" # Gray
 local nc="\033[0m" # No color
 
 
@@ -33,115 +38,120 @@ ${pcolor}COMMAND:${nc}
 
 
 ${pcolor}OPTIONS:${nc}
-\t${rcolor}--sub${nc} ID                  : BIDS subject ID. Example: 'PX001' for 'sub-PX001'.
-\t${rcolor}--datasetdir${nc} path         : Path to the BIDS dataset. Example: '/path/to/BIDSDataset'.
+\t${rcolor}--sub${nc} ID                  : Subject ID. This is the target subject. Example: 'sub-PX001'.
+\t${rcolor}--dataset${nc} path            : Path to the BIDS dataset containing the target subject's data.
+                                    Example: '/path/to/BIDSDataset'.
+\t${rcolor}--zbrains${nc} dir             : Name of the zbrains derivative folder in the target BIDS dataset. The
+                                    folder will be created if it does not exist. Example: '--zbrains zbrainsdir' for
+                                    '/path/to/BIDSDataset/derivatives/zbrainsdir'.
+\t${gcolor}--run${nc} task                : Tasks to perform. Options:
+                                      - ${bcolor}proc${nc}          : perform post-processing of target subject (default).
+                                      - analysis      : perform analysis (regional & asymmetry) and generate clinical
+                                                        report for target subject. The analysis is performed wrt the
+                                                        reference subjects (those provided with --demo_ref).
+                                                        Post-processing of both target and reference subjects must be
+                                                        performed beforehand.
+                                      - all           : perform all tasks
 
-\t${gcolor}--ses${nc} [name]              : Session identifier. If omitted, the script will manage the data as a single
-                                    session. Example: '001' for session 'ses-001'.
-\t${gcolor}--micapipedir${nc} [name]      : Name of micapipe derivatives folder. Required for post-processing.
-                                            This folder should be within the '/pathToBIDSDataset/derivatives' directory.
-                                    Example: 'micapipe_v0.2.0'.
-\t${gcolor}--hipdir${nc} [name]           : Name of hippunfold derivatives folder. Required for post-processing.
-                                            This folder should be within the '/pathToBIDSDataset/derivatives' directory.
-                                    Example: 'hippunfold'.
-\t${gcolor}--zbrainsdir${nc} [name]       : Name of zbrains derivatives folder. It will be created if it doesn't exist.
-                                    This folder should be within the '/path/to/BIDSDataset/derivatives' directory.
-                                    Default is ${bcolor}'zbrains'${nc}.
-\t${gcolor}--run${nc} [task ...]          : Tasks to perform. Options:
-                                      - proc          : post-processing
-                                      - analysis      : regional and asymmetry analyses. Requires post-processing.
-                                      - report        : generate clinical report. Requires all the above.
-                                      - ${bcolor}all${nc}           : perform all tasks (default)
-\t${gcolor}--struct${nc} [structure ...]  : Structures to use in processing and/or case-control analyses. Options:
-                                      - cortex        : cortex data
-                                      - subcortex     : subcortex data
-                                      - hippocampus   : hippocampus data
+\t${gcolor}--ses${nc} [ses]               : Identifier for a session in the target subject data. If omitted, data will
+                                    be managed as a single session. Example: 'ses-001'.
+\t${gcolor}--micapipe${nc} [dir]          : Name of the micapipe derivative folder in the target BIDS dataset. Required
+                                    only for post-processing. Example: '--micapipe micapipedir' for
+                                    '/path/to/BIDSDataset/derivatives/micapipedir'.
+\t${gcolor}--hippunfold${nc} [dir]        : Name of the hippunfold derivative folder in the target BIDS dataset. Required
+                                    only for post-processing. Example: '--hippunfold hipdir' for
+                                    '/path/to/BIDSDataset/derivatives/hipdir'.
+\t${gcolor}--demo${nc} [path]             : CSV/TSV file with demographics for the target subject. Required only for
+                                    analysis when provided by --normative or --deconfound. Additionally, the file is
+                                    also used to extract the subject's age and sex, if available, to be included in the
+                                    clinical report. The file must include one row with target subject ID and session.
+                                    Expected column names:
+                                      - participant_id: Subject ID. Required.
+                                      - session_id    : Session ID. Use 'n/a' if no session available.
+                                      - age           : Subject age. Required only when used by --normative or
+                                                        --deconfound. If provided, it will also be included in the
+                                                        clinical report.
+                                      - sex           : Subject sex. Possible values: 'F' or 'M'. Required only when
+                                                        used by --normative or --deconfound. If provided, it will
+                                                        also be included in the clinical report.
+                                      - site          : Acquisition site. Required only when used by --normative or
+                                                        --deconfound.
+                                      - Other         : Any other columns used by --normative or --deconfound.
+                                      Use the --column_map option to indicate if these variables are under different
+                                      column names in your file.
+
+\t${gcolor}--dataset_ref${nc} [path ...]  : Paths to the BIDS datasets containing the reference subjects data. Required
+                                    only for analysis. Each dataset must correspond to one file in --demo_ref.
+\t${gcolor}--zbrains_ref${nc} [dir ...]   : Names of the zbrains derivative folder in each of the reference datasets.
+                                    Required only for analysis. If only one folder name is provided but there are
+                                    multiple datasets, we assume the same name in all datasets.
+\t${gcolor}--demo_ref${nc} [path ...]     : CSV/TSV files with demographics for reference subjects. Required only for
+                                    analysis. There must be one file for each reference dataset (--dataset_ref).
+                                    Required only for analysis. See --demo for expected column names.
+
+\t${gcolor}--struct${nc} [structure ...]  : Structures to use in processing and/or analysis. Options:
+                                      - cortex        : cortical data
+                                      - subcortex     : subcortical data
+                                      - hippocampus   : hippocampal data
                                       - ${bcolor}all${nc}           : all structures (default)
-\t${gcolor}--feat${nc} [feature ...]      : Features to use in processing and/or case-control analysis. Options:
+\t${gcolor}--feat${nc} [feature ...]      : Features to use in processing and/or analysis. Options:
                                       - ADC           : apparent diffusion coefficient
                                       - FA            : fractional anisotropy
                                       - flair         : FLAIR
                                       - qT1           : quantitative T1
                                       - thickness     : cortical thickness (for subcortex, volume is used)
                                       - ${bcolor}all${nc}           : all features (default)
-\t${gcolor}--demo_cn${nc} [path]          : CSV file with demographics for controls. Required for
-                                    analysis. Expected column names:
-                                      - ID            : Subject ID (required). Example: 'HC010'.
-                                      - SES           : Session ID. Assume single session if nor provided. Example: '02'.
-                                      - AGE           : Subject age. Required only if used by --normative or --deconfound.
-                                                        Example: 33.6.
-                                      - SEX           : Subject biological sex. Possible values: 'F' or 'M'. Required
-                                                        only if used by --normative or --deconfound. Example: 'F'.
-                                      - SITE          : Imaging center. Required only if used by --normative or
-                                                        --deconfound. Example: 'MNI'.
-                                      - Other         : Other columns required by --normative or --deconfound.
-                                      Use --map option to indicate if these variables are under different column names
-                                      in your CSV file.
-\t${gcolor}--demo_px${nc} [path]          : CSV file with patient demographics. Required for analysis. Only
-                                    required when using normative modeling, deconfounding, or when generating
-                                    reports. Expected column names:
-                                      - ID            : Patient ID (required). Example: 'PX001'.
-                                      - SES           : Session ID. Assume single session if nor provided. Example: 'pre'.
-                                      - AGE           : Patient age. Required only if used by --normative or --deconfound.
-                                                        If provided, age will be included in the clinical report.
-                                                        Example: 23.6.
-                                      - SEX           : Patient biological sex. Possible values: 'F' or 'M'. Required only
-                                                        if used by --normative or --deconfound. If provided, sex will be
-                                                        included in the clinical report. Example: 'F'.
-                                      - SITE          : Imaging center. Required only if used by --normative or
-                                                        --deconfound. Example: 'MNI'.
-                                      - Other         : Other columns required by --normative or --deconfound.
-                                      Use --map option to indicate if these variables are under different column names
-                                      in your CSV file.
-\t${gcolor}--normative${nc} [cov ...]     : Normative modeling based on the provided covariates. These covariates must
-                                    correspond to column names in both --demo_cn and --demo_px CSV files. Please note
-                                    that --normative expects some covariates to have specific names (see --map).
-                                    Example: '--normative AGE SITE'
-\t${gcolor}--deconfound${nc} [cov ...]    : Deconfounding based on the provided covariates. These covariates must
-                                    correspond to column names in both --demo_cn and --demo_px CSV files. If SITE is
-                                    one of the variables provided, we first harmonize the data using combat, and then
-                                    regress out the effects of the remaining covariates from the data. Please note
-                                    that --deconfound expects some covariates to have specific names (see --map).
-                                    Example: '--deconfound AGE SITE'
+\t${gcolor}--normative${nc} [cov ...]     : Normative modeling based on provided covariates. Covariates must match
+                                    columns in --demo and --demo_ref files. Note that --normative expects some
+                                    covariates to have specific names (see --column_map).
+                                    Example: '--normative site age sex'.
+\t${gcolor}--deconfound${nc} [[-]cov ...] : Deconfounding based on provided covariates. Covariates must match columns in
+                                    --demo and --demo_ref CSV files. If the covariates include 'site', deconfounding is
+                                    performed using ComBat. Otherwise, linear regression is used to regress out the
+                                    effects of the covariates from the data. By default, ComBat preserves additional
+                                    covariates. To remove the effects of a covariate, prepend with '-' (ignored when not
+                                    using ComBat). Note that --deconfound expects some covariates to have specific names
+                                    (see --column_map). Example: '--deconfound site -age -sex group' to harmonize data
+                                    while preserving the effects of group and removing those of age and sex.
 \t${gcolor}--resolution${nc} [res ...]    : Surface resolutions to use for cortex and hippocampus. Options:
                                       - low           : 5k cortical & 2mm hippocampal surfaces
                                       - high          : 32k cortical surfaces & 0p5mm hippocampal surfaces
-                                      - all           : all resolutions (default)
-\t${gcolor}--label_ctx${nc} [label]       : Label indicates the cortical surfaces used in the volume to surface mapping.
-                                    Options:
+                                      - ${bcolor}all${nc}           : all resolutions (default)
+\t${gcolor}--label_ctx${nc} [label]       : Cortical surfaces used in the volume to surface mapping. Options:
                                       - ${bcolor}white${nc}         : WM surface (default)
                                       - midthickness  : Midthickness surface
                                       - pial          : Pial surface
                                       - swmD          : Superficial white matter, where D indicates the distance in
                                                         millimeters. Example: --label_ctx swm2
-\t${gcolor}--label_hip${nc} [label]       : Label indicates the hippocampal surface used in the volume to surface mapping.
-                                    Options:
+\t${gcolor}--label_hip${nc} [label]       : Hippocampal surface used in the volume to surface mapping. Options:
                                       - ${bcolor}midthickness${nc}  : Midthickness surface (default)
 \t${gcolor}--smooth_ctx${nc} [size]       : Size of gaussian smoothing kernel in mm used for cortical features.
                                     Default is ${bcolor}5${nc}.
 \t${gcolor}--smooth_hip${nc} [size]       : Size of gaussian smoothing kernel in mm used for hippocampal features.
                                     Default is ${bcolor}2${nc}.
-\t${gcolor}--threshold${nc} [th]       : Z-score threshold. Default is ${bcolor}1.96${nc}.
-\t${gcolor}--map${nc} [VAR=name ...]      : Map to actual column names in the CSV files:
-                                      - ID            : Subject ID is assumed to be provided by the 'ID' column, unless
-                                                        indicated otherwise. For example, if the subject ID is under the
-                                                        column ‘SubID’, you can indicate this with --map ID=SubID.
-                                      - SES           : Session ID is assumed to be provided by the ‘SES’ column, unless
-                                                        indicated otherwise (e.g., --map SES=session)
-                                      - AGE           : Age is assumed to be provided by the ‘AGE’ column, unless
-                                                        indicated otherwise (e.g., --map AGE=\"Subject Age\")
-                                      - SEX           : Sex is assumed to be provided by the 'SEX' column, unless
-                                                        indicated otherwise (e.g., --map SEX=sex)
-                                      - SITE          : Imaging center is assumed to be provided by the ‘SITE’ column,
-                                                        unless indicated otherwise (e.g., --map SITE=ImagingCenter)
+\t${gcolor}--threshold${nc} [th]          : Threshold for statistical maps used for clinical reports.
+                                    Default is ${bcolor}1.96${nc}.
+\t${gcolor}--column_map${nc} [VAR=col ...]: Map expected to actual column names in the CSV/TSV files:
+                                      - participant_id: Subject ID is assumed to be provided by the 'participant_id'
+                                                        column, unless indicated otherwise. For example, if subject ID
+                                                        is under the column ‘SubID’, you can indicate this with
+                                                        --column_map participant_id=SubID.
+                                      - session_id    : Session ID is assumed to be provided by the ‘session_id’ column,
+                                                        unless indicated otherwise (e.g., --column_map session_id=ses)
+                                      - age           : Age is assumed to be provided by the ‘age’ column, unless
+                                                        indicated otherwise (e.g., --column_map age=\"Subject age\")
+                                      - sex           : Sex is assumed to be provided by the 'sex' column, unless
+                                                        indicated otherwise (e.g., --column_map ses=\"Subject sex\")
+                                      - site          : Acquisition site is assumed to be provided by the ‘site’ column,
+                                                        unless indicated otherwise (e.g., --column_map site=center)
 \t${gcolor}--init${nc} [path]             : Initialization script that will be sourced before executing the main script.
                                     Useful for setting up environment variables, activating virtual environments, or any
-                                    other setup tasks that need to be performed before running your script.
+                                    other setup tasks needed before running your script (see DEPENDENCIES below).
 \t${gcolor}--verbose${nc} [level]         : Verbosity level (default is ${bcolor}-1${nc}). Levels:
-                                      - 0             : Only error messages
-                                      - 1             : Warning messages in addition to everything in previous levels
-                                      - 2             : Information messages in addition to everything in previous levels
-                                      - 3             : Command logs in addition to everything in previous levels
+                                      - 0             : Only errors
+                                      - 1             : Warning messages and previous levels
+                                      - 2             : Information messages and previous levels
+                                      - 3             : Command logs and previous levels
                                       - >3 or <0      : All messages
 \t${gcolor}--help${nc}                    : Print help
 \t${gcolor}--version${nc}                 : Print software version
@@ -149,9 +159,25 @@ ${pcolor}OPTIONS:${nc}
 
 
 ${pcolor}USAGE:${nc}
-    ${pcolor}$(basename "$0")${nc} ${rcolor}--sub${nc} <ID>
-              ${rcolor}--micapipedir${nc} <micapipe_directory>
-              ${rcolor}--hipdir${nc} <hippunfold_directory>
+    ${gray}# Post-processing${nc}
+    ${pcolor}$(basename "$0")${nc} ${gcolor}--run${nc} proc
+            ${rcolor}--sub${nc} <participant_id>
+            ${gcolor}--ses${nc} <session_id>
+            ${rcolor}--dataset${nc} <path_bids_dataset>
+            ${rcolor}--zbrains${nc} <zbrains_directory>
+            ${gcolor}--micapipe${nc} <micapipe_directory>
+            ${gcolor}--hippunfold${nc} <hipunfold_directory>
+
+    ${gray}# Analysis${nc}
+    ${pcolor}$(basename "$0")${nc} ${gcolor}--run${nc} analysis
+            ${rcolor}--sub${nc} <participant_id>
+            ${gcolor}--ses${nc} <session_id>
+            ${rcolor}--dataset${nc} <participant_dataset>
+            ${rcolor}--zbrains${nc} <participant_zbrains_dir>
+            ${gcolor}--demo_ref${nc} <reference_subjects1.csv> <reference_subjects2.csv>
+            ${gcolor}--dataset_ref${nc} <reference_dataset1> <reference_dataset2>
+            ${gcolor}--zbrains_ref${nc} <reference_zbrains_dir1> <reference_zbrains_dir2>
+
 
 
 ${pcolor}DEPENDENCIES:${nc}
@@ -168,10 +194,10 @@ ${pcolor}DEPENDENCIES:${nc}
     - Set OMP_NUM_THREADS for Workbench
 
     Example:
-    # Set threads for ANTs
+    ${gray}# Set threads for ANTs${nc}
     $ export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=4
 
-    # Set threads for Workbench
+    ${gray}# Set threads for Workbench${nc}
     $ export OMP_NUM_THREADS=4
 
     Use the --init option to specify an initialization script for environment variables, Python activation, etc.
@@ -193,9 +219,6 @@ declare -A map_resolution_ctx=([low]=$LOW_RESOLUTION_CTX [high]=$HIGH_RESOLUTION
 declare -A map_resolution_hip=([low]=$LOW_RESOLUTION_HIP [high]=$HIGH_RESOLUTION_HIP)
 
 
-# Defaults
-export VERBOSE=-1
-
 while (( "$#" )); do
   args=("$@")
   echo "$1" "${#args[@]}": "${args[@]}"
@@ -204,25 +227,33 @@ while (( "$#" )); do
     sid=$(PARSE_OPTION_SINGLE_VALUE args)
     shift 2
     ;;
-  --datasetdir)
-    dataset_dir=$(PARSE_OPTION_SINGLE_VALUE args)
+  --dataset)
+    dataset_path=$(PARSE_OPTION_SINGLE_VALUE args)
+    shift 2
+    ;;
+  --zbrains)
+    zbrains_dir=$(PARSE_OPTION_SINGLE_VALUE args)
     shift 2
     ;;
   --ses)
     ses=$(PARSE_OPTION_SINGLE_VALUE args)
     shift 2
     ;;
-  --micapipedir)
+  --micapipe)
     micapipe_dir=$(PARSE_OPTION_SINGLE_VALUE args)
     shift 2
     ;;
-  --hipdir)
-    hip_dir=$(PARSE_OPTION_SINGLE_VALUE args)
+  --hippunfold)
+    hipunfold_dir=$(PARSE_OPTION_SINGLE_VALUE args)
     shift 2
     ;;
-  --zbrainsdir)
-    zbrains_dir=$(PARSE_OPTION_SINGLE_VALUE args)
-    shift 2
+  --dataset_ref)
+    readarray -t ref_dataset_paths < <(PARSE_OPTION_MULTIPLE_VALUES args)
+    shift $(( ${#ref_dataset_paths[@]} + 1 ))
+    ;;
+  --zbrains_ref)
+    readarray -t ref_zbrains_dirs < <(PARSE_OPTION_MULTIPLE_VALUES args)
+    shift $(( ${#ref_zbrains_dirs[@]} + 1 ))
     ;;
   --run)
     readarray -t tasks < <(PARSE_OPTION_MULTIPLE_VALUES args LIST_TASKS all)
@@ -236,12 +267,12 @@ while (( "$#" )); do
     readarray -t features < <(PARSE_OPTION_MULTIPLE_VALUES args LIST_FEATURES all)
     shift $(( ${#features[@]} + 1 ))
     ;;
-  --demo_cn)
-    demo_cn=$(PARSE_OPTION_SINGLE_VALUE args)
-    shift 2
+  --demo_ref)
+    readarray -t ref_demos < <(PARSE_OPTION_MULTIPLE_VALUES args)
+    shift $(( ${#ref_demos[@]} + 1 ))
   ;;
-  --demo_px)
-    demo_px=$(PARSE_OPTION_SINGLE_VALUE args)
+  --demo)
+    demo=$(PARSE_OPTION_SINGLE_VALUE args)
     shift 2
   ;;
   --normative)
@@ -259,14 +290,10 @@ while (( "$#" )); do
   --label_ctx)
     labels_ctx=("$(PARSE_OPTION_SINGLE_VALUE args LIST_LABELS_CTX)")  # use internally as array
     shift 2
-#    readarray -t labels_ctx < <(PARSE_OPTION_MULTIPLE_VALUES args LIST_LABELS_CTX)
-#    shift $(( ${#labels_ctx[@]} + 1 ))
     ;;
   --label_hip)
     labels_hip=("$(PARSE_OPTION_SINGLE_VALUE args LIST_LABELS_HIP)")  # use internally as array
     shift 2
-#    readarray -t labels_hip < <(PARSE_OPTION_MULTIPLE_VALUES args LIST_LABELS_HIP)
-#    shift $(( ${#labels_hip[@]} + 1 ))
     ;;
   --smooth_ctx)
     smooth_ctx=$(PARSE_OPTION_SINGLE_VALUE args)
@@ -280,9 +307,9 @@ while (( "$#" )); do
     threshold=$(PARSE_OPTION_SINGLE_VALUE args)
     shift 2
   ;;
-  --map)
-    map_column=$(PARSE_OPTION_MULTIPLE_VALUES args)
-    shift $(( ${#map_column[@]} + 1 ))
+  --column_map)
+    readarray -t column_map < <(PARSE_OPTION_MULTIPLE_VALUES args)
+    shift $(( ${#column_map[@]} + 1 ))
   ;;
   --init)
     init=$(PARSE_OPTION_SINGLE_VALUE args)
@@ -311,13 +338,44 @@ done
 
 # ------------------------------------------------- Check arguments ------------------------------------------------- #
 ASSERT_REQUIRED "--sub" "$sid"
-ASSERT_REQUIRED "--datasetdir" "$dataset_dir"
+ASSERT_REQUIRED "--dataset" "${dataset_path}"
+ASSERT_REQUIRED "--zbrains" "${zbrains_dir}"
 
-ses=${ses:-"SINGLE"}
-zbrains_dir=${zbrains_dir:-"zbrains"}
-
-tasks=("${tasks[@]:-"all"}")
+tasks=("${tasks[@]:-"proc"}")
 [[ " ${tasks[*]} " =~ " all " ]] && tasks=("${LIST_TASKS[@]}")
+
+# Check options required for processing
+if [[ " ${tasks[*]} " =~ " proc " ]]; then
+  ASSERT_REQUIRED "--micapipe" "${micapipe_dir}" "--micapipe option is required for post-processing."
+  if [[ " ${structures[*]} " =~ " hippocampus " ]]; then
+    ASSERT_REQUIRED "--hippunfold" "${hipunfold_dir}" "--hippunfold option is required for post-processing."
+  fi
+fi
+
+# Check options required for regional/asymmetry analysis
+if [[ " ${tasks[*]} " =~ " analysis " ]]; then
+  ASSERT_REQUIRED "--dataset_ref" "${ref_dataset_paths[@]}" "--dataset_ref option is required for analysis."
+  ASSERT_REQUIRED "--zbrains_ref" "${ref_zbrains_dirs[@]}" "--zbrains_ref option is required for analysis."
+  ASSERT_REQUIRED "--demo_ref" "${ref_demos[@]}" "--demo_ref option is required for analysis."
+  ASSERT_SAME_SIZE --dataset_ref ref_dataset_paths --demo_ref ref_demos
+
+  n_datasets=${#ref_dataset_paths[@]}
+  if [[ ${n_datasets} != "${#ref_zbrains_dirs[@]}" ]]; then
+    if [[ ${#ref_zbrains_dirs[@]} -gt 1 ]]; then
+      ASSERT_SAME_SIZE --dataset_ref ref_dataset_paths --zbrains_ref ref_zbrains_dirs
+    else
+      mapfile -t ref_zbrains_dirs < <(printf "%.0s${ref_zbrains_dirs[0]}\n" $(seq 1 "${n_datasets}"))
+    fi
+  fi
+
+  if [[ -v normative || -v deconfound ]]; then
+    ASSERT_REQUIRED "--demo" "${demo}" "--demo option is required for analysis."
+  fi
+fi
+
+# Some defaults
+sid=sub-${sid/sub-/}
+ses=${ses:+ses-${ses/ses-/}}
 
 structures=("${structures[@]:-"all"}")
 [[ " ${structures[*]} " =~ " all " ]] && structures=("${LIST_STRUCTURES[@]}")
@@ -326,23 +384,6 @@ mapfile -t structures < <(printf "%s\n" "${structures[@]}" | sort -f)  # case-in
 features=("${features[@]:-"all"}")
 [[ " ${features[*]} " =~ " all " ]] && features=("${LIST_FEATURES[@]}")
 mapfile -t features < <(printf "%s\n" "${features[@]}" | sort -f)  # case-insensitive sort
-
-# Check options required for processing
-if [[ " ${tasks[*]} " =~ " proc " ]]; then
-  ASSERT_REQUIRED "--micapipedir" "$micapipe_dir" "--micapipedir option is required for processing."
-  if [[ " ${structures[*]} " =~ " hippocampus " ]]; then
-    ASSERT_REQUIRED "--hipdir" "$hip_dir" "--hipdir option is required for processing."
-  fi
-fi
-
-# Check options required for regional/asymmetry analysis
-if [[ " ${tasks[*]} " =~ (" analysis "|" report ") ]]; then
-  ASSERT_REQUIRED "--demo_cn" "$demo_cn" "--demo_cn option is required for analysis."
-
-  if [[ -v normative || -v deconfound ]]; then
-    ASSERT_REQUIRED "--demo_px" "$demo_px" "--demo_px option is required for analysis."
-  fi
-fi
 
 resolutions=("${resolutions[@]:-"all"}")
 [[ " ${resolutions[*]} " =~ " all " ]] && resolutions=("${LIST_RESOLUTIONS[@]}")
@@ -355,7 +396,6 @@ smooth_hip=${smooth_hip:-DEFAULT_SMOOTH_HIP}
 threshold=${threshold:-DEFAULT_THRESHOLD}
 
 
-exit
 # ------------------------------------------ Source initialization script  ------------------------------------------ #
 # shellcheck source=/dev/null
 [[ -n $init ]] && source "${init}";
@@ -363,53 +403,52 @@ exit
 
 # ------------------------------------------------ Check dependencies ----------------------------------------------- #
 # Dependencies required for processing
-if [[ " ${tasks[*]} " =~ " proc " ]]; then
+if [[ " ${tasks[*]} " =~ " proc "  ]]; then
 
   # TODO: ANTs not needed now, maybe in the future for flair?
   binary=$(type -P ${ANTSPATH:+${ANTSPATH%/}/}antsRegistration)
-  [[ -z "${binary}" ]] && SHOW_ERROR "ANTs not found. Please set the ANTSPATH variable to the location of ANTs binaries." && exit 1
+  if [[ -z "${binary}" ]]; then
+    SHOW_ERROR "ANTs not found. Please set the ANTSPATH variable to the location of ANTs binaries."
+    exit 1
+  fi
   ANTSPATH=$(dirname "$(which "$binary")")
   export ANTSPATH
 
   binary=$(type -P ${WORKBENCH_PATH:+${WORKBENCH_PATH%/}/}wb_command)
-  [[ -z "${binary}" ]] && SHOW_ERROR "Workbench not found. Please set the WORKBENCH_PATH variable to the location of Workbench binaries." && exit 1
+  if [[ -z "${binary}" ]]; then
+    SHOW_ERROR "Workbench not found. Please set the WORKBENCH_PATH variable to the location of Workbench binaries."
+    exit 1
+  fi
   WORKBENCH_PATH=$(dirname "$(which "$binary")")
   export WORKBENCH_PATH
 fi
 
 # Dependencies required for analysis
-if [[ " ${tasks[*]} " =~ (" analysis "|" report ") ]]; then
+if [[ " ${tasks[*]} " =~ " analysis "  ]]; then
   ! type -P python >/dev/null 2>&1 && SHOW_ERROR "Python not found" && exit 1;
   python -c 'import sys; exit(sys.version_info < (3, 10))' || { SHOW_ERROR "Python version must be >=3.10"; exit 1; }
 fi
 
 
 # -------------------------------------------- Check files & directories -------------------------------------------- #
-sid=${sid/sub-/} # Remove "sub-" prefix if present
-ses=${ses/ses-/}  # Remove 'ses-' prefix if present
-dataset_dir=$(realpath "$dataset_dir")
-out_dir=${dataset_dir}/${zbrains_dir}
+dataset_path=$(realpath "${dataset_path}")
+px_zbrains_path=${dataset_path}/${zbrains_dir}
 
 # export BIDS_ID, SUBJECT_OUTPUT_DIR
-prefixed_sid="sub-${sid}";
-if [ "${ses}" == "SINGLE" ]; then prefixed_ses=""; else prefixed_ses="ses-${ses}"; fi
-export BIDS_ID="${prefixed_sid}${prefixed_ses:+_${prefixed_ses}}"
-export SUBJECT_OUTPUT_DIR="${out_dir}/${prefixed_sid}${prefixed_ses:+/${prefixed_ses}}"
-
+export BIDS_ID="${sid}${ses:+_${ses}}"
+export SUBJECT_OUTPUT_DIR="${px_zbrains_path}/${sid}${ses:+/${ses}}"
 
 # Sanity checks required for processing
 if [[ " ${tasks[*]} " =~ " proc " ]]; then
 
-  # Check if subject's micapipe directory exists
-  SUBJECT_MICAPIPE_DIR=${dataset_dir}/${micapipe_dir}/${prefixed_sid}${prefixed_ses:+/${prefixed_ses}}
-  [ ! -d "${SUBJECT_MICAPIPE_DIR}" ] && SHOW_ERROR "${BIDS_ID} micapipe directory does not exist." && exit 1;
-  export SUBJECT_MICAPIPE_DIR
+  # Subject's micapipe directory exists
+  export SUBJECT_MICAPIPE_DIR=${dataset_path}/${micapipe_dir}/${sid}${ses:+/${ses}}
+  ASSERT_EXISTS "${SUBJECT_MICAPIPE_DIR}" "${BIDS_ID} micapipe directory does not exist."
 
-  # Check if subject's hippunfold directory exists
+  # Subject's hippunfold directory exists
   if [[ " ${structures[*]} " =~ " hippocampus " ]]; then
-    SUBJECT_HIPPUNFOLD_DIR=${dataset_dir}/${hip_dir}/hippunfold/${prefixed_sid}${prefixed_ses:+/${prefixed_ses}}
-    [ ! -d "${SUBJECT_HIPPUNFOLD_DIR}" ] && SHOW_ERROR "${BIDS_ID} hippunfold directory does not exist." && exit 1;
-    export SUBJECT_HIPPUNFOLD_DIR
+    export SUBJECT_HIPPUNFOLD_DIR=${dataset_path}/${hipunfold_dir}/hippunfold/${sid}${ses:+/${ses}}
+    ASSERT_EXISTS "${SUBJECT_HIPPUNFOLD_DIR}" "${BIDS_ID} hippunfold directory does not exist."
   fi
 
   # Check if subject's freesurfer/fastsurfer directory exists - only needed for subcortex
@@ -432,10 +471,8 @@ if [[ " ${tasks[*]} " =~ " proc " ]]; then
     fi
 
     # recon is 'freesurfer' or 'fastsurfer'
-#    SUBJECT_SURF_DIR=$(dirname "${out_dir}")/${recon}/${BIDS_ID}
-    SUBJECT_SURF_DIR=${dataset_dir}/${recon}/${BIDS_ID}
-    if [ ! -d "${SUBJECT_SURF_DIR}" ]; then SHOW_ERROR "${BIDS_ID} ${recon} directory does not exist."; exit 1; fi
-    export SUBJECT_SURF_DIR
+    export SUBJECT_SURF_DIR=${dataset_path}/${recon}/${BIDS_ID}
+    ASSERT_EXISTS "${SUBJECT_SURF_DIR}" "${BIDS_ID} ${recon} directory does not exist."
   fi
 fi
 
@@ -443,9 +480,9 @@ fi
 # ------------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------- Start processing/analysis -------------------------------------------- #
 # ------------------------------------------------------------------------------------------------------------------- #
-SHOW_TITLE "z-brains pipeline - (Version $VERSION) \n\t\tSubject: $sid, Session: $ses"
+SHOW_TITLE "zbrains pipeline - (Version $VERSION) \n\t\tSubject: $sid, Session: $ses"
 
-SHOW_INFO "z-brains is running with:"
+SHOW_INFO "zbrains is running with:"
 if [[ " ${tasks[*]} " =~ " proc " ]]; then
   SHOW_NOTE "ANTs........" "$("${ANTSPATH}/antsRegistration" --version | awk -F '[: ]' '/ANTs Version/{print $4}')"
   SHOW_NOTE "            " "$(which "${ANTSPATH}/antsRegistration")"
@@ -453,7 +490,7 @@ if [[ " ${tasks[*]} " =~ " proc " ]]; then
   SHOW_NOTE "            " "$(which "${WORKBENCH_PATH}/wb_command")"
 fi
 
-if [[ " ${tasks[*]} " =~ (" analysis "|" report ") ]]; then
+if [[ " ${tasks[*]} " =~ " analysis "  ]]; then
   SHOW_NOTE "python......" "$(python --version | awk '{print $2}')"
   SHOW_NOTE "            " "$(which python)"
 fi
@@ -470,16 +507,18 @@ if [ ! -d "${SUBJECT_OUTPUT_DIR}" ]; then
 fi
 
 # Folder for logs
-DO_CMD mkdir -m 770 -p "${SUBJECT_OUTPUT_DIR}/${FOLDER_LOGS}"
+logs_dir=${SUBJECT_OUTPUT_DIR}/${FOLDER_LOGS}
+DO_CMD mkdir -m 770 -p "${logs_dir}"
 
 # Folders for processing
-if [[ " ${tasks[*]} " =~ " proc " ]]; then
+if [[ " ${tasks[*]} " =~ " proc "  ]]; then
   DO_CMD mkdir -m 770 -p "${SUBJECT_OUTPUT_DIR}"/"${FOLDER_MAPS}"/{"${FOLDER_SCTX}","${FOLDER_CTX}","${FOLDER_HIP}"}
 fi
 
 # Folders for regional/asymmetry analysis
-if [[ " ${tasks[*]} " =~ " analysis " ]]; then
-  DO_CMD mkdir -m 770 -p "${SUBJECT_OUTPUT_DIR}"/{"${FOLDER_NORM_Z}","${FOLDER_NORM_MODEL}"}/{"${FOLDER_SCTX}","${FOLDER_CTX}","${FOLDER_HIP}"}
+if [[ " ${tasks[*]} " =~ " analysis "  ]]; then
+  DO_CMD mkdir -m 770 -p "${SUBJECT_OUTPUT_DIR}"/{"${FOLDER_NORM_Z}","${FOLDER_NORM_MODEL}"}/\
+  {"${FOLDER_SCTX}","${FOLDER_CTX}","${FOLDER_HIP}"}
 fi
 
 # Temporary folder
@@ -503,7 +542,7 @@ cleanup() { # This script will clean the temporary directory
 
 
 # ----------------------------------------------- Pipeline description ---------------------------------------------- #
-#zbrains_json  # TODO is this necessary for zbrains?
+# zbrains_json  # TODO is this necessary for zbrains?
 
 
 # -------------------------------- Command to write to terminal and append to logfile ------------------------------- #
@@ -517,20 +556,19 @@ run_command() {
 
 
 # -------------------------------------------------- Postprocessing ------------------------------------------------- #
-logs_dir=${SUBJECT_OUTPUT_DIR}/${FOLDER_LOGS}
-
 if [[ " ${tasks[*]} " =~ " proc " ]]; then
 
   for struct in "${structures[@]}"; do
     logfile=${logs_dir}/proc_${struct}_$(date +'%d-%m-%Y').txt
 
     cmd="${script_dir}/run_proc.sh --struct ${struct} --feat ${features[*]} --tmp $tmp_dir --logfile $logfile"
+
     if [[ $struct == "hippocampus" ]]; then
       list_resolutions=("${map_resolution_hip["${resolutions[@]}"]}")
-      cmd+=" --fwhm $smooth_hip --resolution ${list_resolutions[*]} --labels ${labels_hip[*]}"
+      cmd+=" --fwhm ${smooth_hip} --resolution ${list_resolutions[*]} --labels ${labels_hip[*]}"
     elif [[ $struct == "cortex" ]]; then
       list_resolutions=("${map_resolution_ctx["${resolutions[@]}"]}")
-      cmd+=" --fwhm $smooth_ctx --resolution ${list_resolutions[*]} --labels ${labels_ctx[*]}"
+      cmd+=" --fwhm ${smooth_ctx} --resolution ${list_resolutions[*]} --labels ${labels_ctx[*]}"
     fi
 
     run_command "$logfile" "$cmd"
@@ -540,24 +578,30 @@ fi
 
 
 # ----------------------------------------------------- Analysis ---------------------------------------------------- #
-if [[ " ${tasks[*]} " =~ " analysis " ]]; then
+if [[ " ${tasks[*]} " =~ " analysis "  ]]; then
   logfile=${logs_dir}/analysis_$(date +'%d-%m-%Y').txt
 
-  cmd="python ${script_dir}/run_analysis.py --subject_id ${sid} --session ${ses} --zbrains_dir ${out_dir} \
-                                            --struct ${structures[*]} --feat ${features[*]} --demo_cn ${demo_cn} \
-                                            --smooth_ctx ${smooth_ctx} --smooth_hip ${smooth_hip} \
-                                            --threshold $threshold --analysis norm-z --resolution ${resolutions[*]} \
-                                            --labels_ctx ${labels_ctx[*]} --labels_hip ${labels_hip[*]} \
-                                            --logfile $logfile"
+  ref_zbrains_paths=()
+  for idx in "${!ref_dataset_paths[@]}"; do
+    ref_zbrains_paths+=("${ref_dataset_paths[$idx]}/${ref_zbrains_dirs[$idx]}")
+  done
 
-  [[ -n $demo_px ]] && cmd+=" --demo_px $demo_px"
+  cmd="python ${script_dir}/run_analysis.py --subject_id ${sid} --session ${ses} --dir_cn ${ref_zbrains_paths[*]} \
+                                            --demo_cn ${ref_demos[*]} --dir_px ${px_zbrains_path} \
+                                            --struct ${structures[*]} --feat ${features[*]} --smooth_ctx ${smooth_ctx} \
+                                            --smooth_hip ${smooth_hip} --threshold ${threshold} --analysis norm-z \
+                                            --resolution ${resolutions[*]} --labels_ctx ${labels_ctx[*]} \
+                                            --labels_hip ${labels_hip[*]} --logfile ${logfile}"
+
+  [[ -v demo ]] && cmd+=" --demo_px ${demo}"
   [[ -v normative ]] && cmd+=" --normative ${normative[*]}"
   [[ -v deconfound ]] && cmd+=" --deconfound ${deconfound[*]}"
-  [[ -v map_column ]] && cmd+=" --map ${map_column[*]}"
+  [[ -v column_map ]] && cmd+=" --column_map ${column_map[*]}"
 
   run_command "$logfile" "$cmd"
 fi
 
 
-# ----------------------------------------------- Total running time ---------------------------------------------- #
-SHOW_TITLE "GLOBAL z-brains elapsed time: \033[38;5;220m$(printf "%.2f" "$(bc <<< "scale=2; $SECONDS/60")") minutes${COLOR_TITLE}"
+# ------------------------------------------------ Total running time ----------------------------------------------- #
+SHOW_TITLE "GLOBAL zbrains elapsed time: \033[38;5;220m\
+$(printf "%.2f" "$(bc <<< "scale=2; $SECONDS/60")") minutes${COLOR_TITLE}"
