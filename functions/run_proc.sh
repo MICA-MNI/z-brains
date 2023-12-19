@@ -8,7 +8,6 @@ if [[ -z ${ZBRAINS} ]]; then
   echo "This script should not be run standalone. Please use 'zbrains' directly."
   exit 0;
 fi
-source "${ZBRAINS}/config.cfg" # Configuration file
 
 
 # Set umask
@@ -36,7 +35,7 @@ while (( "$#" )); do
       shift 2
       ;;
     --resolution)
-      readarray -t resolutions < <(PARSE_OPTION_MULTIPLE_VALUES args)
+      readarray -t resolutions < <(PARSE_OPTION_MULTIPLE_VALUES args LIST_RESOLUTIONS)
       shift $(( ${#resolutions[@]} + 1 ))
       ;;
     --logfile)
@@ -95,21 +94,22 @@ map_subcortex() {
   output_dir=${SUBJECT_OUTPUT_DIR}/${FOLDER_MAPS}/${FOLDER_SCTX}
   output_file="${output_dir}/${BIDS_ID}_feature-${map_output[$feat]}.csv"
 
-  # check that input files exist & if not volume, compute mean intensity using and store in label2mean_intensity
+  # check that input files exist & if not volume
   if [[ "$feat" != "volume" ]]; then
     input_file="${input_dir}/${BIDS_ID}_space-nativepro_${map_input[$feat]}.nii.gz"
     if [[ ! -f "${input_file}" ]]; then
       SHOW_WARNING "Subject ${BIDS_ID}: '${feat}' not available. Skipping...";  return
     fi
 
-    python "${ZBRAINS}"/functions/subcortical_mapping.py -id "${BIDS_ID}" -i "${input_file}" -s "${seg_file}" -o "${output_file}2"
+    DO_CMD "python ${ZBRAINS}/functions/subcortical_mapping.py -id ${BIDS_ID} -i ${input_file} -s ${seg_file} \
+                                                               -o ${output_file}"
 
   else
     if [[ ! -f "${aseg_stats_file}" ]]; then
       SHOW_WARNING "Subject ${BIDS_ID}: '${feat}' not available. Skipping..."; return
     fi
 
-    python "${ZBRAINS}"/functions/subcortical_mapping.py -id "${BIDS_ID}" -v "${aseg_stats_file}" -o "${output_file}2"
+    DO_CMD "python ${ZBRAINS}/functions/subcortical_mapping.py -id ${BIDS_ID} -v ${aseg_stats_file} -o ${output_file}"
   fi
 
   [[ -f "$output_file" ]] && SHOW_NOTE "Subject ${BIDS_ID}: '${feat}' successfully mapped.";
@@ -143,10 +143,12 @@ map_cortex() {
     surf_file="${surf_dir}/${BIDS_ID}_hemi-${h}_space-nativepro_surf-fsLR-${resolution}_label-${label}.surf.gii"
     if [[ "$feat" == "thickness" ]]; then
       input_file="${input_dir}/${BIDS_ID}_hemi-${h}_surf-fsLR-${resolution}_label-${input_feat}.func.gii"
-      output_file="${output_dir}/${BIDS_ID}_hemi-${h}_surf-fsLR-${resolution}_feature-${output_feat}_smooth-${fwhm}mm.func.gii"
+      output_file="${output_dir}/${BIDS_ID}_hemi-${h}_surf-fsLR-${resolution}_feature-${output_feat}\
+      _smooth-${fwhm}mm.func.gii"
     else
       input_file="${input_dir}/${BIDS_ID}_hemi-${h}_surf-fsLR-${resolution}_label-${label}_${input_feat}.func.gii"
-      output_file="${output_dir}/${BIDS_ID}_hemi-${h}_surf-fsLR-${resolution}_label-${label}_feature-${output_feat}_smooth-${fwhm}mm.func.gii"
+      output_file="${output_dir}/${BIDS_ID}_hemi-${h}_surf-fsLR-${resolution}_label-${label}_feature-${output_feat}\
+      _smooth-${fwhm}mm.func.gii"
     fi
 
     # Check if file exists
@@ -154,6 +156,10 @@ map_cortex() {
       SHOW_WARNING "Subject ${BIDS_ID}: '${feat}' not available. Skipping..."
       break
     fi
+
+    # Flair
+    # Normalize - req: tissue seg seg from free/fastsurfer and raw Flair, then normalize, the map
+    # and continue below
 
     # Perform mapping
     DO_CMD "${WORKBENCH_PATH}/wb_command -metric-smoothing ${surf_file} ${input_file} ${fwhm} ${output_file}"
@@ -177,7 +183,8 @@ map_hippocampus() {
   output_dir=${SUBJECT_OUTPUT_DIR}/${FOLDER_MAPS}/${FOLDER_HIPP}
 
   # Mappings from features names to the way they appear in the input, intermediate and output filenames
-  declare -A map_input=([thickness]=thickness [flair]='map-flair' [adc]='model-DTI_map-ADC' [fa]='model-DTI_map-FA' [qt1]='map-T1map')
+  declare -A map_input=([thickness]=thickness [flair]='map-flair' [adc]='model-DTI_map-ADC' [fa]='model-DTI_map-FA'
+                        [qt1]='map-T1map')
   declare -A map_inter=([thickness]=thickness [flair]=flair [adc]=ADC [fa]=FA [qt1]=T1map)
   declare -A map_output=([thickness]=thickness [flair]=flair [adc]=ADC [fa]=FA [qt1]=T1map)
 
@@ -196,9 +203,11 @@ map_hippocampus() {
     if [[ "$feat" == "thickness" ]]; then
       inter_file="${surf_dir}/${BIDS_ID}_hemi-${h}_space-T1w_den-${resolution}_label-hipp_thickness.shape.gii"
     else
-      inter_file="${tmp_dir}/${BIDS_ID}_hemi-${h}_space-T1w_desc-${inter_feat}_den-${resolution}_feature-hipp_${label}.func.gii"
+      inter_file="${tmp_dir}/${BIDS_ID}_hemi-${h}_space-T1w_desc-${inter_feat}_den-${resolution}\
+      _feature-hipp_${label}.func.gii"
     fi
-    output_file="${output_dir}/${BIDS_ID}_hemi-${h}_den-${resolution}_label-${label}_feature-${output_feat}_smooth-${fwhm}mm.func.gii"
+    output_file="${output_dir}/${BIDS_ID}_hemi-${h}_den-${resolution}_label-${label}_feature-${output_feat}\
+    _smooth-${fwhm}mm.func.gii"
 
     # Check if file exists
     [[ "$feat" != "thickness" ]] && check_file=${input_file} || check_file=${inter_file}
@@ -209,7 +218,8 @@ map_hippocampus() {
 
     # Perform mapping
     if [[ "$feat" != "thickness" ]]; then
-      DO_CMD "${WORKBENCH_PATH}/wb_command -volume-to-surface-mapping ${input_file} ${surf_file} ${inter_file} -trilinear"
+      DO_CMD "${WORKBENCH_PATH}/wb_command -volume-to-surface-mapping ${input_file} ${surf_file} ${inter_file} \
+                                                                      -trilinear"
     fi
     DO_CMD "${WORKBENCH_PATH}/wb_command -metric-smoothing ${surf_file} ${inter_file} ${fwhm} ${output_file}"
 
@@ -222,7 +232,6 @@ map_hippocampus() {
 
 #------------------------------------------------------------------------------#
 # Perform the mapping
-
 
 # thickness -> volume
 if [[ $structure == "subcortex" ]]; then feat_list=("${features[@]/thickness/volume}"); fi
@@ -250,5 +259,6 @@ done
 
 #------------------------------------------------------------------------------#
 # Wrap up
-SHOW_TITLE "${structure^} feature mapping ended in \033[38;5;220m$(printf "%.2f" "$(bc <<< "scale=2; $SECONDS/60")") minutes${COLOR_TITLE}
+SHOW_TITLE "${structure^} feature mapping ended in \033[38;5;220m\
+$(printf "%.2f" "$(bc <<< "scale=2; $SECONDS/60")") minutes${COLOR_TITLE}
 $([ -n "$logfile" ] && printf "\tCheck logs: %s" "\033[0;32m${logfile}")${COLOR_TITLE}"
