@@ -31,7 +31,7 @@ def _get_column_types(df):
     return categorical_vars, continuous_vars
 
 
-class RegressOutModel(TransformerMixin):
+class RegressOutModel(TransformerMixin, BaseEstimator):
     def __init__(self, remove: list[str] | None = None):
         self.remove = remove
         self.clf = None
