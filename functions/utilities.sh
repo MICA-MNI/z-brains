@@ -1,5 +1,6 @@
 #!/bin/bash
 
+export VERBOSE=-1  # Default
 
 function DO_CMD() {
 # do_cmd sends command to stdout before executing it.
@@ -113,6 +114,15 @@ if [[ -z ${VERBOSE} || ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then echo -e "\n
 fi
 }
 
+
+function allowed_to_regex() {
+local array=("$@")
+    array=("${array[@]/#/ }")  # Adds a leading space
+    array=("${array[@]/%/ }")  # Adds a trailing space
+    IFS='|'; echo "${array[*]}"; unset IFS
+}
+
+
 PARSE_OPTION_SINGLE_VALUE() {
   # PARSE_OPTION_SINGLE_VALUE args allowed_values
   # or
@@ -185,11 +195,46 @@ PARSE_OPTION_MULTIPLE_VALUES() {
 
 
 ASSERT_REQUIRED() {
-  local option_name="$1"
-  local option_value="$2"
-  local error_message="${3:-$option_name option is required}"
+  local option="$1"
+  local value="$2"
+  local error_message="${3:-$option option is required}"
 
-  [[ -z "${option_value}" ]] && SHOW_ERROR "$error_message" && exit 1;
+  [[ -z "${value}" ]] && SHOW_ERROR "$error_message" && exit 1;
+}
+
+ASSERT_SAME_SIZE() {
+  local option1=$1
+  local -n list1=$2
+  local option2=$3
+  local -n list2=$4
+
+  if [[ ${#list1} -ne ${#list2} ]]; then
+    SHOW_ERROR "The number of values provided with ${option1} and ${option2} must be the same."
+    exit 1
+  fi
+}
+
+ASSERT_EXISTS() {
+  local path="$1"
+  local error_message="${2:-$path does not exist}"
+
+  [[ ! -e "$path" ]] && SHOW_ERROR "$error_message" && exit 1;
+}
+
+
+ASSERT_COLUMNS_IN_CSV() {
+  local csv="$1"
+  local -n _required=$2
+
+  IFS=$([[ $csv == *.tsv ]] && echo -e '\t' || echo ',') read -ra header < "$csv"
+
+  # Check if each required column exists in the CSV file
+  for col in "${_required[@]}"; do
+    if [[ " ${header[*]} " != *" ${col} "* ]]; then
+      SHOW_ERROR "Column '${col}' do not exist in $csv"
+      exit 1
+    fi
+  done
 }
 
 
@@ -204,10 +249,9 @@ SUBMIT_JOB() {
   local cmd="${*:2}"
 #  shift
 
-  echo scheduler=$scheduler
+  echo scheduler="$scheduler"
   case "$scheduler" in
     "local")
-    echo $cmd
       $cmd
       ;;
     "sge"|"pbs")
@@ -242,5 +286,6 @@ PRINT_VERSION() {
 # Export
 export COLOR_ERROR COLOR_WARNING COLOR_NOTE COLOR_INFO COLOR_TITLE NO_COLOR
 export -f DO_CMD SHOW_ERROR SHOW_WARNING SHOW_NOTE SHOW_INFO SHOW_TITLE SUBMIT_JOB PRINT_VERSION \
-          PARSE_OPTION_SINGLE_VALUE PARSE_OPTION_MULTIPLE_VALUES ASSERT_REQUIRED
+          PARSE_OPTION_SINGLE_VALUE PARSE_OPTION_MULTIPLE_VALUES ASSERT_REQUIRED ASSERT_SAME_SIZE \
+          ASSERT_EXISTS ASSERT_COLUMNS_IN_CSV
 
