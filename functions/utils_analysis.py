@@ -3,61 +3,22 @@ import os
 import sys
 import logging
 from functools import reduce
-from typing import get_args, Literal
+from collections import defaultdict
 
 import numpy as np
 import pandas as pd
 import nibabel as nib
 
-
-from deconfounding import CombatModel, RegressOutModel
-
-
-# Zbrains config file -----------------------------------------------------------------------------
-def _read_config(file_path):
-    conf = {}
-    with open(file_path, 'r') as file:
-        for line in file:
-            line = line.strip()
-            if len(line) == 0 or line.startswith('#'):
-                continue
-
-            key, value = map(str.strip, line.split('='))
-            if value.startswith('('):  # Array
-                value = [v.strip('"\'') for v in value.strip('()').split()]
-            else:
-                value = value.strip('"\'')
-            conf[key] = value
-
-    return conf
+from functions.deconfounding import CombatModel, RegressOutModel
+from functions.constants import Structure, Resolution, Feature, struct_to_folder, \
+    map_feature_to_file, HIGH_RESOLUTION_CTX, LOW_RESOLUTION_CTX, HIGH_RESOLUTION_HIP, \
+    LOW_RESOLUTION_HIP, FOLDER_MAPS
 
 
-CONFIG_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                           'config.cfg')
-CONFIG = _read_config(CONFIG_FILE)
+COLUMN_DATASET = '__zbrains_dataset_identifier__'
 
 
-# Global variables and types  ---------------------------------------------------------------------
-map_feature = dict(thickness='thickness', volume='volume', flair='flair', ADC='ADC', FA='FA',
-                   qT1='T1map')
-
-Structure = Literal['cortex', 'hippocampus', 'subcortex']
-LIST_STRUCTURES: list[Structure] = list(get_args(Structure))
-
-map_struct_to_folder = dict(cortex=CONFIG['FOLDER_CTX'], subcortex=CONFIG['FOLDER_SCTX'],
-                            hippocampus=CONFIG['FOLDER_HIP'])
-
-Feature = Literal['flair', 'ADC', 'FA', 'qT1', 'thickness']
-LIST_FEATURES: list[Feature] = list(get_args(Feature))
-
-Analysis = Literal['norm-z', 'norm-modelling']
-LIST_ANALYSES: list[Analysis] = list(get_args(Analysis))
-
-Resolution = Literal['low', 'high']
-LIST_RESOLUTIONS: list[Resolution] = list(get_args(Resolution))
-
-
-ALIAS_COLUMNS = dict(ID='ID', SES='SES', AGE='AGE', SEX='SEX', SITE='SITE')
+logger = logging.getLogger('analysis_logger')
 
 
 # Helpers -----------------------------------------------------------------------------------------
@@ -70,11 +31,11 @@ def get_id(sid, add_prefix=True):
 
 
 def get_session(session, add_predix=True):
-    if pd.isnull(session) or session == '':
-        session = 'SINGLE'
+    if pd.isnull(session) or session == 'n/a':
+        session = ''
     if session.startswith('ses-'):
         session = session[4:]
-    if add_predix and session != 'SINGLE':
+    if add_predix and session != '':
         session = f'ses-{session}'
     return session
 
@@ -82,7 +43,7 @@ def get_session(session, add_predix=True):
 def _get_bids_id(sid, ses):
     sid = get_id(sid, add_prefix=True)
     ses = get_session(ses, add_predix=True)
-    if ses == 'SINGLE':
+    if ses == '':
         return sid
     return f'{sid}_{ses}'
 
@@ -90,67 +51,145 @@ def _get_bids_id(sid, ses):
 def _get_subject_dir(root_pth, sid, ses):
     sid = get_id(sid, add_prefix=True)
     ses = get_session(ses, add_predix=True)
-    return f'{root_pth}/{sid}' if ses == 'SINGLE' else f'{root_pth}/{sid}/{ses}'
+    return f'{root_pth}/{sid}' if ses == '' else f'{root_pth}/{sid}/{ses}'
 
 
 # Mahalanobis -------------------------------------------------------------------------------------
-def mahalanobis_distance(x_cn: np.ndarray, x_px: np.ndarray):
-    """Compute mahalanobis distance for multiple vertices
+def get_deconfounder(*, covariates: list[str]) -> RegressOutModel | CombatModel:
+    """ Build deconfounder based on covariates.
+
+    If covariates include 'site', use ComBat. Otherwise, use RegressOutModel.
+
+    For ComBat, all remaining covariates will be preserved (default), unless
+    prefixed with '-', in which case the covariate will be removed (e.g., -age).
+    The '-' prefix is ignored for 'site' and when using RegressOutModel.
 
     Parameters
     ----------
-    x_cn: ndarray of shape=(n_subjects, n_vertices, n_features)
-         Data for controls.
-    x_px: ndarray of shape=(n_vertices, n_features)
-        Patient data.
+    covariates :
+        List of covariates. Covariates prepended with '-' will be removed
+        from the data when using ComBat.
 
     Returns
     -------
-    dist: np.ndarray of shape=(n_vertices,)
-        Mahalanobis distance.
+    dec :
+        Deconfounder object.
     """
 
-    n_subjects, n_vertices, _ = x_cn.shape
+    covariates = [s[1:] if s == '-site' else s for s in covariates]
 
-    dist = np.zeros(n_vertices, dtype=np.float32)
-    for i, xp in enumerate(x_px):
-        xc = x_cn[:, i]
-        mu = xc.mean(axis=0)
+    if 'site' in covariates:
+        remove = [k[1:] for k in covariates if k.startswith('-')]
+        keep = [k for k in covariates if not k.startswith('-') and k != 'site']
+        return CombatModel(site_key='site', keep=keep, remove=remove)
 
-        xc = xc - mu
-        xp = xp - mu
+    cols = [s[1:] if s.startswith('-') else s for s in covariates]
+    return RegressOutModel(remove=cols)
 
-        cov = xc.T @ xc
-        cov /= n_subjects - 1
-        try:
-            cov_inv = np.linalg.inv(cov)
-            dist[i] = np.sqrt(xp.T @ cov_inv @ xp)
-        except np.linalg.LinAlgError:
-            pass  # set distance to zero (default)
+
+def compute_asymmetry(x_lh: np.ndarray, x_rh: np.ndarray) -> np.ndarray:
+    """ Compute asymmetry.
+
+    Parameters
+    ----------
+    x_lh
+        Left hemisphere data. Shape (n_subjects, n_points) or (n_points,).
+    x_rh
+        Right hemisphere data. Shape (n_subjects, n_points) or (n_points,).
+
+    Returns
+    -------
+    s
+        Output data. Shape (n_subjects, n_points) or (n_points,).
+    """
+
+    den = x_lh + x_rh
+    den *= .5
+    x = np.divide(x_lh - x_rh, den, out=den, where=den > 0)
+    return x
+
+
+def zscore(x_train: np.ndarray, x_test: np.ndarray) -> np.ndarray:
+    """ Calculate z-scores for the test data based on the training data.
+
+    Parameters
+    ----------
+    x_train
+        Training data. Shape (n_train, n_points).
+    x_test
+        Test data. Shape (n_test, n_points) or (n_points,).
+
+    Returns
+    -------
+    z
+        Z-scores for the test data. Shape (n_test, n_points) or (n_points,).
+    """
+
+    mask = np.any(x_train != 0, axis=0)  # ignore all zeros
+    # x_train[:, ~mask] = np.finfo(float).eps
+
+    z = x_test - np.nanmean(x_train, axis=0)
+    z = np.divide(z, np.nanstd(x_train, axis=0), out=z, where=mask)
+    z[~mask] = 0
+
+    return z
+
+
+def mahalanobis_distance(x_train: np.ndarray, x_test: np.ndarray) -> np.ndarray:
+    """Compute mahalanobis distance.
+
+    Parameters
+    ----------
+    x_train
+        Training data. Shape (n_train, n_points, n_feat)
+    x_test: ndarray of shape=(n_points, n_features)
+        Test data. Shape (n_test, n_points, n_feat) or (n_points, n_feat)
+
+    Returns
+    -------
+    dist
+        Mahalanobis distance for the test data. Shape (n_test, n_points) or
+        (n_points,).
+    """
+
+    n_train = x_train.shape[0]
+    mu = x_train.mean(axis=0)
+    x_train = x_train - mu
+
+    cov = np.moveaxis(x_train, 0, -1) @ x_train.swapaxes(0, 1)
+    cov /= n_train - 1
+    cov_inv = np.linalg.inv(cov)
+
+    x_test = x_test - mu
+    dist = np.sqrt(x_test[:, None] @ cov_inv @ x_test[..., None]).squeeze()
+
+    # n_train, n_points, n_feat = x_train.shape
+    # dist = np.zeros(n_points, dtype=np.float32)
+    # for i, xp in enumerate(x_test):
+    #     xc = x_train[:, i]
+    #     mu = xc.mean(axis=0)
+    #
+    #     xc = xc - mu
+    #     xp = xp - mu
+    #
+    #     cov = xc.T @ xc
+    #     cov /= n_train - 1
+    #     try:
+    #         cov_inv = np.linalg.inv(cov)
+    #         dist[i] = np.sqrt(xp.T @ cov_inv @ xp)
+    #     except np.linalg.LinAlgError:
+    #         pass  # set distance to zero (default)
 
     return dist
-
-    # Faster but cannot handle singular matrix exception
-    # x_cn = x_cn.swapaxes(0, 1)
-    # n_vertices, n_subjects, n_features = x_cn.shape
-    #
-    # mu = x_cn.mean(axis=1, keepdims=True)
-    # x_cn_centered = x_cn - mu
-    #
-    # cov = (x_cn_centered.swapaxes(1, 2) @ x_cn_centered)
-    # cov /= n_subjects - 1
-    # cov_inv = np.linalg.inv(cov)
-    #
-    # x_px_centered = x_px - mu.squeeze()
-    # dist = np.sqrt(x_px_centered[:, None] @ cov_inv @ x_px_centered[..., None]).squeeze()
-    # return dist
 
 
 # Read/write functions ----------------------------------------------------------------------------
 def _map_resolution(struct: Structure, resolution: Resolution):
     if struct == 'cortex':
-        return CONFIG['HIGH_RESOLUTION_CTX' if resolution == 'high' else 'LOW_RESOLUTION_CTX']
-    return CONFIG['HIGH_RESOLUTION_HIP' if resolution == 'high' else 'LOW_RESOLUTION_HIP']
+        return HIGH_RESOLUTION_CTX if resolution == 'high' else LOW_RESOLUTION_CTX
+    if struct == 'hippocampus':
+        return HIGH_RESOLUTION_HIP if resolution == 'high' else LOW_RESOLUTION_HIP
+    raise ValueError(f'Mapping resolution for unknown structure: {struct}')
 
 
 def _get_ipath_from_template(struct, **kwargs):
@@ -189,7 +228,7 @@ def _get_opath_from_template(struct, **kwargs):
 
 def _load_one(pth_zbrains: str, *, sid: str, ses: str, struct: Structure, feat: Feature,
               resolution: Resolution | None = None, label: str | None = None,
-              smooth: float | None = None, raise_error: bool = True) \
+              smooth: float | None = None, asymmetry=False, raise_error: bool = True) \
         -> np.ndarray | pd.DataFrame | None:
     """ Load subject data
 
@@ -224,15 +263,12 @@ def _load_one(pth_zbrains: str, *, sid: str, ses: str, struct: Structure, feat: 
         None if no data available for at least one hemisphere.
     """
 
-    logger_file = logging.getLogger('analysis_logger.file')
-    logger_both = logging.getLogger('analysis_logger.both')
-
     bids_id = _get_bids_id(sid, ses)
     subject_dir = _get_subject_dir(pth_zbrains, sid, ses)
     if not os.path.isdir(subject_dir):
-        logger_both.warning(f"Subject '{bids_id}' zbrains directory does not exist")
+        logger.warning(f"Subject '{bids_id}' zbrains directory does not exist")
 
-    folder = f'{subject_dir}/{CONFIG["FOLDER_MAPS"]}/{map_struct_to_folder[struct]}'
+    folder = f'{subject_dir}/{FOLDER_MAPS}/{struct_to_folder[struct]}'
 
     if struct == 'subcortex' and feat == 'thickness':
         feat = 'volume'
@@ -241,16 +277,25 @@ def _load_one(pth_zbrains: str, *, sid: str, ses: str, struct: Structure, feat: 
         ipth = _get_ipath_from_template(struct, root_path=folder, bids_id=bids_id, feat=feat)
 
         try:
-            return pd.read_csv(ipth, header=[0], index_col=0)
+            # return pd.read_csv(ipth, header=[0], index_col=0)
+            # return pd.read_csv(ipth, header=[0]).iloc[:, 1:]  # ignore index
+            x = pd.read_csv(ipth, header=[0]).iloc[:, 1:]
         except FileNotFoundError as e:
             if raise_error:
-                logger_file.error(e, stack_info=True, exc_info=True)
+                logger.error(e, stack_info=True, exc_info=True)
 
                 sys.excepthook = sys.__excepthook__  # skip unhandled exception
                 raise
 
-            logger_file.warning(f'File not found: "{ipth}"')
+            logger.warning(f'File not found: "{ipth}"')
             return None
+
+        if asymmetry:
+            y = x.to_numpy()
+            n = x.shape[1] // 2
+            x.iloc[:, :n] = compute_asymmetry(y[:, :n], y[:, n:])
+            return x.iloc[:, :n]
+        return x
 
     x = []
     for h in ['L', 'R']:
@@ -260,19 +305,24 @@ def _load_one(pth_zbrains: str, *, sid: str, ses: str, struct: Structure, feat: 
             x.append(nib.load(ipth).darrays[0].data)
         except FileNotFoundError as e:
             if raise_error:
-                logger_file.error(e, stack_info=True, exc_info=True)
+                logger.error(e, stack_info=True, exc_info=True)
 
                 sys.excepthook = sys.__excepthook__  # skip unhandled exception
                 raise
 
-            logger_file.warning(f'File not found: "{ipth}"')
+            logger.warning(f'File not found: "{ipth}"')
             return None
 
+        if asymmetry:
+            return compute_asymmetry(x[0], x[1])
         return np.concatenate(x)
 
 
-def _load_data(pth_zbrains: str, *, df_subjects: pd.DataFrame, struct: Structure, feat: Feature,
-               resolution: Resolution | None = None, label: str | None = None, smooth: float) \
+def _load_data(
+        pth_zbrains: str | list[str], *,
+        df_subjects: pd.DataFrame | list[pd.DataFrame], struct: Structure,
+        feat: Feature, resolution: Resolution | None = None,
+        label: str | None = None, smooth: float | None = None, asymmetry=False) \
         -> tuple[pd.DataFrame | np.ndarray, pd.DataFrame]:
     """ Load data form all subjects in 'df_subjects'.
 
@@ -281,7 +331,7 @@ def _load_data(pth_zbrains: str, *, df_subjects: pd.DataFrame, struct: Structure
     pth_zbrains:
         Path to the zbrains derivatives folder.
     df_subjects:
-        Data frame with subjects. Must contain ID column. SES column is optional.
+        Data frame with subjects. Must contain participant_id column. session_id col optional.
     struct:
         Structure.
     feat:
@@ -304,21 +354,43 @@ def _load_data(pth_zbrains: str, *, df_subjects: pd.DataFrame, struct: Structure
         'df_controls' with available data.
     """
 
+    if isinstance(pth_zbrains, list):
+        list_data, list_dfs = [], []
+        for i, (pth, df) in enumerate(zip(pth_zbrains, df_subjects)):
+            x, df = _load_data(
+                pth, df_subjects=df, struct=struct, feat=feat,
+                resolution=resolution, label=label, smooth=smooth,
+                asymmetry=asymmetry
+            )
+
+            list_data.append(x)
+
+            df[COLUMN_DATASET] = f'Dataset{i:>03}'
+            list_dfs.append(df)
+
+        common_cols = reduce(np.intersect1d, [df.columns for df in list_dfs])
+        list_dfs = [df[common_cols] for df in list_dfs]
+        df = pd.concat(list_dfs, axis=0, ignore_index=True)
+
+        if struct == 'subcortex':
+            return pd.concat(list_data, axis=0, ignore_index=True), df
+        return np.vstack(list_data), df
+
     missing_subjects = np.ones(df_subjects.shape[0], dtype=bool)
     data = []
     for i, row in df_subjects.iterrows():
-        sid = row.get('ID')
-        ses = row.get('SES', 'SINGLE')
+        sid = row.get('participant_id')
+        ses = row.get('session_id', '')
 
         x = _load_one(pth_zbrains, sid=sid, ses=ses, struct=struct, feat=feat,
-                      resolution=resolution, label=label, smooth=smooth, raise_error=False)
-        # x = _load_one(sid, ses, feat, struct=struct, resolution=resolution, raise_error=False)
+                      resolution=resolution, label=label, smooth=smooth,
+                      asymmetry=asymmetry, raise_error=False)
         if x is not None:
             data.append(x)
             missing_subjects[i] = False
 
     if struct == 'subcortex':
-        return pd.concat(data, axis=0), df_subjects[~missing_subjects]
+        return pd.concat(data, axis=0, ignore_index=True), df_subjects[~missing_subjects]
     return np.stack(data, axis=0), df_subjects[~missing_subjects]
 
 
@@ -353,13 +425,13 @@ def _save(pth_analysis: str, *, x: np.ndarray | pd.DataFrame, sid: str, struct: 
     """
 
     bids_id = _get_bids_id(sid, ses)
-    folder = f'{pth_analysis}/{map_struct_to_folder[struct]}'
+    folder = f'{pth_analysis}/{struct_to_folder[struct]}'
 
     # Handle the case when feat is a list of string (used for Mahalanobis)
     is_list = isinstance(feat, list)
     feat = feat if is_list else [feat]
     feat = ['volume' if (k == 'thickness' and struct == 'subcortex') else k for k in feat]
-    feat = [map_feature[k] for k in feat]
+    feat = [map_feature_to_file[k] for k in feat]
     feat = '-'.join(feat) if is_list else feat[0]
 
     analysis = 'asymmetry' if asymmetry else 'regional'
@@ -384,93 +456,109 @@ def _save(pth_analysis: str, *, x: np.ndarray | pd.DataFrame, sid: str, struct: 
             break
 
 
-def _save_results(pth_analysis: str, *, x: np.ndarray | pd.DataFrame, sid: str, struct: Structure,
-                  feat: Feature | list[Feature], ses: str = 'SINGLE',
-                  resolution: Resolution | None = None, label: str | None = None,
-                  smooth: float | None = None, asymmetry=False, index: list[str] | None = None,
-                  columns: list[str] | None = None):
+def load_demo(path: str | list[str], *, rename: dict[str, str] | None = None,
+              dtypes: dict | None = None):
 
-    if columns is not None:
-        x = pd.DataFrame(x.reshape(1, -1), index=index, columns=columns)
+    if not (is_list := isinstance(path, list)):
+        path = [path]
 
-    _save(pth_analysis, x=x, sid=sid, struct=struct, feat=feat, ses=ses, resolution=resolution,
-          label=label, smooth=smooth, asymmetry=asymmetry)
+    list_df = []
+    for p in path:
+        sep = '\t' if p.endswith('.tsv') else ','
+        df = pd.read_csv(p, header=[0], dtype=dtypes, sep=sep)
+        if rename is not None:
+            df.rename(columns=rename, inplace=True)
+        list_df.append(df)
 
-
-# Prepare data ------------------------------------------------------------------------------------
-def deconfound(*, covariates: list[str], data_cn: np.ndarray, df_cn: pd.DataFrame,
-               data_px: np.ndarray, df_px: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
-
-    cols = [k for k in covariates if k != 'SITE']
-    if 'SITE' in covariates:
-        deconfounder = CombatModel(site_key='SITE', remove=cols)
-    else:
-        deconfounder = RegressOutModel(remove=cols)
-
-    data_cn = deconfounder.fit_transform(data_cn, df_cn)
-    data_px = deconfounder.transform(data_px, df_px)
-
-    return data_cn, data_px
+    if not is_list:
+        return list_df[0]
+    return list_df
 
 
-def make_asymmetric(*, data_cn: np.ndarray, data_px: np.ndarray):
-    data_cn = data_cn.reshape(data_cn.shape[0], 2, -1)
-    lh_data_cn, rh_data_cn = data_cn[:, 0], data_cn[:, 1]
-    den_cn = .5 * (lh_data_cn + rh_data_cn)
-    data_cn = np.divide(lh_data_cn - rh_data_cn, den_cn, out=den_cn, where=den_cn > 0)
+def _subject_zscore(
+        *, dir_px, px_sid, px_ses, data_cn: np.ndarray, feat: Feature,
+        deconfounder: CombatModel | RegressOutModel | None,
+        df_px: pd.DataFrame | None, **kwargs):
 
-    data_px = data_px.reshape(2, -1)
-    lh_data_px, rh_data_px = data_px[0], data_px[1]
-    den_px = .5 * (lh_data_px + rh_data_px)
-    data_px = np.divide(lh_data_px - rh_data_px, den_px, out=den_px, where=den_px > 0)
+    # Load patient data
+    try:
+        data_px = _load_one(dir_px, sid=px_sid, ses=px_ses, raise_error=True,
+                            **kwargs)
+    except FileNotFoundError:
+        logger.warning(f'\t{feat:<15}: \tNo data available.')
+        raise
 
-    return data_cn, data_px
+    # For subcortex, we have dataframes
+    cols_df = index_df = None
+    if is_df := isinstance(data_px, pd.DataFrame):
+        index_df, cols_df = data_px.index, data_px.columns
+        data_px = data_px.to_numpy()
+
+    # Deconfounding
+    if deconfounder:
+        data_px = deconfounder.transform(data_px, df_px)
+
+    # Analysis: z-scoring
+    z = zscore(data_cn, data_px)
+    if is_df:
+        z = pd.DataFrame(z.reshape(1, -1), index=index_df, columns=cols_df)
+
+    # Store data for mahalanobis
+    return dict(z=z, data_px=data_px, index_df=index_df, cols_df=cols_df)
 
 
-def zscore(*, data_cn: np.ndarray, data_px: np.ndarray):
-    mask = np.any(data_cn != 0, axis=0)  # ignore all zeros
-    data_cn[:, ~mask] = np.finfo(float).eps
+def _subject_mahalanobis(*, data: defaultdict[str, list]):
 
-    z = data_px - np.nanmean(data_cn, axis=0)
-    z = np.divide(z, np.nanstd(data_cn, axis=0), out=z, where=mask)
-    z[~mask] = 0
+    list_df_cn = data['data_df']
+    list_data_cn = data['data_cn']
+    common_ids = reduce(np.intersect1d, [df.index for df in list_df_cn])
+    for i, (df, x) in enumerate(zip(list_df_cn, list_data_cn)):
+        mask = df.index.isin(common_ids)
+        list_data_cn[i] = x[mask]
 
-    return z
+    data_cn = np.stack(list_data_cn, axis=-1)
+    data_px = np.stack(data['data_px'], axis=-1)
+
+    md = mahalanobis_distance(data_cn, data_px)
+    cols_df = data['cols_df'][0]
+    index_df = data['index_df'][0]
+    if index_df is not None:
+        md = pd.DataFrame(md.reshape(1, -1), index=index_df, columns=cols_df)
+
+    return dict(md=md, data_cn=data_cn, data_px=data_px)
 
 
-##################################################################################################
-# Analysis
-##################################################################################################
-def run_analysis(pth_zbrains: str, *, analysis_folder: str, px_sid: str, path_demo_cn: str,
-                 structures: list[Structure], features: list[Feature],
-                 resolutions: list[Resolution], labels_ctx: list[str], labels_hip: list[str],
-                 smooth_ctx: float, smooth_hip: float, px_ses: str = 'SINGLE',
-                 path_demo_px: str | None = None, asymmetry=False,
-                 col_aliases: dict[str, str] | None = None,
-                 cov_deconfound: list[str] | None = None):
+def run_analysis(
+        *, px_sid: str, px_ses='SINGLE', dir_cn: list[str],
+        demo_cn: list[str], dir_px: str, demo_px: str | None = None,
+        structures: list[Structure], features: list[Feature],
+        cov_normative: list[str] | None = None,
+        cov_deconfound: list[str] | None = None, smooth_ctx: float,
+        smooth_hip: float, resolutions: list[Resolution], labels_ctx: list[str],
+        labels_hip: list[str], actual_to_expected: dict[str, str],
+        asymmetry=False, analysis_folder: str
+):
 
-    logger_file = logging.getLogger('analysis_logger.file')
-    logger_both = logging.getLogger('analysis_logger.both')
+    logger.debug(f'Logging call: {sys.argv[0]} {" ".join(sys.argv[1:])}')
+    logger.info(f'{"Asymmetry" if asymmetry else "Regional"} analysis\n')
 
-    logger_file.info(f'Logging call: {sys.argv[0]} {" ".join(sys.argv[1:])}')
-    logger_both.debug(f'{"Asymmetry" if asymmetry else "Regional"} analysis\n')
+    pth_analysis = f'{_get_subject_dir(dir_px, px_sid, px_ses)}/{analysis_folder}'
 
-    pth_analysis = f'{_get_subject_dir(pth_zbrains, px_sid, px_ses)}/{analysis_folder}'
+    # Load dataframes ----------------------------------------------------------
+    # Read participant_id, session_id, sex, site as categorical if available
+    dtypes = {actual: (str if expected != 'age' else float)
+              for actual, expected in actual_to_expected.items()}
 
-    # Data frame of control subjects
-    # All columns in ALIAS_COLUMNS are categorical except AGE
-    dtypes = {v: (str if k != 'AGE' else float) for k, v in ALIAS_COLUMNS.items()}
-    orig_df_cn = pd.read_csv(path_demo_cn, header=[0], dtype=dtypes)
-    if col_aliases is not None:  # Rename columns to expected names
-        orig_df_cn.rename(columns=col_aliases, inplace=True)
-    orig_n_cn = orig_df_cn.shape[0]
+    # Controls
+    list_df_cn = load_demo(demo_cn, rename=actual_to_expected, dtypes=dtypes)
+    n_cn = sum(len(df) for df in list_df_cn)
 
+    # Patient
     df_px = None
-    if path_demo_px is not None:
-        df_px = pd.read_csv(path_demo_px, header=[0], dtype=dtypes)
-        if col_aliases is not None:
-            df_px.rename(columns=col_aliases, inplace=True)
+    if demo_px:
+        df_px = load_demo(demo_px, rename=actual_to_expected, dtypes=dtypes)
 
+    # Load dataframes ----------------------------------------------------------
     iterables = []
     for st in structures:
         if st == 'subcortex':
@@ -480,90 +568,63 @@ def run_analysis(pth_zbrains: str, *, analysis_folder: str, px_sid: str, path_de
         else:
             iterables += itertools.product([st], resolutions, labels_hip)
 
-    # Main loop
+    # Main loop ----------------------------------------------------------------
     for struct, resol, label in iterables:
-        s = f'[resolution = {resol:<4}\tlabel = {label:<15}]' if struct != 'subcortex' else ''
-        logger_both.info(f'\nStructure: {struct} {s}')
+        s = f'[resolution = {resol:<4}\tlabel = {label:<15}]' \
+            if struct != 'subcortex' else ''
+        logger.info(f'\nStructure: {struct} {s}')
 
+        # Shared kwds
         smooth = smooth_ctx if struct == 'cortex' else smooth_hip
+        kwds = dict(struct=struct, resolution=resol, label=label, smooth=smooth,
+                    asymmetry=asymmetry)
 
-        index_df, cols_df = None, None
-
-        # Collect data for Mahalanobis
-        list_df_cn = []  # Because some subjects may not have some features
-        list_data_cn = []
-        list_data_px = []
-        feat_mahalanobis = []
-
+        data_mahalanobis = defaultdict(list)
         for feat in features:
-            # Load data
-            try:
-                data_cn, df_cn = _load_data(pth_zbrains, df_subjects=orig_df_cn, struct=struct,
-                                            feat=feat, resolution=resol, label=label, smooth=smooth)
-                data_px = _load_one(pth_zbrains, sid=px_sid, ses=px_ses, struct=struct, feat=feat,
-                                    resolution=resol, label=label, smooth=smooth, raise_error=True)
-            except FileNotFoundError:  # When patient files not available
-                logger_both.info(f'\t{feat:<15}: \tNo data available.')
-                continue
 
-            # For subcortex, we have dataframes
-            if isinstance(data_px, pd.DataFrame):
-                index_df, cols_df = data_px.index, data_px.columns
+            # Load control data
+            kwds |= dict(feat=feat)
+            data_cn, df_cn = _load_data(dir_cn, df_subjects=list_df_cn, **kwds)
+            if isinstance(data_cn, pd.DataFrame):
                 data_cn = data_cn.to_numpy()
-                data_px = data_px.to_numpy()
 
             # Deconfounding
+            dec = None
             if cov_deconfound is not None and df_px is not None:
-                data_cn, data_px = deconfound(covariates=cov_deconfound, data_cn=data_cn,
-                                              df_cn=df_cn, data_px=data_px, df_px=df_px)
+                dec = get_deconfounder(covariates=cov_deconfound)
+                data_cn = dec.fit_transform(data_cn, df_cn)
 
-            # Use asymmetry analysis
-            if asymmetry:
-                data_cn, data_px = make_asymmetric(data_cn=data_cn, data_px=data_px)
+            logger.info(f'\t{feat:<15}: \t[{df_cn.shape[0]}/{n_cn} '
+                        f'controls available]')
 
-                if cols_df is not None:
-                    cols_df = cols_df[:cols_df.size // 2]
-
-            # Store data for mahalanobis
-            feat_mahalanobis.append(feat)
-            list_data_cn.append(data_cn)
-            list_df_cn.append(df_cn)
-            list_data_px.append(data_px)
-
-            # Analysis: z-scoring
-            z = zscore(data_cn=data_cn, data_px=data_px)
-            z = z if asymmetry else z.reshape(2, -1)
+            # zscore
+            res = _subject_zscore(
+                dir_px=dir_px, px_sid=px_sid, px_ses=px_ses, data_cn=data_cn,
+                deconfounder=dec, df_px=df_px, **kwds)
 
             # Save results
-            _save_results(pth_analysis, x=z, sid=px_sid, struct=struct, feat=feat, ses=px_ses,
-                          resolution=resol, label=label, smooth=smooth, asymmetry=asymmetry,
-                          index=index_df, columns=cols_df)
+            z = res['z'] if not asymmetry else res['z'].reshape(2, -1)
+            _save(pth_analysis, x=z, sid=px_sid, ses=px_ses, **kwds)
 
-            logger_both.info(f'\t{feat:<15}: \t[{data_cn.shape[0]}/{orig_n_cn} controls available]')
+            res |= dict(data_cn=data_cn, df_cn=df_cn, feat=feat)
+            for k, v in res.items():
+                data_mahalanobis[k].append(v)
 
         # Mahalanobis
-        if len(feat_mahalanobis) < 2:
+        if len(data_mahalanobis['feat']) < 2:
             continue
 
-        common_ids = reduce(np.intersect1d, [df.index for df in list_df_cn])
-        for i, (df, x) in enumerate(zip(list_df_cn, list_data_cn)):
-            mask = df.index.isin(common_ids)
-            list_data_cn[i] = x[mask]  # .reshape(x[mask].shape[0], -1)
-        x_cn = np.stack(list_data_cn, axis=-1)
-        x_px = np.stack(list_data_px, axis=-1)  # .reshape(-1, len(list_data_px))
+        # Analysis: mahalanobis distance
+        res = _subject_mahalanobis(data=data_mahalanobis)
 
-        md = mahalanobis_distance(x_cn, x_px)
-        md = md if asymmetry else md.reshape(2, -1)
+        n_available_cn = res['data_cn'].shape[0]
+        logger.info(f'\n\t{"Mahalanobis":<15}: \t[{n_available_cn}/{n_cn} '
+                    f'controls available]\n')
 
         # Save results
-        _save_results(pth_analysis, x=md, sid=px_sid, struct=struct, feat=feat_mahalanobis,
-                      ses=px_ses, resolution=resol, label=label, smooth=smooth, asymmetry=asymmetry,
-                      index=index_df, columns=cols_df)
+        md = res['md'] if not asymmetry else res['md'].reshape(2, -1)
 
-        logger_both.info(f'\n\t{"Mahalanobis":<15}: \t[{x_cn.shape[0]}/{orig_n_cn} '
-                         f'controls available]\n')
+        kwds |= dict(feat=data_mahalanobis['feat'])
+        _save(pth_analysis, x=md, sid=px_sid, ses=px_ses, **kwds)
 
-    logger_both.info('Done!\n\n')
-
-
-
+    logger.info('Done!\n\n')
