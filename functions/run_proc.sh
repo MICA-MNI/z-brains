@@ -102,8 +102,8 @@ map_subcortex() {
     input_file="${input_dir}/${BIDS_ID}_space-nativepro_${map_input[${feat,,}]}.nii.gz"
 
     for file in ${seg_file} ${input_file}; do
-      if [[ -n ${file} && ! -f "${file}" ]]; then
-        SHOW_WARNING "${BIDS_ID}: cannot map '${feat}' feature." "Missing file: ${file}"
+      if [[ ! -f "${file}" ]]; then
+        SHOW_WARNING "${BIDS_ID}: cannot map '${feat}' to subcortical structures." "Missing file: ${file}"
         return
       fi
     done
@@ -112,13 +112,17 @@ map_subcortex() {
 
   else
     if [[ ! -f "${aseg_stats_file}" ]]; then
-      SHOW_WARNING "${BIDS_ID}: cannot map '${feat}' feature." "Missing file ${aseg_stats_file}"; return
+      SHOW_WARNING "${BIDS_ID}: cannot map '${feat}' to subcortical structures." "Missing file ${aseg_stats_file}"; return
     fi
 
     DO_CMD "python ${script_dir}/subcortical_mapping.py -id ${BIDS_ID} -v ${aseg_stats_file} -o ${output_file}"
   fi
 
-  [[ -f "$output_file" ]] && SHOW_NOTE "${COLOR_INFO}${BIDS_ID}:" "'${feat}' successfully mapped.";
+  if [[ -f "$output_file" ]]; then
+    SHOW_NOTE "${COLOR_INFO}${BIDS_ID}:" "'${feat}' successfully mapped.";
+  else
+    SHOW_WARNING "${BIDS_ID}: could not map '${feat}' to subcortical structures."
+  fi
 }
 
 
@@ -159,9 +163,9 @@ map_cortex() {
 
     # Check if file exists
     for file in ${surf_file} ${input_file}; do
-      if [[ -n ${file} && ! -f "${file}" ]]; then
-        SHOW_WARNING "${BIDS_ID}: cannot map '${feat}' feature." "Missing file: ${file}"
-        break
+      if [[ ! -f "${file}" ]]; then
+        SHOW_WARNING "${BIDS_ID}: cannot map '${feat}' [label=${label}, resolution=${resol}] to cortex." "Missing file: ${file}"
+        return
       fi
     done
 
@@ -174,7 +178,11 @@ map_cortex() {
     [[ -f "$output_file" ]] && n=$((n + 1))
   done
 
-  [[ $n -eq 2 ]] && SHOW_NOTE "${COLOR_INFO}${BIDS_ID}:" "'${feat}' [label=${label}, resolution=${resol}] successfully mapped."
+  if [[ $n -eq 2 ]]; then
+    SHOW_NOTE "${COLOR_INFO}${BIDS_ID}:" "'${feat}' [label=${label}, resolution=${resol}] successfully mapped."
+  else
+    SHOW_WARNING "${BIDS_ID}: could not map '${feat}' [label=${label}, resolution=${resol}] to cortex."
+  fi
 }
 
 
@@ -221,8 +229,8 @@ map_hippocampus() {
     [[ "$feat" != "thickness" ]] && check_file=${input_file} || check_file=${inter_file}
     for file in ${surf_file} ${check_file}; do
       if [[ ! -f "${file}" ]]; then
-        SHOW_WARNING "${BIDS_ID}: cannot map '${feat}' feature." "Missing file: ${file}"
-        break
+        SHOW_WARNING "${BIDS_ID}: cannot map '${feat}' [label=${label}, resolution=${resol}] to hippocampus." "Missing file: ${file}"
+        return
       fi
     done
 
@@ -232,16 +240,20 @@ map_hippocampus() {
       DO_CMD "$cmd"
     fi
 
-    if [[ ! -f "${inter_file}" ]]; then
-      SHOW_WARNING "${BIDS_ID}: cannot map '${feat}' feature." "Missing file: ${inter_file}"
-      break
-    fi
+#    if [[ ! -f "${inter_file}" ]]; then
+#      SHOW_WARNING "${BIDS_ID}: cannot map '${feat}' feature." "Missing file: ${inter_file}"
+#      return
+#    fi
     DO_CMD "${WORKBENCH_PATH}/wb_command -metric-smoothing ${surf_file} ${inter_file} ${fwhm} ${output_file}"
 
     [[ -f "${output_file}" ]] && n=$((n + 1))
   done
 
-  [[ $n -eq 2 ]] && SHOW_NOTE "${COLOR_INFO}${BIDS_ID}:" "'${feat}' [label=${label}, resolution=${resol}] successfully mapped."
+  if [[ $n -eq 2 ]]; then
+    SHOW_NOTE "${COLOR_INFO}${BIDS_ID}:" "'${feat}' [label=${label}, resolution=${resol}] successfully mapped."
+  else
+    SHOW_WARNING "${BIDS_ID}: could not map '${feat}' [label=${label}, resolution=${resol}] to hippocampus."
+  fi
 
 }
 
