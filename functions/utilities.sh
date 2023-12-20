@@ -1,35 +1,35 @@
 #!/bin/bash
 
-export VERBOSE=-1  # Default
 
 function DO_CMD() {
 # do_cmd sends command to stdout before executing it.
 str="$(whoami) @ $(uname -n) $(date)"
-local l_command=""
-local l_sep=" "
-local l_index=1
+#local l_command=""
+#local l_sep=" "
+#local l_index=1
+#
+#while [ ${l_index} -le $# ]; do
+#    eval "arg=\${$l_index}"
+#    if [ "$arg" = "-fake" ]; then
+#      arg=""
+#    fi
+#    if [ "$arg" = "-no_stderr" ]; then
+#      arg=""
+#    fi
+#    if [ "$arg" == "-log" ]; then
+#      next_arg=$(("${l_index}" + 1))
+#      eval "logfile=\${${next_arg}}"
+#      arg=""
+#      l_index=$((l_index+1))
+#    fi
+#    l_command="${l_command}${l_sep}${arg}"
+#    l_sep=" "
+#    l_index=$((l_index+1))
+#   done
 
-while [ ${l_index} -le $# ]; do
-    eval "arg=\${$l_index}"
-    if [ "$arg" = "-fake" ]; then
-      arg=""
-    fi
-    if [ "$arg" = "-no_stderr" ]; then
-      arg=""
-    fi
-    if [ "$arg" == "-log" ]; then
-      next_arg=$(("${l_index}" + 1))
-      eval "logfile=\${${next_arg}}"
-      arg=""
-      l_index=$((l_index+1))
-    fi
-    l_command="${l_command}${l_sep}${arg}"
-    l_sep=" "
-    l_index=$((l_index+1))
-   done
-
-if [[ ${VERBOSE} -gt 2 || ${VERBOSE} -lt 0 ]]; then
-  echo -e "\033[38;5;118m\n${str}:\nCOMMAND -->  \033[38;5;122m${l_command}  \033[0m";
+l_command=${*}
+if [[ -z ${VERBOSE} || ${VERBOSE} -gt 2 || ${VERBOSE} -lt 0 ]]; then
+  echo -e "\033[38;5;118m${str}:\nCOMMAND -->  \033[38;5;122m${l_command}\n\033[0m";
 fi
 
 $l_command
@@ -90,36 +90,52 @@ COLOR_TITLE="\033[38;5;141m"
 NO_COLOR="\033[0m" # No color
 
 SHOW_ERROR() {
-echo -e "${COLOR_ERROR}\n-------------------------------------------------------------\n\n[ ERROR ]..... $1\n
--------------------------------------------------------------${NO_COLOR}\n"
+#echo -e "${COLOR_ERROR}\n-------------------------------------------------------------\n\n[ ERROR ]..... $1\n
+#-------------------------------------------------------------${NO_COLOR}\n"
+  echo ""
+  echo -e "${COLOR_ERROR}[ ERROR ]      $1${NO_COLOR}"
+  for s in "${@:2}"; do echo -e "${COLOR_ERROR}              $s${NO_COLOR}"; done
+  echo ""
 }
 
 SHOW_WARNING() {
-  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 0 || ${VERBOSE} -lt 0 ]]; then echo  -e "${COLOR_WARNING}\n[ WARNING ]..... $1 ${NO_COLOR}"; fi
+  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 0 || ${VERBOSE} -lt 0 ]]; then
+    echo ""
+    echo -e "${COLOR_WARNING}[ WARNING ]   $1${NO_COLOR}"
+    for s in "${@:2}"; do echo -e "${COLOR_WARNING}              $s${NO_COLOR}"; done
+  fi
 }
 
 SHOW_NOTE() {
-  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then echo -e "\t\t$1\t${COLOR_NOTE}$2 ${NO_COLOR}"; fi
+  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then
+    echo -e "              $1\t${COLOR_NOTE}$2 ${NO_COLOR}";
+  fi
 }
 
 SHOW_INFO() {
-  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then echo  -e "${COLOR_INFO}\n[ INFO ]..... $1 ${NO_COLOR}"; fi
+  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then
+    echo ""
+    echo -e "${COLOR_INFO}[ INFO ]      $1${NO_COLOR}"
+    for s in "${@:2}"; do echo -e "${COLOR_INFO}              $s${NO_COLOR}"; done
+  fi
 }
 
 SHOW_TITLE() {
-if [[ -z ${VERBOSE} || ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then echo -e "\n${COLOR_TITLE}
--------------------------------------------------------------
-\t$1
--------------------------------------------------------------${NO_COLOR}"
-fi
+  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then
+    echo -e "\n${COLOR_TITLE}-------------------------------------------------------------${NO_COLOR}"
+    echo -e "${COLOR_TITLE}$1${NO_COLOR}"
+    for s in "${@:2}"; do echo -e "${COLOR_TITLE}$s${NO_COLOR}"; done
+    echo -e "${COLOR_TITLE}-------------------------------------------------------------${NO_COLOR}"
+    echo ""
+  fi
 }
 
 
 function allowed_to_regex() {
-local array=("$@")
-    array=("${array[@]/#/ }")  # Adds a leading space
-    array=("${array[@]/%/ }")  # Adds a trailing space
-    IFS='|'; echo "${array[*]}"; unset IFS
+  local array=("$@")
+  array=("${array[@]/#/ }")  # Adds a leading space
+  array=("${array[@]/%/ }")  # Adds a trailing space
+  IFS='|'; echo "${array[*]}"; unset IFS
 }
 
 
@@ -208,7 +224,7 @@ ASSERT_SAME_SIZE() {
   local option2=$3
   local -n list2=$4
 
-  if [[ ${#list1} -ne ${#list2} ]]; then
+  if [[ ${#list1[@]} -ne ${#list2[@]} ]]; then
     SHOW_ERROR "The number of values provided with ${option1} and ${option2} must be the same."
     exit 1
   fi
@@ -249,7 +265,6 @@ SUBMIT_JOB() {
   local cmd="${*:2}"
 #  shift
 
-  echo scheduler="$scheduler"
   case "$scheduler" in
     "local")
       $cmd
