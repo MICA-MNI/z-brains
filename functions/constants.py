@@ -56,6 +56,6 @@ if __name__ == '__main__':
     constants = {k: v for k, v in globals().items() if k.isupper()}
     for k, v in constants.items():
         if isinstance(v, list):
-            print(f'{k}=({" ".join(v)})')
+            print(f'export {k}=({" ".join(v)})')
         else:
-            print(f'{k}={v}')
+            print(f'export {k}="{v}"')
