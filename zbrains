@@ -2,6 +2,8 @@
 #
 # Z-BRAINS - Generating, normalizing, and visualizing structural imaging features
 
+export VERBOSE=-1  # Default
+
 
 ZBRAINS=$(dirname "$(realpath "$0")")
 export ZBRAINS
@@ -9,12 +11,29 @@ script_dir=${ZBRAINS}/functions
 
 # Source utilities functions
 # source "${ZBRAINS}/config.cfg" # Configuration file
-while IFS= read -r line; do
-  export "${line?}"
-done < <(python "${script_dir}/constants.py")
+
+tmpfile=$(mktemp)
+python "${script_dir}/constants.py" > "$tmpfile"
+# shellcheck source=/dev/null
+source "$tmpfile"
+rm "$tmpfile"
+
+#while IFS= read -r line; do
+#  if [[ $line =~ ^[[:space:]]*([^=]+)=\((.*)\) ]]; then
+#    var_name=${BASH_REMATCH[1]}
+#    var_value=${BASH_REMATCH[2]}
+##    declare -a "${var_name}"=("${var_value}")
+##    declare -a "${line}"
+#    export "${var_name}"
+#  else
+#    declare "${line}"
+#    export "${line?}"
+#  fi
+##  declare "${line}"
+##  export "${line?}"
+#done < <(python "${script_dir}/constants.py")
 
 source "${script_dir}/utilities.sh"
-
 
 
 version() {
@@ -221,7 +240,6 @@ declare -A map_resolution_hip=([low]=$LOW_RESOLUTION_HIP [high]=$HIGH_RESOLUTION
 
 while (( "$#" )); do
   args=("$@")
-  echo "$1" "${#args[@]}": "${args[@]}"
   case "$1" in
   --sub)
     sid=$(PARSE_OPTION_SINGLE_VALUE args)
@@ -391,9 +409,9 @@ resolutions=("${resolutions[@]:-"all"}")
 labels_ctx=("${labels_ctx[@]:-"white"}")
 labels_hip=("${labels_hip[@]:-"midthickness"}")
 
-smooth_ctx=${smooth_ctx:-DEFAULT_SMOOTH_CTX}
-smooth_hip=${smooth_hip:-DEFAULT_SMOOTH_HIP}
-threshold=${threshold:-DEFAULT_THRESHOLD}
+smooth_ctx=${smooth_ctx:-$DEFAULT_SMOOTH_CTX}
+smooth_hip=${smooth_hip:-$DEFAULT_SMOOTH_HIP}
+threshold=${threshold:-$DEFAULT_THRESHOLD}
 
 
 # ------------------------------------------ Source initialization script  ------------------------------------------ #
@@ -424,14 +442,15 @@ if [[ " ${tasks[*]} " =~ " proc "  ]]; then
 fi
 
 # Dependencies required for analysis
-if [[ " ${tasks[*]} " =~ " analysis "  ]]; then
+if [[ " ${tasks[*]} " =~ " analysis "  || " ${structures[*]} " =~ " subcortex " ]]; then
   ! type -P python >/dev/null 2>&1 && SHOW_ERROR "Python not found" && exit 1;
   python -c 'import sys; exit(sys.version_info < (3, 10))' || { SHOW_ERROR "Python version must be >=3.10"; exit 1; }
 fi
 
 
 # -------------------------------------------- Check files & directories -------------------------------------------- #
-dataset_path=$(realpath "${dataset_path}")
+dataset_path=$(realpath "${dataset_path}/derivatives")
+ASSERT_EXISTS "$dataset_path"
 px_zbrains_path=${dataset_path}/${zbrains_dir}
 
 # export BIDS_ID, SUBJECT_OUTPUT_DIR
@@ -457,7 +476,7 @@ if [[ " ${tasks[*]} " =~ " proc " ]]; then
     subject_micapipe_qc=${SUBJECT_MICAPIPE_DIR}/QC
     Nrecon=$(find "${subject_micapipe_qc}/${BIDS_ID}_module-proc_surf-"*.json 2>/dev/null | wc -l)
     if [[ "$Nrecon" -lt 1 ]]; then
-      SHOW_ERROR "Subject $sid doesn't have a module-proc_surf: run -proc_surf"; exit 1
+      SHOW_ERROR "${BIDS_ID} doesn't have a module-proc_surf: run -proc_surf"; exit 1
     elif [[ "$Nrecon" -eq 1 ]]; then
       module_qc=$(ls "${subject_micapipe_qc}/${BIDS_ID}_module-proc_surf-"*.json 2>/dev/null)
       recon="$(echo "${module_qc/.json/}" | awk -F 'proc_surf-' '{print $2}')"
@@ -480,8 +499,6 @@ fi
 # ------------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------- Start processing/analysis -------------------------------------------- #
 # ------------------------------------------------------------------------------------------------------------------- #
-SHOW_TITLE "zbrains pipeline - (Version $VERSION) \n\t\tSubject: $sid, Session: $ses"
-
 SHOW_INFO "zbrains is running with:"
 if [[ " ${tasks[*]} " =~ " proc " ]]; then
   SHOW_NOTE "ANTs........" "$("${ANTSPATH}/antsRegistration" --version | awk -F '[: ]' '/ANTs Version/{print $4}')"
@@ -490,11 +507,11 @@ if [[ " ${tasks[*]} " =~ " proc " ]]; then
   SHOW_NOTE "            " "$(which "${WORKBENCH_PATH}/wb_command")"
 fi
 
-if [[ " ${tasks[*]} " =~ " analysis "  ]]; then
+if [[ " ${tasks[*]} " =~ " analysis " || " ${structures[*]} " =~ " subcortex " ]]; then
   SHOW_NOTE "python......" "$(python --version | awk '{print $2}')"
   SHOW_NOTE "            " "$(which python)"
 fi
-
+SHOW_NOTE "" ""
 
 # -------------------------------------------------- Initiate timer ------------------------------------------------- #
 SECONDS=0
@@ -551,8 +568,9 @@ run_command() {
   shift 1
   local cmd="$*"
 
-  $cmd 2>&1 | tee -a "${logfile}"
+  DO_CMD "$cmd" 2>&1 | tee >(sed 's/\x1b\[[0-9;]*m//g' > "$logfile")
 }
+
 
 
 # -------------------------------------------------- Postprocessing ------------------------------------------------- #
@@ -564,10 +582,12 @@ if [[ " ${tasks[*]} " =~ " proc " ]]; then
     cmd="${script_dir}/run_proc.sh --struct ${struct} --feat ${features[*]} --tmp $tmp_dir --logfile $logfile"
 
     if [[ $struct == "hippocampus" ]]; then
-      list_resolutions=("${map_resolution_hip["${resolutions[@]}"]}")
+      list_resolutions=()
+      for k in "${resolutions[@]}"; do list_resolutions+=("${map_resolution_hip[$k]}"); done
       cmd+=" --fwhm ${smooth_hip} --resolution ${list_resolutions[*]} --labels ${labels_hip[*]}"
     elif [[ $struct == "cortex" ]]; then
-      list_resolutions=("${map_resolution_ctx["${resolutions[@]}"]}")
+      list_resolutions=()
+      for k in "${resolutions[@]}"; do list_resolutions+=("${map_resolution_ctx[$k]}"); done
       cmd+=" --fwhm ${smooth_ctx} --resolution ${list_resolutions[*]} --labels ${labels_ctx[*]}"
     fi
 
@@ -583,7 +603,7 @@ if [[ " ${tasks[*]} " =~ " analysis "  ]]; then
 
   ref_zbrains_paths=()
   for idx in "${!ref_dataset_paths[@]}"; do
-    ref_zbrains_paths+=("${ref_dataset_paths[$idx]}/${ref_zbrains_dirs[$idx]}")
+    ref_zbrains_paths+=("${ref_dataset_paths[$idx]}/derivatives/${ref_zbrains_dirs[$idx]}")
   done
 
   cmd="python ${script_dir}/run_analysis.py --subject_id ${sid} --session ${ses} --dir_cn ${ref_zbrains_paths[*]} \
