@@ -1,12 +1,20 @@
 #!/bin/bash
 
+export VERBOSE=-1  # Default
+
 
 ZBRAINS=$(dirname "$(realpath "$0")")
 script_dir=${ZBRAINS}/functions
 
-while IFS= read -r line; do
-  export "${line?}"
-done < <(python "${script_dir}/constants.py")
+#while IFS= read -r line; do
+#  export "${line?}"
+#done < <(python "${script_dir}/constants.py")
+tmpfile=$(mktemp)
+python "${script_dir}/constants.py" > "$tmpfile"
+# shellcheck source=/dev/null
+source "$tmpfile"
+rm "$tmpfile"
+
 source "${script_dir}/utilities.sh"
 
 # ANTs, Workbench and python
@@ -389,7 +397,7 @@ for iter in "${!demo_paths[@]}"; do
 
     dataset_path=${dataset_paths[$iter]}
     zbrains_dir=${zbrains_dirs[$iter]}
-    out_dir=${dataset_path}/${zbrains_dir}
+    out_dir=${dataset_path}/derivatives/${zbrains_dir}
     if [[ $run == "proc" ]]; then
       cmd="${ZBRAINS}/zbrains --run ${run} --sub ${sid} --dataset ${dataset_path} --zbrains ${zbrains_dir} \
                               --micapipe ${micapipe_dirs[$iter]} --hippunfold ${hip_dirs[$iter]} ${args_zbrains[*]}"
@@ -398,8 +406,6 @@ for iter in "${!demo_paths[@]}"; do
       cmd="${ZBRAINS}/zbrains --run ${run} --sub ${sid} --dataset ${dataset_path[*]} --zbrains ${zbrains_dir} \
                               --demo_ref ${ref_demo_paths[*]} --dataset_ref ${ref_dataset_paths[*]} \
                               --zbrains_ref ${ref_zbrains_dirs[*]} --demo ${csv} ${args_zbrains[*]}"
-
-      out_dir=${dataset_path}/${zbrains_dir}
     fi
 
     [[ -n ${ses} ]] && cmd+=" --ses ${ses}"
