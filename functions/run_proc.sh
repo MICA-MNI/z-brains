@@ -5,7 +5,7 @@
 
 if [[ -z ${ZBRAINS} ]]; then
   echo "ZBRAINS not defined"
-  echo "This script should not be run standalone. Please use 'zbrains' directly."
+  echo "This script must not be run standalone. Please use 'zbrains' directly."
   exit 0;
 fi
 
@@ -18,54 +18,48 @@ umask 003
 
 
 #------------------------------------------------------------------------------#
-while (( "$#" )); do
-  args=("$@")
-  case "$1" in
+args=("$@")
+while (( "${#args[@]}" )); do
+  option="${args[0]}"
+  case "${option}" in
     --struct)
-      structure=$(PARSE_OPTION_SINGLE_VALUE args LIST_STRUCTURES)
-      shift 2
+      PARSE_OPTION_SINGLE_VALUE structure args LIST_STRUCTURES || exit $?
       ;;
     --feat)
-      readarray -t features < <(PARSE_OPTION_MULTIPLE_VALUES args LIST_FEATURES)
-      shift $(( ${#features[@]} + 1 ))
+      PARSE_OPTION_MULTIPLE_VALUES features args LIST_FEATURES || exit $?
       ;;
     --fwhm)
-      fwhm=$(PARSE_OPTION_SINGLE_VALUE args)
-      shift 2
+      PARSE_OPTION_SINGLE_VALUE fwhm args || exit $?
       ;;
     --tmp)
-      tmp_dir=$(PARSE_OPTION_SINGLE_VALUE args)
-      shift 2
+      PARSE_OPTION_SINGLE_VALUE tmp_dir args || exit $?
       ;;
     --resolution)
-      readarray -t resolutions < <(PARSE_OPTION_MULTIPLE_VALUES args LIST_RESOLUTIONS)
-      shift $(( ${#resolutions[@]} + 1 ))
+      PARSE_OPTION_MULTIPLE_VALUES resolutions args LIST_RESOLUTIONS || exit $?
       ;;
     --logfile)
-      logfile=$(PARSE_OPTION_SINGLE_VALUE args)
-      shift 2
+      PARSE_OPTION_SINGLE_VALUE logfile args || exit $?
       ;;
     --labels)
-      readarray -t labels < <(PARSE_OPTION_MULTIPLE_VALUES args)
-      shift $(( ${#labels[@]} + 1 ))
+      PARSE_OPTION_MULTIPLE_VALUES labels args || exit $?
       ;;
     *)
-      SHOW_ERROR "Unknown option '$1'"
+      SHOW_ERROR "Unknown option '${option}'"
       exit 1
       ;;
   esac
 done
 
 # Check if mandatory options are provided
-ASSERT_REQUIRED "--struct" "$structure"
+ASSERT_REQUIRED "--struct" "${structure:-}"
 ASSERT_REQUIRED "--feat" "${features[@]}"
-ASSERT_REQUIRED "--tmp" "$tmp_dir"
+ASSERT_REQUIRED "--tmp" "${tmp_dir:-}"
 
 
 if [[ "$structure" != "subcortex" ]]; then
-  ASSERT_REQUIRED "--fwhm" "$fwhm"
-  ASSERT_REQUIRED "--resolution" "${resolutions[@]}"
-  ASSERT_REQUIRED "--labels" "${labels[@]}"
+  ASSERT_REQUIRED "--fwhm" "${fwhm:-}"
+  ASSERT_REQUIRED "--resolution" "${resolutions[@]:-}"
+  ASSERT_REQUIRED "--labels" "${labels[@]:-}"
 fi
 
 
@@ -276,7 +270,7 @@ done
 #------------------------------------------------------------------------------#
 # Wrap up
 elapsed=$(printf "%.2f" "$(bc <<< "scale=2; $SECONDS/60")")
+
 title1="${map_struct[${structure}]} feature mapping for ${BIDS_ID} ended in \033[38;5;220m${elapsed} minutes"
 [[ -n "${logfile}" ]] && title2="Check logs: \033[0;32m${logfile}"
-
 SHOW_TITLE "${title1}" "$title2"

@@ -2,37 +2,19 @@
 
 
 function DO_CMD() {
-# do_cmd sends command to stdout before executing it.
-str="$(whoami) @ $(uname -n) $(date)"
-#local l_command=""
-#local l_sep=" "
-#local l_index=1
-#
-#while [ ${l_index} -le $# ]; do
-#    eval "arg=\${$l_index}"
-#    if [ "$arg" = "-fake" ]; then
-#      arg=""
-#    fi
-#    if [ "$arg" = "-no_stderr" ]; then
-#      arg=""
-#    fi
-#    if [ "$arg" == "-log" ]; then
-#      next_arg=$(("${l_index}" + 1))
-#      eval "logfile=\${${next_arg}}"
-#      arg=""
-#      l_index=$((l_index+1))
-#    fi
-#    l_command="${l_command}${l_sep}${arg}"
-#    l_sep=" "
-#    l_index=$((l_index+1))
-#   done
+  # do_cmd sends command to stdout before executing it.
+  cmd=$*
 
-l_command=${*}
-if [[ -z ${VERBOSE} || ${VERBOSE} -gt 2 || ${VERBOSE} -lt 0 ]]; then
-  echo -e "\033[38;5;118m${str}:\nCOMMAND -->  \033[38;5;122m${l_command}\n\033[0m";
-fi
+  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 2 || ${VERBOSE} -lt 0 ]]; then
+    str="$(whoami) @ $(uname -n) $(date)"
+    echo -e "\033[38;5;118m${str}:\nCOMMAND -->  \033[38;5;122m${cmd}\n\033[0m";
+  fi
 
-$l_command
+#  str="$(whoami) @ $(uname -n) $(date)"
+#  str_cmd="\033[38;5;118m${str}:\nCOMMAND -->  \033[38;5;122m${cmd}\n\033[0m"
+#  log_message 2 "$str_cmd"
+
+  $cmd
 }
 
 
@@ -93,7 +75,7 @@ SHOW_ERROR() {
 #echo -e "${COLOR_ERROR}\n-------------------------------------------------------------\n\n[ ERROR ]..... $1\n
 #-------------------------------------------------------------${NO_COLOR}\n"
   echo ""
-  echo -e "${COLOR_ERROR}[ ERROR ]      $1${NO_COLOR}"
+  echo -e "${COLOR_ERROR}[ ERROR ]     $1${NO_COLOR}"
   for s in "${@:2}"; do echo -e "${COLOR_ERROR}              $s${NO_COLOR}"; done
   echo ""
 }
@@ -130,83 +112,140 @@ SHOW_TITLE() {
   fi
 }
 
+log_message() {
+    local level=$1
+    local messages="${*:1}"
+
+#    echo -e "${messages[*]}" >> "${LOGFILE}"
+    if [[ -n $LOGFILE ]]; then
+      echo -e "${messages[*]}" | sed 's/\x1b\[[0-9;]*m//g' >> "${LOGFILE}"
+    fi
+
+    if [[ -z $VERBOSE || $VERBOSE -ge $level || $VERBOSE -lt 0 ]]; then
+        echo -e "${messages[*]}"
+    fi
+}
+
+#SHOW_ERROR() {
+#  str="\n${COLOR_ERROR}[ ERROR ]     $1${NO_COLOR}\n"
+#  for s in "${@:2}"; do str+="${COLOR_ERROR}              $s${NO_COLOR}\n"; done
+#  str+="\n"
+#
+#  log_message 0 "$str"
+#}
+#
+#SHOW_WARNING() {
+#  str="\n${COLOR_WARNING}[ WARNING ]   $1${NO_COLOR}"
+#  for s in "${@:2}"; do str+="${COLOR_WARNING}              $s${NO_COLOR}\n"; done
+#
+#  log_message 1 "$str"
+#}
+#
+#SHOW_NOTE() {
+#  str="              $1\t${COLOR_NOTE}$2 ${NO_COLOR}"
+#
+#  log_message 2 "$str"
+#}
+#
+#SHOWN_INFO() {
+#  str="\n${COLOR_INFO}[ INFO ]      $1${NO_COLOR}"
+#  for s in "${@:2}"; do str+="${COLOR_INFO}              $s${NO_COLOR}"; done
+#
+#  log_message 2 "$str"
+#}
+#
+#SHOW_TITLE() {
+#  str="\n${COLOR_TITLE}-------------------------------------------------------------${NO_COLOR}\n"
+#  str+="${COLOR_TITLE}$1${NO_COLOR}\n"
+#  for s in "${@:2}"; do str+="${COLOR_TITLE}$s${NO_COLOR}\n"; done
+#  str+="${COLOR_TITLE}-------------------------------------------------------------${NO_COLOR}\n"
+#  str+="\n"
+#
+#  log_message 2 "$str"
+#}
+
 
 function allowed_to_regex() {
   local array=("$@")
-  array=("${array[@]/#/ }")  # Adds a leading space
-  array=("${array[@]/%/ }")  # Adds a trailing space
+#  array=("${array[@]/#/ }")  # Adds a leading space
+#  array=("${array[@]/%/ }")  # Adds a trailing space
   IFS='|'; echo "${array[*]}"; unset IFS
 }
 
-
 PARSE_OPTION_SINGLE_VALUE() {
-  # PARSE_OPTION_SINGLE_VALUE args allowed_values
+  # PARSE_OPTION_SINGLE_VALUE output_variable args allowed_values
   # or
-  # PARSE_OPTION_SINGLE_VALUE args
-  local -n _args="$1"
-  local -n _allowed_values
+  # PARSE_OPTION_SINGLE_VALUE output_variable args
+  local -n _value=$1
+  local -n _args=$2
 
-  [[ $# -gt 1 ]] && _allowed_values="$2" && allowed_regex=$(allowed_to_regex "${_allowed_values[@]}")
+  if [[ $# -gt 2 ]]; then
+    local -n _allowed_values=$3
+    allowed_regex=$(allowed_to_regex "${_allowed_values[@]}")
+  fi
 
   local option="${_args[0]}"
-  local value="${_args[1]}"
+  local _value="${_args[1]}"
 
   # Check if the option has a value and if the value is not another option
-  if [[ -z "$value" || "$value" == --* ]]; then
+  if [[ -z "${_value}" || "${_value}" == --* ]]; then
       SHOW_ERROR "${option} option requires a value."
-      exit 1
+      return 1
   fi
 
   # Check if value is in the list of allowed values
   if [[ -v allowed_regex && ! " ${value} " =~ ${allowed_regex} ]]; then
-      SHOW_ERROR "Invalid value '$value' for ${option} option. \nAllowed values are: [${_allowed_values[*]}]."
-      exit 1
+      SHOW_ERROR "Invalid value '${_value}' for ${option} option." "Allowed values are: ${allowed_regex//|/, }."
+      return 1
   fi
 
-  echo "$value"
+  _args=("${_args[@]:2}")  # shift
+  return 0
 }
 
 
 PARSE_OPTION_MULTIPLE_VALUES() {
-  # PARSE_OPTION_MULTIPLE_VALUES args allowed_values all
+  # PARSE_OPTION_MULTIPLE_VALUES output_variable args allowed_values all
   # or
-  # PARSE_OPTION_MULTIPLE_VALUES args allowed_values
+  # PARSE_OPTION_MULTIPLE_VALUES output_variable args allowed_values
   # or
-  # PARSE_OPTION_MULTIPLE_VALUES args
-  local -n _args="$1"
-  local -n _allowed_values
-  local all  # accept all as a value, additional to those in allowed_values -> denoting all allowed values
+  # PARSE_OPTION_MULTIPLE_VALUES output_variable args
+  local -n _values=$1
+  # shellcheck disable=SC2178
+  local -n _args=$2
+  [[ $# -gt 2 ]] && local -n _allowed_values=$3
+  [[ $# -gt 3 ]] && all=$4; # accept "all" as an additional value
 
-  # Check if allowed values and "all" option are provided
-  [[ $# -gt 1 ]] && _allowed_values="$2";
-  [[ $# -gt 2 ]] && all="$3" && _allowed_values+=("$all");
-  [[ -v _allowed_values ]] && allowed_regex=$(allowed_to_regex "${_allowed_values[@]}")
+  if [[ -v "${_allowed_values[*]}" ]]; then
+    list_allowed=("${_allowed_values[@]}")
+    [[ -n "$all" ]] && list_allowed+=("$all");
+    allowed_regex=$(allowed_to_regex "${list_allowed[@]}")
+  fi
 
   local option="${_args[0]}"
   _args=("${_args[@]:1}")
 
-  local values=()
+  _values=()
   while [[ ${#_args[@]} -gt 0 && "${_args[0]}" != --* ]]; do
     local value="${_args[0]}"
 
     # Check if the value is in the list of allowed values
     if [[ -v allowed_regex && ! " ${value} " =~ ${allowed_regex} ]]; then
-      SHOW_ERROR "Invalid value '$value' for ${option} option. \nAllowed values are: [${_allowed_values[*]}]."
-      exit 1
+      SHOW_ERROR "Invalid value '$value' for ${option} option." "Allowed values are: ${allowed_regex//|/, }."
+      return 1
     fi
 
-    values+=("$value")
-    _args=("${_args[@]:1}")  # Shift 2 elements from _args
+    _values+=("$value")
+    _args=("${_args[@]:1}")  # shift
   done
 
-  [[ ${#values[@]} == 0 ]] && SHOW_ERROR "${option} option requires at least one value." && exit 1;
+  [[ ${#_values[@]} == 0 ]] && SHOW_ERROR "${option} option requires at least one value." && return 1
 
-  # If "all" option is set, replace values with all allowed values
-  #  if [[ -v all || " ${values[*]} " != *" $all "* ]]; then
-  #    values=("${_allowed_values[@]}")
-  #  fi
+#  if [[ -v all || " ${_values[*]} " != *" $all "* ]]; then
+#    _values=("${_allowed_values[@]}")
+#  fi
 
-  printf "%s\n" "${values[@]}"
+  return 0
 }
 
 
