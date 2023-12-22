@@ -563,8 +563,7 @@ if [[ " ${tasks[*]} " =~ " proc " ]]; then
   echo "" > "${logfile}"
 
   for struct in "${structures[@]}"; do
-
-    cmd="${script_dir}/run_proc.sh --struct ${struct} --feat ${features[*]} --tmp $tmp_dir --logfile $logfile"
+    cmd="${script_dir}/run_proc.sh --struct ${struct} --feat ${features[*]} --tmp $tmp_dir"
 
     if [[ $struct == "hippocampus" ]]; then
       list_resolutions=()

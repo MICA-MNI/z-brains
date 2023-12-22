@@ -37,9 +37,6 @@ while (( "${#args[@]}" )); do
     --resolution)
       PARSE_OPTION_MULTIPLE_VALUES resolutions args LIST_RESOLUTIONS || exit $?
       ;;
-    --logfile)
-      PARSE_OPTION_SINGLE_VALUE logfile args || exit $?
-      ;;
     --labels)
       PARSE_OPTION_MULTIPLE_VALUES labels args || exit $?
       ;;
@@ -282,7 +279,4 @@ done
 #------------------------------------------------------------------------------#
 # Wrap up
 elapsed=$(printf "%.2f" "$(bc <<< "scale=2; $SECONDS/60")")
-
-title1="${map_struct[${structure}]} feature mapping for ${BIDS_ID} ended in \033[38;5;220m${elapsed} minutes"
-[[ -n "${logfile}" ]] && title2="Check logs: \033[0;32m${logfile}"
-SHOW_TITLE "${title1}" "$title2"
+SHOW_TITLE "${map_struct[${structure}]} feature mapping for ${BIDS_ID} ended in \033[38;5;220m${elapsed} minutes"
