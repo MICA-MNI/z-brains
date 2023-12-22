@@ -2,6 +2,7 @@ import itertools
 import os
 import sys
 import logging
+from pathlib import Path
 from functools import reduce
 from collections import defaultdict
 
@@ -9,8 +10,8 @@ import numpy as np
 import pandas as pd
 import nibabel as nib
 
-from functions.deconfounding import CombatModel, RegressOutModel
-from functions.constants import Structure, Resolution, Feature, struct_to_folder, \
+from deconfounding import CombatModel, RegressOutModel
+from constants import Structure, Resolution, Feature, struct_to_folder, \
     map_feature_to_file, HIGH_RESOLUTION_CTX, LOW_RESOLUTION_CTX, HIGH_RESOLUTION_HIP, \
     LOW_RESOLUTION_HIP, FOLDER_MAPS
 
@@ -194,14 +195,14 @@ def _map_resolution(struct: Structure, resolution: Resolution):
 
 def _get_ipath_from_template(struct, **kwargs):
     if struct == 'subcortex':
-        ipth = '{root_path}/{bids_id}_feat-{feat}.csv'
+        ipth = '{root_path}/{bids_id}_feature-{feat}.csv'
 
     elif struct == 'cortex':
-        ipth = ('{root_path}/{bids_id}_hemi-{hemi}_surf-fsLR-{res}_label-{label}_feat-{feat}'
+        ipth = ('{root_path}/{bids_id}_hemi-{hemi}_surf-fsLR-{res}_label-{label}_feature-{feat}'
                 '_smooth-{smooth}mm.func.gii')
 
     else:
-        ipth = ('{root_path}/{bids_id}_hemi-{hemi}_den-{res}_label-{label}_feat-{feat}'
+        ipth = ('{root_path}/{bids_id}_hemi-{hemi}_den-{res}_label-{label}_feature-{feat}'
                 '_smooth-{smooth}mm.func.gii')
 
     if 'res' in kwargs:
@@ -456,7 +457,7 @@ def _save(pth_analysis: str, *, x: np.ndarray | pd.DataFrame, sid: str, struct: 
             break
 
 
-def load_demo(path: str | list[str], *, rename: dict[str, str] | None = None,
+def load_demo(path: Path | list[Path], *, rename: dict[str, str] | None = None,
               dtypes: dict | None = None):
 
     if not (is_list := isinstance(path, list)):
@@ -464,7 +465,7 @@ def load_demo(path: str | list[str], *, rename: dict[str, str] | None = None,
 
     list_df = []
     for p in path:
-        sep = '\t' if p.endswith('.tsv') else ','
+        sep = '\t' if p.suffix == '.tsv' else ','
         df = pd.read_csv(p, header=[0], dtype=dtypes, sep=sep)
         if rename is not None:
             df.rename(columns=rename, inplace=True)
