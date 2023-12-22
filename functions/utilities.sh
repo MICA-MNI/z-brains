@@ -176,7 +176,7 @@ PARSE_OPTION_SINGLE_VALUE() {
   # PARSE_OPTION_SINGLE_VALUE output_variable args allowed_values
   # or
   # PARSE_OPTION_SINGLE_VALUE output_variable args
-  local -n _value=$1
+  local -n _out=$1
   local -n _args=$2
 
   if [[ $# -gt 2 ]]; then
@@ -185,20 +185,21 @@ PARSE_OPTION_SINGLE_VALUE() {
   fi
 
   local option="${_args[0]}"
-  local _value="${_args[1]}"
+  local value="${_args[1]}"
 
   # Check if the option has a value and if the value is not another option
-  if [[ -z "${_value}" || "${_value}" == --* ]]; then
+  if [[ -z "${value}" || "${value}" == --* ]]; then
       SHOW_ERROR "${option} option requires a value."
       return 1
   fi
 
   # Check if value is in the list of allowed values
   if [[ -v allowed_regex && ! " ${value} " =~ ${allowed_regex} ]]; then
-      SHOW_ERROR "Invalid value '${_value}' for ${option} option." "Allowed values are: ${allowed_regex//|/, }."
+      SHOW_ERROR "Invalid value '${value}' for ${option} option." "Allowed values are: ${allowed_regex//|/, }."
       return 1
   fi
 
+  _out="${value}"
   _args=("${_args[@]:2}")  # shift
   return 0
 }
@@ -210,11 +211,11 @@ PARSE_OPTION_MULTIPLE_VALUES() {
   # PARSE_OPTION_MULTIPLE_VALUES output_variable args allowed_values
   # or
   # PARSE_OPTION_MULTIPLE_VALUES output_variable args
-  local -n _values=$1
+  local -n _out=$1
   # shellcheck disable=SC2178
   local -n _args=$2
   [[ $# -gt 2 ]] && local -n _allowed_values=$3
-  [[ $# -gt 3 ]] && all=$4; # accept "all" as an additional value
+  [[ $# -gt 3 ]] && all=$4;  # accept "all" as an additional value
 
   if [[ -v "${_allowed_values[*]}" ]]; then
     list_allowed=("${_allowed_values[@]}")
@@ -225,7 +226,7 @@ PARSE_OPTION_MULTIPLE_VALUES() {
   local option="${_args[0]}"
   _args=("${_args[@]:1}")
 
-  _values=()
+  local _values=()
   while [[ ${#_args[@]} -gt 0 && "${_args[0]}" != --* ]]; do
     local value="${_args[0]}"
 
@@ -245,6 +246,7 @@ PARSE_OPTION_MULTIPLE_VALUES() {
 #    _values=("${_allowed_values[@]}")
 #  fi
 
+  _out=("${_values[@]}")
   return 0
 }
 
