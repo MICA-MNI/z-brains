@@ -4,8 +4,8 @@ import argparse
 from pathlib import Path
 
 
-from utils_analysis_multisite import get_id, get_session, run_analysis
-from functions.constants import LIST_FEATURES, LIST_STRUCTURES, LIST_ANALYSES, \
+from utils_analysis import get_id, get_session, run_analysis
+from constants import LIST_FEATURES, LIST_STRUCTURES, LIST_ANALYSES, \
     LIST_RESOLUTIONS, DEFAULT_SMOOTH_CTX, DEFAULT_SMOOTH_HIP, \
     DEFAULT_THRESHOLD, FOLDER_NORM_Z, FOLDER_NORM_MODEL
 
@@ -70,11 +70,11 @@ cli.add_argument(
          'preserving the effects of group and removing those of age and sex.'
 )
 cli.add_argument(
-    '--smooth_ctx', type=float, default=DEFAULT_SMOOTH_CTX,
+    '--smooth_ctx', type=str, default=DEFAULT_SMOOTH_CTX,
     help='Size of gaussian smoothing kernel for cortex, in millimeters.'
 )
 cli.add_argument(
-    '--smooth_hip', type=float, default=DEFAULT_SMOOTH_HIP,
+    '--smooth_hip', type=str, default=DEFAULT_SMOOTH_HIP,
     help='Size of gaussian smoothing kernel for hippocampus, in millimeters.'
 )
 cli.add_argument(
@@ -169,7 +169,7 @@ sys.excepthook = handle_unhandled_exception
 ################################################################################
 # Analysis
 ################################################################################
-px_id = get_id(args.sucject_id, add_prefix=True)
+px_id = get_id(args.subject_id, add_prefix=True)
 px_ses = get_session(args.session, add_predix=True)
 threshold = abs(args.threshold)
 
@@ -189,25 +189,30 @@ if len(unknown_cols) > 0:
 expected_to_actual.update(args.column_map)
 
 actual_to_expected = {v: k for k, v in expected_to_actual.items()}
-cov_normative = [actual_to_expected.get(col, col) for col in args.normative]
-cov_deconfound = []
-for col in args.deconfound:
-    prefix = ''
-    if col.startswith('-'):
-        prefix = '-'
-        col = col[1:]
-    cov_deconfound.append(prefix + actual_to_expected.get(col, col))
 
-if len(args.zbrains_ref) != len(args.ref_demos):
+cov_normative = args.normative
+if cov_normative is not None:
+    cov_normative = [actual_to_expected.get(col, col) for col in cov_normative]
+
+cov_deconfound = args.deconfound
+if cov_deconfound is not None:
+    for i, col in enumerate(cov_deconfound):
+        prefix = ''
+        if col.startswith('-'):
+            prefix = '-'
+            col = col[1:]
+        cov_deconfound[i] = prefix + actual_to_expected.get(col, col)
+
+if len(args.zbrains_ref) != len(args.demo_ref):
     raise ValueError('The number of values provided with --zbrains_ref '
                      'and --demo_ref must be the same.')
 
 
 def main():
-    for asymmetry in [True, False]:
+    for asymmetry in [False, True]:
         run_analysis(
             px_sid=px_id, px_ses=px_ses, dir_cn=args.zbrains_ref,
-            demo_cn=args.ref_demos, dir_px=args.zbrains, demo_px=args.demo,
+            demo_cn=args.demo_ref, dir_px=args.zbrains, demo_px=args.demo,
             structures=args.struct, features=args.feat,
             cov_normative=cov_normative, cov_deconfound=cov_deconfound,
             smooth_ctx=args.smooth_ctx, smooth_hip=args.smooth_hip,
