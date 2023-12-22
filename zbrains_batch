@@ -186,12 +186,10 @@ while (( "${#args[@]}" )); do
   #-----------------------------------------------------------------------------
 
   --scheduler)
-    scheduler=$(PARSE_OPTION_SINGLE_VALUE args LIST_SCHEDULERS)
-    shift 2
+    PARSE_OPTION_SINGLE_VALUE scheduler args LIST_SCHEDULERS || exit $?
     ;;
   --scheduler_options)
-    scheduler_options=$(PARSE_OPTION_SINGLE_VALUE args)
-    shift 2
+    PARSE_OPTION_SINGLE_VALUE scheduler_options args || exit $?
     ;;
   --verbose)
     PARSE_OPTION_SINGLE_VALUE VERBOSE args || exit $?
@@ -356,6 +354,44 @@ cleanup() {
 trap cleanup SIGINT SIGTERM
 
 
+
+submit_job_with_timer() {
+    local name="$1"
+    local scheduler="$2"
+    local scheduler_options="$3"
+    local log_file="$4"
+    local cmd="$5"
+
+#    echo -e "Starting ${run} for \033[38;5;220m${sid}${ses:+_${ses}}${NO_COLOR}"
+    SHOW_INFO "Starting ${run} for \033[38;5;220m${sid}${ses:+_${ses}}${NO_COLOR}"
+
+    # Record the start time
+    local start_time
+    start_time=$(date +%s.%N)
+
+    # Submit the job to the scheduler
+    SUBMIT_JOB "${scheduler}" "${scheduler_options}" DO_CMD "$cmd" | sed 's/\x1b\[[0-9;]*m//g' > "${log_file}" &
+
+    # Capture the PID of the submitted job
+    local pid=$!
+
+    # Wait for the job to finish
+    wait "$pid"
+
+    # Record the end time
+    local end_time
+    end_time=$(date +%s.%N)
+
+    # Calculate elapsed time
+    local elapsed_time
+    elapsed_time=$(printf "%.2f" "$(bc <<< "scale=2; $end_time - $start_time")")
+
+    # Print the elapsed time
+    SHOW_INFO "Job ${run} for \033[38;5;220m${sid}${ses:+_${ses}}${COLOR_INFO} finished in ${elapsed_time} seconds" "Check logs: \033[0;32m${log_file}${NO_COLOR}"
+#    echo -e "Job ${run} for \033[38;5;220m${sid}${ses:+_${ses}}${NO_COLOR} finished in ${elapsed_time} seconds"
+#    echo -e "Check logs: \033[0;32m${log_file}${NO_COLOR}\n"
+}
+
 # ---------------------------------- Post-processing/analysis of controls/patients ---------------------------------- #
 if [[ "$run" == "proc" ]]; then
   SHOW_INFO "Running post-processing";
@@ -375,14 +411,9 @@ for iter in "${!demo_paths[@]}"; do
   # Iterate over subjects - post-processing only
   delimiter=$([[ $csv == *.tsv ]] && echo -e '\t' || echo ',')
   while IFS=$delimiter read -ra row && [ ${#row[@]} -ne 0 ]; do
-#    sid=${row[${idx_sid}]/sub-/}
     sid=${row[${idx_sid}]}
     ses="${row[${idx_ses}]}"
     [[ "$ses" = "n/a" ]] && ses=""
-
-#    # If no SES column or no session provided for this specific subject -> use SINGLE
-#    if [[ -z "$idx_ses" || -z "${row[$idx_ses]}" ]]; then ses='SINGLE'; else ses="${row[$idx_ses]}"; fi
-#    ses=${ses/ses-/}
 
     dataset_path=${dataset_paths[$iter]}
     zbrains_dir=${zbrains_dirs[$iter]}
@@ -402,23 +433,27 @@ for iter in "${!demo_paths[@]}"; do
     # logging
     out_dir=${dataset_path}/derivatives/${zbrains_dir}
     logs_dir="${out_dir}/${sid}${ses:+/${ses}}/${FOLDER_LOGS}"
+    mkdir -p "${logs_dir}"
+
     name="${sid}${ses:+_${ses}}_run-${run}"
     log_file="${logs_dir}/${name}_$(date +'%d-%m-%Y')_${scheduler,,}.txt"
 
     # submit job
     if [[ "$scheduler" == "LOCAL" && "$n_jobs" -gt 1 ]]; then
-      SUBMIT_JOB "${scheduler}" "${scheduler_options}" "$cmd" > "${log_file}" &
+      submit_job_with_timer "$name" "${scheduler}" "${scheduler_options}" "${log_file}" "$cmd" &
+#      SUBMIT_JOB "${scheduler}" "${scheduler_options}" DO_CMD "$cmd" | sed 's/\x1b\[[0-9;]*m//g' > "${log_file}" &
 #      SUBMIT_JOB "${scheduler}" "${scheduler_options}" "$cmd" &
       while [[ $(jobs -r -p | wc -l) -ge $n_jobs ]]; do wait -n; done
     else
-      opts="-N ${name} -cwd -S/bin/bash -v ANTSPATH,WORKBENCH_PATH -j oe -o ${log_file}"
-      scheduler_options="${scheduler_options} ${opts}"
+      if [[ "$scheduler" == "PBS" || "$scheduler" == "SGE" ]]; then
+        opts="-N ${name} -cwd -S/bin/bash -v ANTSPATH,WORKBENCH_PATH -j oe -o ${log_file}"
+        scheduler_options_ext="${scheduler_options} ${opts}"
+        SUBMIT_JOB "${scheduler}" "${scheduler_options_ext}" "$cmd"
+      else
 
-      SUBMIT_JOB "${scheduler}" "${scheduler_options}" "$cmd"
+        SUBMIT_JOB "${scheduler}" "${scheduler_options}" "$cmd"
+      fi
     fi
-
-    echo -e "Starting ${run} for \033[38;5;220m${sid}${ses:+_${ses}}"
-    echo -e "Check logs: \033[0;32m${log_file}"
 
   done < <(tail -n +2 "$csv")
 
