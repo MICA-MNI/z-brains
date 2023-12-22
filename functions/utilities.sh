@@ -5,14 +5,14 @@ function DO_CMD() {
   # do_cmd sends command to stdout before executing it.
   cmd=$*
 
-  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 2 || ${VERBOSE} -lt 0 ]]; then
-    str="$(whoami) @ $(uname -n) $(date)"
-    echo -e "\033[38;5;118m${str}:\nCOMMAND -->  \033[38;5;122m${cmd}\n\033[0m";
-  fi
+#  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 2 || ${VERBOSE} -lt 0 ]]; then
+#    str="$(whoami) @ $(uname -n) $(date)"
+#    echo -e "\033[38;5;118m${str}:\nCOMMAND -->  \033[38;5;122m${cmd}\n\033[0m";
+#  fi
 
-#  str="$(whoami) @ $(uname -n) $(date)"
-#  str_cmd="\033[38;5;118m${str}:\nCOMMAND -->  \033[38;5;122m${cmd}\n\033[0m"
-#  log_message 2 "$str_cmd"
+  str="$(whoami) @ $(uname -n) $(date)"
+  str_cmd="\033[38;5;118m${str}:\nCOMMAND -->  \033[38;5;122m${cmd}\n\033[0m"
+  log_message 3 "$str_cmd"
 
   $cmd
 }
@@ -71,50 +71,50 @@ COLOR_TITLE="\033[38;5;141m"
 
 NO_COLOR="\033[0m" # No color
 
-SHOW_ERROR() {
-#echo -e "${COLOR_ERROR}\n-------------------------------------------------------------\n\n[ ERROR ]..... $1\n
-#-------------------------------------------------------------${NO_COLOR}\n"
-  echo ""
-  echo -e "${COLOR_ERROR}[ ERROR ]     $1${NO_COLOR}"
-  for s in "${@:2}"; do echo -e "${COLOR_ERROR}              $s${NO_COLOR}"; done
-  echo ""
-}
-
-SHOW_WARNING() {
-  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 0 || ${VERBOSE} -lt 0 ]]; then
-    echo ""
-    echo -e "${COLOR_WARNING}[ WARNING ]   $1${NO_COLOR}"
-    for s in "${@:2}"; do echo -e "${COLOR_WARNING}              $s${NO_COLOR}"; done
-  fi
-}
-
-SHOW_NOTE() {
-  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then
-    echo -e "              $1\t${COLOR_NOTE}$2 ${NO_COLOR}";
-  fi
-}
-
-SHOW_INFO() {
-  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then
-    echo ""
-    echo -e "${COLOR_INFO}[ INFO ]      $1${NO_COLOR}"
-    for s in "${@:2}"; do echo -e "${COLOR_INFO}              $s${NO_COLOR}"; done
-  fi
-}
-
-SHOW_TITLE() {
-  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then
-    echo -e "\n${COLOR_TITLE}-------------------------------------------------------------${NO_COLOR}"
-    echo -e "${COLOR_TITLE}$1${NO_COLOR}"
-    for s in "${@:2}"; do echo -e "${COLOR_TITLE}$s${NO_COLOR}"; done
-    echo -e "${COLOR_TITLE}-------------------------------------------------------------${NO_COLOR}"
-    echo ""
-  fi
-}
+#SHOW_ERROR() {
+##echo -e "${COLOR_ERROR}\n-------------------------------------------------------------\n\n[ ERROR ]..... $1\n
+##-------------------------------------------------------------${NO_COLOR}\n"
+#  echo ""
+#  echo -e "${COLOR_ERROR}[ ERROR ]     $1${NO_COLOR}"
+#  for s in "${@:2}"; do echo -e "${COLOR_ERROR}              $s${NO_COLOR}"; done
+#  echo ""
+#}
+#
+#SHOW_WARNING() {
+#  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 0 || ${VERBOSE} -lt 0 ]]; then
+#    echo ""
+#    echo -e "${COLOR_WARNING}[ WARNING ]   $1${NO_COLOR}"
+#    for s in "${@:2}"; do echo -e "${COLOR_WARNING}              $s${NO_COLOR}"; done
+#  fi
+#}
+#
+#SHOW_NOTE() {
+#  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then
+#    echo -e "              $1\t${COLOR_NOTE}$2 ${NO_COLOR}";
+#  fi
+#}
+#
+#SHOW_INFO() {
+#  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then
+#    echo ""
+#    echo -e "${COLOR_INFO}[ INFO ]      $1${NO_COLOR}"
+#    for s in "${@:2}"; do echo -e "${COLOR_INFO}              $s${NO_COLOR}"; done
+#  fi
+#}
+#
+#SHOW_TITLE() {
+#  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then
+#    echo -e "\n${COLOR_TITLE}-------------------------------------------------------------${NO_COLOR}"
+#    echo -e "${COLOR_TITLE}$1${NO_COLOR}"
+#    for s in "${@:2}"; do echo -e "${COLOR_TITLE}$s${NO_COLOR}"; done
+#    echo -e "${COLOR_TITLE}-------------------------------------------------------------${NO_COLOR}"
+#    echo ""
+#  fi
+#}
 
 log_message() {
     local level=$1
-    local messages="${*:1}"
+    local messages="${*:2}"
 
 #    echo -e "${messages[*]}" >> "${LOGFILE}"
     if [[ -n $LOGFILE ]]; then
@@ -122,47 +122,47 @@ log_message() {
     fi
 
     if [[ -z $VERBOSE || $VERBOSE -ge $level || $VERBOSE -lt 0 ]]; then
-        echo -e "${messages[*]}"
+      echo -e "${messages[*]}"
     fi
 }
 
-#SHOW_ERROR() {
-#  str="\n${COLOR_ERROR}[ ERROR ]     $1${NO_COLOR}\n"
-#  for s in "${@:2}"; do str+="${COLOR_ERROR}              $s${NO_COLOR}\n"; done
-#  str+="\n"
-#
-#  log_message 0 "$str"
-#}
-#
-#SHOW_WARNING() {
-#  str="\n${COLOR_WARNING}[ WARNING ]   $1${NO_COLOR}"
-#  for s in "${@:2}"; do str+="${COLOR_WARNING}              $s${NO_COLOR}\n"; done
-#
-#  log_message 1 "$str"
-#}
-#
-#SHOW_NOTE() {
-#  str="              $1\t${COLOR_NOTE}$2 ${NO_COLOR}"
-#
-#  log_message 2 "$str"
-#}
-#
-#SHOWN_INFO() {
-#  str="\n${COLOR_INFO}[ INFO ]      $1${NO_COLOR}"
-#  for s in "${@:2}"; do str+="${COLOR_INFO}              $s${NO_COLOR}"; done
-#
-#  log_message 2 "$str"
-#}
-#
-#SHOW_TITLE() {
-#  str="\n${COLOR_TITLE}-------------------------------------------------------------${NO_COLOR}\n"
-#  str+="${COLOR_TITLE}$1${NO_COLOR}\n"
-#  for s in "${@:2}"; do str+="${COLOR_TITLE}$s${NO_COLOR}\n"; done
-#  str+="${COLOR_TITLE}-------------------------------------------------------------${NO_COLOR}\n"
-#  str+="\n"
-#
-#  log_message 2 "$str"
-#}
+SHOW_ERROR() {
+  str="\n${COLOR_ERROR}[ ERROR ]     $1${NO_COLOR}\n"
+  for s in "${@:2}"; do str+="${COLOR_ERROR}              $s${NO_COLOR}\n"; done
+  str+="\n"
+
+  log_message 0 "$str"
+}
+
+SHOW_WARNING() {
+  str="\n${COLOR_WARNING}[ WARNING ]   $1${NO_COLOR}\n"
+  for s in "${@:2}"; do str+="${COLOR_WARNING}              $s${NO_COLOR}\n"; done
+
+  log_message 1 "$str"
+}
+
+SHOW_NOTE() {
+  str="              $1\t${COLOR_NOTE}$2 ${NO_COLOR}\n"
+
+  log_message 2 "$str"
+}
+
+SHOW_INFO() {
+  str="\n${COLOR_INFO}[ INFO ]      $1${NO_COLOR}\n"
+  for s in "${@:2}"; do str+="${COLOR_INFO}              $s${NO_COLOR}\n"; done
+
+  log_message 2 "$str"
+}
+
+SHOW_TITLE() {
+  str="\n${COLOR_TITLE}-------------------------------------------------------------${NO_COLOR}\n"
+  str+="${COLOR_TITLE}$1${NO_COLOR}\n"
+  for s in "${@:2}"; do str+="${COLOR_TITLE}$s${NO_COLOR}\n"; done
+  str+="${COLOR_TITLE}-------------------------------------------------------------${NO_COLOR}\n"
+  str+="\n"
+
+  log_message 2 "$str"
+}
 
 
 function allowed_to_regex() {
@@ -179,6 +179,7 @@ PARSE_OPTION_SINGLE_VALUE() {
   local -n _out=$1
   local -n _args=$2
 
+  local allowed_regex
   if [[ $# -gt 2 ]]; then
     local -n _allowed_values=$3
     allowed_regex=$(allowed_to_regex "${_allowed_values[@]}")
@@ -217,8 +218,9 @@ PARSE_OPTION_MULTIPLE_VALUES() {
   [[ $# -gt 2 ]] && local -n _allowed_values=$3
   [[ $# -gt 3 ]] && all=$4;  # accept "all" as an additional value
 
+  local allowed_regex
   if [[ -v "${_allowed_values[*]}" ]]; then
-    list_allowed=("${_allowed_values[@]}")
+    local list_allowed=("${_allowed_values[@]}")
     [[ -n "$all" ]] && list_allowed+=("$all");
     allowed_regex=$(allowed_to_regex "${list_allowed[@]}")
   fi

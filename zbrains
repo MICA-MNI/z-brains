@@ -562,6 +562,7 @@ if [[ " ${tasks[*]} " =~ " proc " ]]; then
   logfile=${logs_dir}/proc_$(date +'%d-%m-%Y').txt
   echo "" > "${logfile}"
 
+  export LOGFILE=${logfile}
   for struct in "${structures[@]}"; do
     cmd="${script_dir}/run_proc.sh --struct ${struct} --feat ${features[*]} --tmp $tmp_dir"
 
@@ -575,9 +576,11 @@ if [[ " ${tasks[*]} " =~ " proc " ]]; then
       cmd+=" --fwhm ${smooth_ctx} --resolution ${list_resolutions[*]} --labels ${labels_ctx[*]}"
     fi
 
-    DO_CMD "$cmd" 2>&1 | tee >(sed 's/\x1b\[[0-9;]*m//g' >> "$logfile")
-  done
+#    DO_CMD "$cmd" 2>&1 | tee >(sed 's/\x1b\[[0-9;]*m//g' >> "$logfile")
+    DO_CMD "$cmd"
 
+  done
+  unset LOGFILE
 fi
 
 
@@ -590,14 +593,14 @@ if [[ " ${tasks[*]} " =~ " analysis "  ]]; then
     ref_zbrains_paths+=("${ref_dataset_paths[$idx]}/derivatives/${ref_zbrains_dirs[$idx]}")
   done
 
-  cmd="python ${script_dir}/run_analysis.py --subject_id ${sid} --session ${ses} --dir_cn ${ref_zbrains_paths[*]} \
-                                            --demo_cn ${ref_demos[*]} --dir_px ${px_zbrains_path} \
+  cmd="python ${script_dir}/run_analysis.py --subject_id ${sid} --session ${ses} --zbrains_ref ${ref_zbrains_paths[*]} \
+                                            --demo_ref ${ref_demos[*]} --zbrains ${px_zbrains_path} \
                                             --struct ${structures[*]} --feat ${features[*]} --smooth_ctx ${smooth_ctx} \
-                                            --smooth_hip ${smooth_hip} --threshold ${threshold} --analysis norm-z \
+                                            --smooth_hip ${smooth_hip} --threshold ${threshold} --analysis zscore \
                                             --resolution ${resolutions[*]} --labels_ctx ${labels_ctx[*]} \
                                             --labels_hip ${labels_hip[*]} --logfile ${logfile}"
 
-  [[ -v demo ]] && cmd+=" --demo_px ${demo}"
+  [[ -v demo ]] && cmd+=" --demo ${demo}"
   [[ -v normative ]] && cmd+=" --normative ${normative[*]}"
   [[ -v deconfound ]] && cmd+=" --deconfound ${deconfound[*]}"
   [[ -v column_map ]] && cmd+=" --column_map ${column_map[*]}"
@@ -608,7 +611,4 @@ fi
 
 # ------------------------------------------------ Total running time ----------------------------------------------- #
 elapsed=$(printf "%.2f" "$(bc <<< "scale=2; $SECONDS/60")")
-SHOW_TITLE "Total elapsed time for ${BIDS_ID}: \033[38;5;220m${elapsed} minutes"
-
-SHOW_TITLE "GLOBAL zbrains elapsed time: \033[38;5;220m\
-$(printf "%.2f" "$(bc <<< "scale=2; $SECONDS/60")") minutes${COLOR_TITLE}"
+SHOW_TITLE "Total elapsed time for ${BIDS_ID}: \033[38;5;220m${elapsed} minutes${NO_COLOR}"

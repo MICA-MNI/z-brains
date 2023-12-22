@@ -279,4 +279,4 @@ done
 #------------------------------------------------------------------------------#
 # Wrap up
 elapsed=$(printf "%.2f" "$(bc <<< "scale=2; $SECONDS/60")")
-SHOW_TITLE "${map_struct[${structure}]} feature mapping for ${BIDS_ID} ended in \033[38;5;220m${elapsed} minutes"
+SHOW_TITLE "${map_struct[${structure}]} feature mapping for ${BIDS_ID} ended in \033[38;5;220m${elapsed} minutes${NO_COLOR}"
