@@ -1,7 +1,8 @@
-import itertools
 import os
+import re
 import sys
 import logging
+import itertools
 from pathlib import Path
 from functools import reduce
 from collections import defaultdict
@@ -32,11 +33,11 @@ def get_id(sid, add_prefix=True):
 
 
 def get_session(session, add_predix=True):
-    if pd.isnull(session) or session == 'n/a':
-        session = ''
+    if pd.isnull(session) or session == 'n/a' or session == '':
+        return None
     if session.startswith('ses-'):
         session = session[4:]
-    if add_predix and session != '':
+    if add_predix:
         session = f'ses-{session}'
     return session
 
@@ -44,7 +45,7 @@ def get_session(session, add_predix=True):
 def _get_bids_id(sid, ses):
     sid = get_id(sid, add_prefix=True)
     ses = get_session(ses, add_predix=True)
-    if ses == '':
+    if ses is None:
         return sid
     return f'{sid}_{ses}'
 
@@ -52,7 +53,7 @@ def _get_bids_id(sid, ses):
 def _get_subject_dir(root_pth, sid, ses):
     sid = get_id(sid, add_prefix=True)
     ses = get_session(ses, add_predix=True)
-    return f'{root_pth}/{sid}' if ses == '' else f'{root_pth}/{sid}/{ses}'
+    return f'{root_pth}/{sid}' if ses is None else f'{root_pth}/{sid}/{ses}'
 
 
 # Mahalanobis -------------------------------------------------------------------------------------
@@ -131,7 +132,7 @@ def zscore(x_train: np.ndarray, x_test: np.ndarray) -> np.ndarray:
 
     z = x_test - np.nanmean(x_train, axis=0)
     z = np.divide(z, np.nanstd(x_train, axis=0), out=z, where=mask)
-    z[~mask] = 0
+    z[..., ~mask] = 0
 
     return z
 
@@ -267,7 +268,7 @@ def _load_one(pth_zbrains: str, *, sid: str, ses: str, struct: Structure, feat: 
     bids_id = _get_bids_id(sid, ses)
     subject_dir = _get_subject_dir(pth_zbrains, sid, ses)
     if not os.path.isdir(subject_dir):
-        logger.warning(f"Subject '{bids_id}' zbrains directory does not exist")
+        logger.debug(f"Subject '{bids_id}' zbrains directory does not exist")
 
     folder = f'{subject_dir}/{FOLDER_MAPS}/{struct_to_folder[struct]}'
 
@@ -278,17 +279,12 @@ def _load_one(pth_zbrains: str, *, sid: str, ses: str, struct: Structure, feat: 
         ipth = _get_ipath_from_template(struct, root_path=folder, bids_id=bids_id, feat=feat)
 
         try:
-            # return pd.read_csv(ipth, header=[0], index_col=0)
-            # return pd.read_csv(ipth, header=[0]).iloc[:, 1:]  # ignore index
-            x = pd.read_csv(ipth, header=[0]).iloc[:, 1:]
-        except FileNotFoundError as e:
+            x = pd.read_csv(ipth, header=[0], index_col=0)
+        except FileNotFoundError:
             if raise_error:
-                logger.error(e, stack_info=True, exc_info=True)
-
-                sys.excepthook = sys.__excepthook__  # skip unhandled exception
                 raise
 
-            logger.warning(f'File not found: "{ipth}"')
+            logger.debug(f'File not found: "{ipth}"')
             return None
 
         if asymmetry:
@@ -304,19 +300,16 @@ def _load_one(pth_zbrains: str, *, sid: str, ses: str, struct: Structure, feat: 
                                         res=resolution, label=label, feat=feat, smooth=smooth)
         try:
             x.append(nib.load(ipth).darrays[0].data)
-        except FileNotFoundError as e:
+        except FileNotFoundError:
             if raise_error:
-                logger.error(e, stack_info=True, exc_info=True)
-
-                sys.excepthook = sys.__excepthook__  # skip unhandled exception
                 raise
 
-            logger.warning(f'File not found: "{ipth}"')
+            logger.debug(f'File not found: "{ipth}"')
             return None
 
-        if asymmetry:
-            return compute_asymmetry(x[0], x[1])
-        return np.concatenate(x)
+    if asymmetry:
+        return compute_asymmetry(x[0], x[1])
+    return np.concatenate(x)
 
 
 def _load_data(
@@ -324,7 +317,7 @@ def _load_data(
         df_subjects: pd.DataFrame | list[pd.DataFrame], struct: Structure,
         feat: Feature, resolution: Resolution | None = None,
         label: str | None = None, smooth: float | None = None, asymmetry=False) \
-        -> tuple[pd.DataFrame | np.ndarray, pd.DataFrame]:
+        -> tuple[pd.DataFrame | None | np.ndarray, pd.DataFrame | None]:
     """ Load data form all subjects in 'df_subjects'.
 
     Parameters
@@ -364,10 +357,14 @@ def _load_data(
                 asymmetry=asymmetry
             )
 
-            list_data.append(x)
+            if x is not None:
+                list_data.append(x)
 
-            df[COLUMN_DATASET] = f'Dataset{i:>03}'
-            list_dfs.append(df)
+                df[COLUMN_DATASET] = f'Dataset{i:>03}'
+                list_dfs.append(df)
+
+        if len(list_data) == 0:
+            return None, None
 
         common_cols = reduce(np.intersect1d, [df.columns for df in list_dfs])
         list_dfs = [df[common_cols] for df in list_dfs]
@@ -381,7 +378,7 @@ def _load_data(
     data = []
     for i, row in df_subjects.iterrows():
         sid = row.get('participant_id')
-        ses = row.get('session_id', '')
+        ses = row.get('session_id', None)
 
         x = _load_one(pth_zbrains, sid=sid, ses=ses, struct=struct, feat=feat,
                       resolution=resolution, label=label, smooth=smooth,
@@ -390,13 +387,17 @@ def _load_data(
             data.append(x)
             missing_subjects[i] = False
 
+    if missing_subjects.all():
+        return None, None
+
+    df_subjects = df_subjects[~missing_subjects].copy()
     if struct == 'subcortex':
-        return pd.concat(data, axis=0, ignore_index=True), df_subjects[~missing_subjects]
-    return np.stack(data, axis=0), df_subjects[~missing_subjects]
+        return pd.concat(data, axis=0, ignore_index=True), df_subjects
+    return np.stack(data, axis=0), df_subjects
 
 
 def _save(pth_analysis: str, *, x: np.ndarray | pd.DataFrame, sid: str, struct: Structure,
-          feat: Feature | list[Feature], ses: str = 'SINGLE', resolution: Resolution | None = None,
+          feat: Feature | list[Feature], ses: str = None, resolution: Resolution | None = None,
           label: str | None = None, smooth: float | None = None, asymmetry=False):
     """ Save results
 
@@ -469,6 +470,25 @@ def load_demo(path: Path | list[Path], *, rename: dict[str, str] | None = None,
         df = pd.read_csv(p, header=[0], dtype=dtypes, sep=sep)
         if rename is not None:
             df.rename(columns=rename, inplace=True)
+
+            if 'participant_id' in df:
+                pids = df['participant_id'].tolist()
+                for v in pids:
+                    if not re.match(r'^sub-.+', v):
+                        msg = (f'Participant ID must have the form \'sub-XXXX\'.'
+                               f'\nCheck demographics file: {p}')
+                        logger.error(msg)
+                        exit(1)
+
+            if 'session_id' in df:
+                pids = df['session_id'].tolist()
+                for v in pids:
+                    if not re.match(r'^ses-.+', v):
+                        msg = (f'Session ID must have the form \'ses-XXXX\'.'
+                               f'\nCheck demographics file: {p}')
+                        logger.error(msg)
+                        exit(1)
+
         list_df.append(df)
 
     if not is_list:
@@ -482,22 +502,18 @@ def _subject_zscore(
         df_px: pd.DataFrame | None, **kwargs):
 
     # Load patient data
-    try:
-        data_px = _load_one(dir_px, sid=px_sid, ses=px_ses, raise_error=True,
-                            **kwargs)
-    except FileNotFoundError:
-        logger.warning(f'\t{feat:<15}: \tNo data available.')
-        raise
+    data_px = _load_one(dir_px, sid=px_sid, ses=px_ses, raise_error=True,
+                        feat=feat, **kwargs)
 
     # For subcortex, we have dataframes
     cols_df = index_df = None
     if is_df := isinstance(data_px, pd.DataFrame):
         index_df, cols_df = data_px.index, data_px.columns
-        data_px = data_px.to_numpy()
+        data_px = data_px.to_numpy().ravel()
 
     # Deconfounding
     if deconfounder:
-        data_px = deconfounder.transform(data_px, df_px)
+        data_px = deconfounder.transform(data_px.reshape(1, -1), df_px)[0]
 
     # Analysis: z-scoring
     z = zscore(data_cn, data_px)
@@ -510,7 +526,7 @@ def _subject_zscore(
 
 def _subject_mahalanobis(*, data: defaultdict[str, list]):
 
-    list_df_cn = data['data_df']
+    list_df_cn = data['df_cn']
     list_data_cn = data['data_cn']
     common_ids = reduce(np.intersect1d, [df.index for df in list_df_cn])
     for i, (df, x) in enumerate(zip(list_df_cn, list_data_cn)):
@@ -530,8 +546,8 @@ def _subject_mahalanobis(*, data: defaultdict[str, list]):
 
 
 def run_analysis(
-        *, px_sid: str, px_ses='SINGLE', dir_cn: list[str],
-        demo_cn: list[str], dir_px: str, demo_px: str | None = None,
+        *, px_sid: str, px_ses: str = None, dir_cn: list[str],
+        demo_cn: list[Path], dir_px: str, demo_px: Path | None = None,
         structures: list[Structure], features: list[Feature],
         cov_normative: list[str] | None = None,
         cov_deconfound: list[str] | None = None, smooth_ctx: float,
@@ -558,6 +574,31 @@ def run_analysis(
     df_px = None
     if demo_px:
         df_px = load_demo(demo_px, rename=actual_to_expected, dtypes=dtypes)
+        mask_px = df_px['participant_id'] == px_sid
+        if px_ses is not None:
+            mask_px &= df_px['session_id'] == px_ses
+        df_px = df_px[mask_px]
+
+        bids_id = _get_bids_id(px_sid, px_ses)
+        if df_px.shape[0] > 1:
+            msg = (f'Provided participant ID{"" if px_ses is None else " and session ID"} for {bids_id} not '
+                   f'unique\nCheck demographics file: {demo_px}')
+            if cov_normative is not None or cov_deconfound is not None:
+                logger.error(msg)
+                exit(1)
+            else:  # For report
+                logger.warning(msg)
+                df_px = None  # Dont use
+
+        if df_px.shape[0] == 0:
+            msg = (f'Provided participant ID{"" if px_ses is None else " and session ID"} for {bids_id} missing '
+                   f'\nCheck demographics file: {demo_px}')
+            if cov_normative is not None or cov_deconfound is not None:
+                logger.error(msg)
+                exit(1)
+            else:  # For report
+                logger.warning(msg)
+                df_px = None  # Dont use
 
     # Load dataframes ----------------------------------------------------------
     iterables = []
@@ -586,6 +627,11 @@ def run_analysis(
             # Load control data
             kwds |= dict(feat=feat)
             data_cn, df_cn = _load_data(dir_cn, df_subjects=list_df_cn, **kwds)
+            if data_cn is None:
+                logger.warning(f'\t{feat:<15}: \tNo data available for '
+                               f'reference subjects.')
+                continue
+
             if isinstance(data_cn, pd.DataFrame):
                 data_cn = data_cn.to_numpy()
 
@@ -595,16 +641,23 @@ def run_analysis(
                 dec = get_deconfounder(covariates=cov_deconfound)
                 data_cn = dec.fit_transform(data_cn, df_cn)
 
-            logger.info(f'\t{feat:<15}: \t[{df_cn.shape[0]}/{n_cn} '
-                        f'controls available]')
-
             # zscore
-            res = _subject_zscore(
-                dir_px=dir_px, px_sid=px_sid, px_ses=px_ses, data_cn=data_cn,
-                deconfounder=dec, df_px=df_px, **kwds)
+            try:
+                res = _subject_zscore(
+                    dir_px=dir_px, px_sid=px_sid, px_ses=px_ses, data_cn=data_cn,
+                    deconfounder=dec, df_px=df_px, **kwds)
+            except FileNotFoundError:
+                logger.warning(f'\t{feat:<15}: \tNo data available for target subject.')
+                continue
+
+            logger.info(f'\t{feat:<15}: \t[{df_cn.shape[0]}/{n_cn} '
+                        f'reference subjects available]')
 
             # Save results
-            z = res['z'] if not asymmetry else res['z'].reshape(2, -1)
+            z = res['z']
+            if not asymmetry and struct != 'subcortex':
+                z = z.reshape(2, -1)
+
             _save(pth_analysis, x=z, sid=px_sid, ses=px_ses, **kwds)
 
             res |= dict(data_cn=data_cn, df_cn=df_cn, feat=feat)
@@ -623,7 +676,9 @@ def run_analysis(
                     f'controls available]\n')
 
         # Save results
-        md = res['md'] if not asymmetry else res['md'].reshape(2, -1)
+        md = res['md']
+        if not asymmetry and struct != 'subcortex':
+            md = md.reshape(2, -1)
 
         kwds |= dict(feat=data_mahalanobis['feat'])
         _save(pth_analysis, x=md, sid=px_sid, ses=px_ses, **kwds)
