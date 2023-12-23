@@ -271,7 +271,7 @@ help; exit 1; fi
 
 # Get the real path of the Inputs
 outDeriv=$(realpath $out)
-outz=$(realpath $out)/z-brains
+outz=$(realpath $out)/zbrains
 outm=$(realpath $out)/micapipe_v0.2.0
 BIDS=$(realpath $BIDS)
 id=${id/sub-/}

@@ -1,14 +1,16 @@
 #!/bin/bash
 #
-# Subcortical feature mapping
+# Feature mapping for cortex, subcortex, and hippocampus
 
 
 if [[ -z ${ZBRAINS} ]]; then
   echo "ZBRAINS not defined"
-  echo "This script should not be run standalone. Please use 'z-brains' directly."
+  echo "This script must not be run standalone. Please use 'zbrains' directly."
   exit 0;
 fi
-source "${ZBRAINS}/config.cfg" # Configuration file
+
+script_dir=${ZBRAINS}/functions
+source "${script_dir}/utilities.sh"
 
 
 # Set umask
@@ -16,296 +18,259 @@ umask 003
 
 
 #------------------------------------------------------------------------------#
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --structure)
-      if [[ " ${LIST_STRUCTURES[*]} " != *" $2 "* ]]; then Error "Invalid argument for $1: $2"; exit 1; fi
-      structure="$2"
-      shift 2
+args=("$@")
+while (( "${#args[@]}" )); do
+  option="${args[0]}"
+  case "${option}" in
+    --struct)
+      PARSE_OPTION_SINGLE_VALUE structure args LIST_STRUCTURES || exit $?
       ;;
-    --features)
-      comma_separated_features="$2"
-      shift 2
+    --feat)
+      PARSE_OPTION_MULTIPLE_VALUES features args LIST_FEATURES || exit $?
       ;;
     --fwhm)
-      fwhm="$2"
-      shift 2
+      PARSE_OPTION_SINGLE_VALUE fwhm args || exit $?
       ;;
     --tmp)
-      tmp_dir="$2"
-      shift 2
-      ;;
-    --threads)
-      threads="$2"
-      shift 2
+      PARSE_OPTION_SINGLE_VALUE tmp_dir args || exit $?
       ;;
     --resolution)
-      comma_separated_resolutions="$2"
-      shift 2
+      PARSE_OPTION_MULTIPLE_VALUES resolutions args LIST_RESOLUTIONS || exit $?
       ;;
-    --logfile)
-      logfile="$2"
-      shift 2
+    --labels)
+      PARSE_OPTION_MULTIPLE_VALUES labels args || exit $?
       ;;
     *)
-      PROC=$*
-      break
+      SHOW_ERROR "Unknown option '${option}'"
+      exit 1
       ;;
   esac
 done
 
 # Check if mandatory options are provided
-declare -A mandatory=([struct]=$structure [features]=$comma_separated_features [tmp]=$tmp_dir [threads]=$threads)
-for k in "${!mandatory[@]}"; do
-  if [ -z "${mandatory[${k}]}" ]; then
-    Error "Mandatory argument is missing: -$k"
-    exit 1
-  fi
-done
+ASSERT_REQUIRED "--struct" "${structure:-}"
+ASSERT_REQUIRED "--feat" "${features[@]}"
+ASSERT_REQUIRED "--tmp" "${tmp_dir:-}"
+
 
 if [[ "$structure" != "subcortex" ]]; then
-  [[ -z "$fwhm" ]] && Error "Mandatory argument is missing: -fwhm" && exit 1;
-  [[ -z "$comma_separated_resolutions" ]] && Error "Mandatory argument is missing: -resolution" && exit 1;
+  ASSERT_REQUIRED "--fwhm" "${fwhm:-}"
+  ASSERT_REQUIRED "--resolution" "${resolutions[@]:-}"
+  ASSERT_REQUIRED "--labels" "${labels[@]:-}"
 fi
-
-if [ -z "$PROC" ]; then echo "Error: Mandatory arguments are missing."; exit 1; fi
-
-
-#------------------------------------------------------------------------------#
-# Initialization of pertinent scripts and functions
-
-# qsub configuration
-if [ "$PROC" = "qsub-MICA" ] || [ "$PROC" = "qsub-all.q" ];then
-    source "${ZBRAINS}/functions/init.sh" "$threads"
-fi
-export OMP_NUM_THREADS=$threads
-
-# source utilities
-source "$ZBRAINS/functions/utilities.sh"
-source "$ZBRAINS/config.cfg"
 
 
 #------------------------------------------------------------------------------#
 declare -A map_struct=([cortex]=Cortical [subcortex]=Subcortical [hippocampus]=Hippocampal)
 
-Title "${map_struct[${structure}]} feature mapping\n\t\tz-brains $VERSION, $PROC"
-zbrains_software
-bids_print "$structure"
-Info "wb_command will use $OMP_NUM_THREADS threads"
+SHOW_TITLE "${map_struct[${structure}]} feature mapping: ${BIDS_ID}"
 
 
 #------------------------------------------------------------------------------#
-# Initialize timer and counter of processed files
+# Initialize timer
 SECONDS=0
-n_steps=0
 
 
 #------------------------------------------------------------------------------#
-declare -A label2struct
-label2struct[26]="Left-Accumbens-area"
-label2struct[18]="Left-Amygdala"
-label2struct[11]="Left-Caudate"
-label2struct[17]="Left-Hippocampus"
-label2struct[13]="Left-Pallidum"
-label2struct[12]="Left-Putamen"
-label2struct[10]="Left-Thalamus-Proper"
-label2struct[58]="Right-Accumbens-area"
-label2struct[54]="Right-Amygdala"
-label2struct[50]="Right-Caudate"
-label2struct[53]="Right-Hippocampus"
-label2struct[52]="Right-Pallidum"
-label2struct[51]="Right-Putamen"
-label2struct[49]="Right-Thalamus-Proper"
-
-
-do_cortex_mapping() {
-  local feat=$1
-  local resolution=$2
-
-  # Input & output locations
-  surf_dir="${DIR_CONTE69}"
-  input_dir="${DIR_MAPS}"
-  output_dir=${SUBJECT_OUT}/${FOLDER_MAPS}/${FOLDER_CTX}
-
-  # Mappings from features names to the way they appear in the input and output filenames
-  declare -A map_input=([thickness]=thickness [flair]=white_flair [adc]=white_ADC [fa]=white_FA [qt1]=white_T1map)
-  declare -A map_output=([thickness]=thickness [flair]=flair [adc]=ADC [fa]=FA [qt1]=T1map)
-
-  Info "Map '${feat}' to cortex [resolution=${resolution}]"
-
-  # feat name in filenames
-  input_feat="${map_input[${feat}]}"
-  output_feat=${map_output[${feat}]}
-
-  n=0
-  for h in L R;
-  do
-    # Set paths
-    surf_file="${surf_dir}/${BIDS_ID}_hemi-${h}_space-nativepro_surf-fsLR-${resolution}_label-white.surf.gii"
-    input_file="${input_dir}/${BIDS_ID}_hemi-${h}_surf-fsLR-${resolution}_label-${input_feat}.func.gii"
-    output_file="${output_dir}/${BIDS_ID}_hemi-${h}_surf-fsLR-${resolution}_feature-${output_feat}_smooth-${fwhm}mm.func.gii"
-
-    # Check if file exists
-    if [[ ! -f "${input_file}" ]]; then
-#      Note "Processing of '${feat}' requested for ${BIDS_ID} but did not find pre-processed file: skipping"
-      Warning "Subject ${BIDS_ID}: '${feat}' not available. Skipping..."
-      break
-    fi
-
-    # Perform mapping
-    Do_cmd wb_command -metric-smoothing "${surf_file}" "${input_file}" "${fwhm}" "${output_file}";
-    [[ -f "$output_file" ]] && n=$((n + 1)) && n_steps=$((n_steps + 1))
-  done
-
-  [[ $n -eq 2 ]] && Note "Subject ${BIDS_ID}: '${feat}' [resolution=${resolution}] successfully mapped to cortex";
-}
-
-do_subcortex_mapping (){
+map_subcortex() {
   local feat=$1
 
-  Info "Map '${feat}' to subcortical structures"
-
-  # Input & output locations
-  vol_stats_file="${DIR_SUBJSURF}/stats/aseg.stats"
-  input_dir="${DIR_MAPS}"
-  output_dir=${SUBJECT_OUT}/${FOLDER_MAPS}/${FOLDER_SCTX}
+  SHOW_INFO "${BIDS_ID}: Mapping '${feat}' to subcortical structures"
 
   # Mappings from features names to the way they appear in the input and output filenames
   declare -A map_input=([flair]='map-flair' [adc]='model-DTI_map-ADC' [fa]='model-DTI_map-FA' [qt1]='map-T1map')
   declare -A map_output=([volume]=volume [flair]=flair [adc]=ADC [fa]=FA [qt1]=T1map)
 
-  declare -A label2mean_intensity=()
-  output_file="${output_dir}/${BIDS_ID}_feature-${map_output[$feat]}.csv"
+  # Input & output locations
+  aseg_stats_file="${SUBJECT_SURF_DIR}/stats/aseg.stats"
+  seg_file=${SUBJECT_MICAPIPE_DIR}/parc/${BIDS_ID}_space-nativepro_T1w_atlas-subcortical.nii.gz
+  input_dir=${SUBJECT_MICAPIPE_DIR}/maps
+  output_dir=${SUBJECT_OUTPUT_DIR}/${FOLDER_MAPS}/${FOLDER_SCTX}
+  output_file="${output_dir}/${BIDS_ID}_feature-${map_output[${feat,,}]}.csv"
 
-  # check that input files exist & if not volume, compute mean intensity using and store in label2mean_intensity
+  # check that input files exist & if not volume
   if [[ "$feat" != "volume" ]]; then
-    input_file="${input_dir}/${BIDS_ID}_space-nativepro_${map_input[$feat]}.nii.gz"
-    if [[ ! -f "${input_file}" ]]; then
-#      Note "Processing of '${feat}' requested but did not find pre-processed file: skipping"; return
-      Warning "Subject ${BIDS_ID}: '${feat}' not available. Skipping...";  return
-    fi
+    input_file="${input_dir}/${BIDS_ID}_space-nativepro_${map_input[${feat,,}]}.nii.gz"
 
-    mapfile -t a < <(ImageIntensityStatistics 3 "${input_file}" "${T1FAST_SEG}" | tail -n +2 | awk '{ print $1 "=" $2 }')
-    for entry in "${a[@]}"; do
-      IFS="=" read -r label mean_intensity <<< "$entry"
-      label2mean_intensity+=([$label]=${mean_intensity})
+    for file in ${seg_file} ${input_file}; do
+      if [[ ! -f "${file}" ]]; then
+        SHOW_WARNING "${BIDS_ID}: cannot map '${feat}' to subcortical structures." "Missing file: ${file}"
+        return
+      fi
     done
+
+    DO_CMD "python ${script_dir}/subcortical_mapping.py -id ${BIDS_ID} -i ${input_file} -s ${seg_file} -o ${output_file}"
+
   else
-    if [[ ! -f "${vol_stats_file}" ]]; then
-      Warning "Volumetric processing requested but did not find subcortical volume file: skipping"; return
+    if [[ ! -f "${aseg_stats_file}" ]]; then
+      SHOW_WARNING "${BIDS_ID}: cannot map '${feat}' to subcortical structures." "Missing file ${aseg_stats_file}"; return
     fi
+
+    DO_CMD "python ${script_dir}/subcortical_mapping.py -id ${BIDS_ID} -v ${aseg_stats_file} -o ${output_file}"
   fi
 
-  # Write header and subject id to csv
-  header="SubjID,Laccumb,Lamyg,Lcaud,Lhippo,Lpal,Lput,Lthal,Raccumb,Ramyg,Rcaud,Rhippo,Rpal,Rput,Rthal"
-  [[ "$feat" == "volume" ]] && header+=",ICV"
-  echo $header > "${output_file}"
-  printf "%s,"  "${BIDS_ID}" >> "${output_file}"
-
-  # get mean for each subcortical structure
-  result=()
-  for label in "${!label2struct[@]}"
-  do
-    if [[ "$feat" == "volume" ]]
-    then
-      struct_name=${label2struct[${label}]}
-      value=$(grep "${struct_name}" "${vol_stats_file}" | awk '{ gsub(/^ *| *$/, "", $4); print $4 }')
-    else
-      value=${label2mean_intensity[${label}]}
-    fi
-    result+=("${value}")
-  done
-
-  # If volume -> add intracranial volume to csv
-  if [[ "$feat" == "volume" ]]; then
-    value=$(grep IntraCranialVol "${vol_stats_file}" | awk -F, '{ gsub(/^ *| *$/, "", $4); print $4 }')
-    result+=("${value}")
+  if [[ -f "$output_file" ]]; then
+    SHOW_NOTE "${COLOR_INFO}${BIDS_ID}:" "'${feat}' successfully mapped.";
+  else
+    SHOW_WARNING "${BIDS_ID}: could not map '${feat}' to subcortical structures."
   fi
-
-  # write mean result to csv
-  printf -v csv_line "%s," "${result[@]}"
-  printf "%s\n" "${csv_line%?}" >> "${output_file}" # Remove last comma and add newline
-
-  [[ -f "$output_file" ]] && n_steps=$((n_steps + 1))
 }
 
-do_hippocampus_mapping() {
-  local feat=$1
-  local resolution=$2
 
-  Info "Map '${feat}' to hippocampus [resolution=${resolution}]"
+
+map_cortex() {
+  local feat=$1
+  local resol=$2
+  local label="${3:-white}"
 
   # Input & output locations
-  input_dir="${DIR_MAPS}"
-  output_dir=${SUBJECT_OUT}/${FOLDER_MAPS}/${FOLDER_HIPP}
+  surf_dir=${SUBJECT_MICAPIPE_DIR}/surf
+  input_dir=${SUBJECT_MICAPIPE_DIR}/maps
+  output_dir=${SUBJECT_OUTPUT_DIR}/${FOLDER_MAPS}/${FOLDER_CTX}
+
+  # Mappings from features names to the way they appear in the input and output filenames
+  declare -A map_feat=([thickness]=thickness [flair]=flair [adc]=ADC [fa]=FA [qt1]=T1map)
+
+  SHOW_INFO "${BIDS_ID}: Mapping '${feat}' to cortex [label=${label}, resolution=${resol}]"
+
+  # feat name in filenames
+  input_feat="${map_feat[${feat,,}]}"
+  output_feat=${map_feat[${feat,,}]}
+
+  n=0
+  for h in L R;
+  do
+    # Set paths
+    surf_file="${surf_dir}/${BIDS_ID}_hemi-${h}_space-nativepro_surf-fsLR-${resol}_label-${label}.surf.gii"
+
+    prefix="${BIDS_ID}_hemi-${h}_surf-fsLR-${resol}"
+    if [[ "$feat" == "thickness" ]]; then
+      input_file="${input_dir}/${prefix}_label-${input_feat}.func.gii"
+      output_file="${output_dir}/${prefix}_feature-${output_feat}_smooth-${fwhm}mm.func.gii"
+    else
+      input_file="${input_dir}/${prefix}_label-${label}_${input_feat}.func.gii"
+      output_file="${output_dir}/${prefix}_label-${label}_feature-${output_feat}_smooth-${fwhm}mm.func.gii"
+    fi
+
+    # Check if file exists
+    for file in ${surf_file} ${input_file}; do
+      if [[ ! -f "${file}" ]]; then
+        SHOW_WARNING "${BIDS_ID}: cannot map '${feat}' [label=${label}, resolution=${resol}] to cortex." "Missing file: ${file}"
+        return
+      fi
+    done
+
+    # Flair
+    # Normalize - req: tissue seg seg from free/fastsurfer and raw Flair, then normalize, the map
+    # and continue below
+
+    # Perform mapping
+    DO_CMD "${WORKBENCH_PATH}/wb_command -metric-smoothing ${surf_file} ${input_file} ${fwhm} ${output_file}"
+    [[ -f "$output_file" ]] && n=$((n + 1))
+  done
+
+  if [[ $n -eq 2 ]]; then
+    SHOW_NOTE "${COLOR_INFO}${BIDS_ID}:" "'${feat}' [label=${label}, resolution=${resol}] successfully mapped."
+  else
+    SHOW_WARNING "${BIDS_ID}: could not map '${feat}' [label=${label}, resolution=${resol}] to cortex."
+  fi
+}
+
+
+map_hippocampus() {
+  local feat=$1
+  local resol=$2
+  local label="${3:-midthickness}"
+
+  SHOW_INFO "${BIDS_ID}: Mapping '${feat}' to hippocampus [label=${label}, resolution=${resol}]"
+
+  # Input & output locations
+  surf_dir=${SUBJECT_HIPPUNFOLD_DIR}/surf
+  input_dir=${SUBJECT_MICAPIPE_DIR}/maps
+  output_dir=${SUBJECT_OUTPUT_DIR}/${FOLDER_MAPS}/${FOLDER_HIP}
 
   # Mappings from features names to the way they appear in the input, intermediate and output filenames
-  declare -A map_input=([thickness]=thickness [flair]='map-flair' [adc]='model-DTI_map-ADC' [fa]='model-DTI_map-FA' [qt1]='map-T1map')
+  declare -A map_input=([thickness]=thickness [flair]='map-flair' [adc]='model-DTI_map-ADC' [fa]='model-DTI_map-FA'
+                        [qt1]='map-T1map')
   declare -A map_inter=([thickness]=thickness [flair]=flair [adc]=ADC [fa]=FA [qt1]=T1map)
   declare -A map_output=([thickness]=thickness [flair]=flair [adc]=ADC [fa]=FA [qt1]=T1map)
 
   # feat name in filenames
-  input_feat="${map_input[${feat}]}"
-  inter_feat="${map_inter[${feat}]}"
-  output_feat="${map_output[${feat}]}"
+  input_feat="${map_input[${feat,,}]}"
+  inter_feat="${map_inter[${feat,,}]}"
+  output_feat="${map_output[${feat,,}]}"
 
   n=0
   for h in L R;
   do
 
     # Set paths
-    surf_file="${SUBJECT_HIPP}/surf/${BIDS_ID}_hemi-${h}_space-T1w_den-${resolution}_label-hipp_midthickness.surf.gii"
+    prefix="${BIDS_ID}_hemi-${h}"
+
+    surf_file="${surf_dir}/${prefix}_space-T1w_den-${resol}_label-hipp_${label}.surf.gii"
     input_file="${input_dir}/${BIDS_ID}_space-nativepro_${input_feat}.nii.gz" # Not used for thickness
     if [[ "$feat" == "thickness" ]]; then
-      inter_file="${SUBJECT_HIPP}/surf/${BIDS_ID}_hemi-${h}_space-T1w_den-${resolution}_label-hipp_thickness.shape.gii"
+      inter_file="${surf_dir}/${prefix}_space-T1w_den-${resol}_label-hipp_thickness.shape.gii"
     else
-      inter_file="${tmp_dir}/${BIDS_ID}_hemi-${h}_space-T1w_desc-${inter_feat}_den-${resolution}_feature-hipp_midthickness.func.gii"
+      inter_file="${tmp_dir}/${prefix}_space-T1w_desc-${inter_feat}_den-${resol}_feature-hipp_${label}.func.gii"
     fi
-    output_file="${output_dir}/${BIDS_ID}_hemi-${h}_den-${resolution}_feature-${output_feat}_smooth-${fwhm}mm.func.gii"
+    output_file="${output_dir}/${prefix}_den-${resol}_label-${label}_feature-${output_feat}_smooth-${fwhm}mm.func.gii"
 
     # Check if file exists
     [[ "$feat" != "thickness" ]] && check_file=${input_file} || check_file=${inter_file}
-    if [[ ! -f "${check_file}" ]]; then
-      Warning "Subject ${BIDS_ID}: '${feat}' not available. Skipping..."
-      break
-    fi
+    for file in ${surf_file} ${check_file}; do
+      if [[ ! -f "${file}" ]]; then
+        SHOW_WARNING "${BIDS_ID}: cannot map '${feat}' [label=${label}, resolution=${resol}] to hippocampus." "Missing file: ${file}"
+        return
+      fi
+    done
 
     # Perform mapping
     if [[ "$feat" != "thickness" ]]; then
-      Do_cmd wb_command -volume-to-surface-mapping "${input_file}" "${surf_file}" "${inter_file}" -trilinear
+      cmd="${WORKBENCH_PATH}/wb_command -volume-to-surface-mapping ${input_file} ${surf_file} ${inter_file} -trilinear"
+      DO_CMD "$cmd"
     fi
-    Do_cmd wb_command -metric-smoothing "${surf_file}" "${inter_file}" "${fwhm}" "${output_file}"
 
-    [[ -f "${output_file}" ]] && n=$((n + 1)) && n_steps=$((n_steps + 1))
+#    if [[ ! -f "${inter_file}" ]]; then
+#      SHOW_WARNING "${BIDS_ID}: cannot map '${feat}' feature." "Missing file: ${inter_file}"
+#      return
+#    fi
+    DO_CMD "${WORKBENCH_PATH}/wb_command -metric-smoothing ${surf_file} ${inter_file} ${fwhm} ${output_file}"
+
+    [[ -f "${output_file}" ]] && n=$((n + 1))
   done
 
-  [[ $n -eq 2 ]] && Note "Subject ${BIDS_ID}: '${feat}' [resolution=${resolution}] successfully mapped to hippocampus.";
+  if [[ $n -eq 2 ]]; then
+    SHOW_NOTE "${COLOR_INFO}${BIDS_ID}:" "'${feat}' [label=${label}, resolution=${resol}] successfully mapped."
+  else
+    SHOW_WARNING "${BIDS_ID}: could not map '${feat}' [label=${label}, resolution=${resol}] to hippocampus."
+  fi
+
 }
 
 
 #------------------------------------------------------------------------------#
 # Perform the mapping
 
-# lowercase and split comma-separated into array
-IFS=',' read -ra feat_list <<< "${comma_separated_features,,}"
-
 # thickness -> volume
-if [[ $structure == "subcortex" ]]; then feat_list=("${feat_list[@]/thickness/volume}"); fi
+[[ $structure == "subcortex" ]] && features=("${features[@]/thickness/volume}")
 
 # do the mapping
-for feat in "${feat_list[@]}";
+for feat in "${features[@]}";
 do
   case $structure in
     cortex)
-      IFS=',' read -ra resolution_list <<< "${comma_separated_resolutions}"
-      for res in "${resolution_list[@]}"; do do_cortex_mapping "${feat}" "${res}"; done
+      for res in "${resolutions[@]}"; do
+        for lab in "${labels[@]}"; do map_cortex "${feat}" "${res}" "${lab}"; done
+      done
       ;;
     subcortex)
-      do_subcortex_mapping "${feat}";
+      map_subcortex "${feat}";
       ;;
     hippocampus)
-      IFS=',' read -ra resolution_list <<< "${comma_separated_resolutions}"
-      for res in "${resolution_list[@]}"; do do_hippocampus_mapping "${feat}" "${res}"; done
+      for res in "${resolutions[@]}"; do
+        for lab in "${labels[@]}"; do map_hippocampus "${feat}" "${res}" "${lab}"; done
+      done
       ;;
   esac
 done
@@ -313,5 +278,5 @@ done
 
 #------------------------------------------------------------------------------#
 # Wrap up
-Title "${structure^} feature mapping ended in \033[38;5;220m $(bc <<< "scale=2; $SECONDS/60") minutes \033[38;5;141m.
-\tCheck logs      : $([ -n "$logfile" ] && echo "${logfile}" || echo "${DIR_LOGS}")"
+elapsed=$(printf "%.2f" "$(bc <<< "scale=2; $SECONDS/60")")
+SHOW_TITLE "${map_struct[${structure}]} feature mapping for ${BIDS_ID} ended in \033[38;5;220m${elapsed} minutes${NO_COLOR}"

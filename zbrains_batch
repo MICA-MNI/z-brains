@@ -1,0 +1,449 @@
+#!/bin/bash
+
+export VERBOSE=-1  # Default
+
+
+ZBRAINS=$(dirname "$(realpath "$0")")
+script_dir=${ZBRAINS}/functions
+
+# Source constants and utilities
+tmpfile=$(mktemp)
+python "${script_dir}/constants.py" > "$tmpfile"
+# shellcheck source=/dev/null
+source "$tmpfile"
+rm "$tmpfile"
+
+source "${script_dir}/utilities.sh"
+
+
+#---------------- FUNCTION: HELP ----------------#
+help() {
+local pcolor="\033[38;5;141m" # Purple
+local rcolor="\033[38;5;197m" # Red
+local gcolor="\033[38;5;120m" # Green
+local bcolor="\033[0;36;10m" # Blue
+local gray="\033[38;5;243m" # Gray
+local nc="\033[0m" # No color
+
+echo -e "
+${pcolor}COMMAND:${nc}
+   $(basename "$0") --run <run> --demo <csv_subjects> [options...]
+
+
+   For --run proc: run post-processing for all subjects provided with --demo target_subjects1 [target_subjects2 ...].
+
+   For --run analysis: run analysis for all subjects provided with --demo target_subjects1 [target_subjects2 ...] wrt
+   the reference group (i.e., --demo_ref csv_reference_subjects1 [csv_reference_subjects2 ...]). Analysis requires both
+   target and reference subjects to be post-processed beforehand.
+
+   Additional options that are not listed below are passed to the zbrains script.
+
+
+${pcolor}OPTIONS:${nc}
+\t${rcolor}--run${nc} run                 : Task to perform. Options:
+                                      - proc          : perform post-processing for each target subject (i.e., those
+                                                        provided with --demo).
+                                      - analysis      : perform analysis (regional & asymmetry) and generate clinical
+                                                        report. The analysis is performed for each target subject wrt
+                                                        the reference subjects (--demo_ref). Post-processing of both
+                                                        target and reference subjects must be performed beforehand.
+\t${rcolor}--demo${nc} path [path ...]    : CSV/TSV files with demographics for target subjects. There must be one file
+                                    for each target dataset (i.e., those provided with --dataset). These files must
+                                    include subject and session (if available) identifiers, and other demographics. See
+                                    the zbrains script for more info.
+\t${rcolor}--dataset${nc} path [path ...] : Paths to BIDS datasets containing data for the target subjects. Each
+                                    dataset must correspond to one file in --demo.
+\t${rcolor}--zbrains${nc} dir [dir ...]   : Names of the zbrains derivative folder in each of the target datasets. If
+                                    only one folder name is provided but there are multiple target datasets, we assume
+                                    the same folder name for all datasets. For post-processing, the folder will be
+                                    created if it does not exist.
+
+\t${gcolor}--micapipe${nc} [dir ...]      : Name of the micapipe derivative folder in each of the target datasets. If
+                                    only one folder name is provided but there are multiple target datasets, we assume
+                                    the same folder name for all datasets. Required only for post-processing.
+\t${gcolor}--hippunfold${nc} [dir ...]    : Name of the hippunfold derivative folder in each of the target datasets. If
+                                    only one folder name is provided but there are multiple target datasets, we assume
+                                    the same folder name for all datasets. Required only for post-processing.
+\t${gcolor}--demo_ref${nc} [path ...]     : CSV/TSV files with demographics for reference subjects. Required only for
+                                    analysis. There must be one file for each reference dataset (i.e., those provided
+                                    with --dataset_ref). These files must include subject and session (if available)
+                                    identifiers, and other demographics. See the zbrains script for more info.
+\t${gcolor}--dataset_ref${nc} [path ...]  : Paths to BIDS datasets containing data for the target subjects. Each dataset
+                                    must correspond to one file in --demo_ref. Required only for analysis.
+\t${gcolor}--zbrains_ref${nc} [dir ...]   :Names of the zbrains derivative folder in each of the reference datasets. If
+                                    only one folder name is provided but there are multiple reference datasets, we
+                                    assume the same folder name for all datasets. Required only for analysis.
+\t${gcolor}--scheduler${nc} [scheduler]   : Control for parallel computation. Options:
+                                      - ${bcolor}LOCAL${nc}       : run locally (default)
+                                      - SGE           : SGE qsub
+                                      - PBS           : PBS qsub
+\t${gcolor}--scheduler_opts${nc} [opts]   : Scheduler options for SGE and PBS. For LOCAL, each subject is processed
+                                    serially (default) but you can provide \"-n N\" to run in parallel. Options
+                                    should be provided as a single string. Example: \"-q queue -M my_email\".
+\t${gcolor}--verbose${nc} [level]         : Verbosity level (default is ${bcolor}-1${nc}). Levels:
+                                      - 0             : Only errors
+                                      - 1             : Warning messages and previous levels
+                                      - 2             : Information messages and previous levels
+                                      - 3             : Command logs and previous levels
+                                      - >3 or <0      : All messages
+\t${gcolor}--help${nc}                    : Print help
+\t${gcolor}--version${nc}                 : Print software version
+
+
+
+${pcolor}USAGE:${nc}
+
+    ${gray}# Post-processing${nc}
+    ${pcolor}$(basename "$0")${nc} ${rcolor}--run${nc} proc
+                  ${rcolor}--demo${nc} <target_subjects1.csv> <target_subjects2.csv>
+                  ${rcolor}--dataset${nc} <target_dataset1> <target_dataset2>
+                  ${rcolor}--zbrains${nc} <target_zbrains_dir1> <target_zbrains_dir2>
+                  ${gcolor}--micapipe${nc} <target_micapipe_dir1> <target_micapipe_dir2>
+                  ${gcolor}--hippunfold${nc} <target_hippunfold_dir>    ${gray}# same folder name for both datasets${nc}
+                  ${gcolor}--scheduler${nc} LOCAL
+                  ${gcolor}--scheduler_opts${nc} \"-n 6\"                 ${gray}# run in parallel${nc}
+
+    ${gray}# Analysis${nc}
+    ${pcolor}$(basename "$0")${nc} ${rcolor}--run${nc} analysis
+                     ${rcolor}--demo${nc} <target_subjects1.csv>
+                     ${rcolor}--dataset${nc} <target_dataset1>
+                     ${rcolor}--zbrains${nc} <target_zbrains_dir1>
+                     ${gcolor}--demo_ref${nc} <reference_subjects1.csv> <reference_subjects2.csv>
+                     ${gcolor}--dataset_ref${nc} <reference_dataset1> <reference_dataset2>
+                     ${gcolor}--zbrains_ref${nc} <reference_zbrains_dir1> <reference_zbrains_dir2>
+
+
+${pcolor}DEPENDENCIES:${nc}
+    See the zbrains script for more info.
+
+
+McGill University, MNI, MICA lab, Nov 2023
+https://github.com/MICA-MNI/micapipe
+https://github.com/MICA-MNI/z-brains
+http://mica-mni.github.io/
+"
+}
+
+
+# ------------------------------------------------------------------------------------------------------------------- #
+# ------------------------------------------------ Handle arguments  ------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------------------------- #
+LIST_SCHEDULERS=("LOCAL" "SGE" "PBS")  # SLURM
+
+args_zbrains=()
+
+args=("$@")
+while (( "${#args[@]}" )); do
+  option="${args[0]}"
+  case "${option}" in
+  --run)
+    PARSE_OPTION_SINGLE_VALUE run args LIST_TASKS || exit $?
+  ;;
+  --demo)
+    PARSE_OPTION_MULTIPLE_VALUES demo_paths args || exit $?
+    ;;
+  --dataset)
+    PARSE_OPTION_MULTIPLE_VALUES dataset_paths args || exit $?
+    ;;
+  --micapipe)
+    PARSE_OPTION_MULTIPLE_VALUES micapipe_dirs args || exit $?
+    ;;
+  --hippunfold)
+    PARSE_OPTION_MULTIPLE_VALUES hip_dirs args || exit $?
+    ;;
+  --zbrains)
+    PARSE_OPTION_MULTIPLE_VALUES zbrains_dirs args || exit $?
+    ;;
+  --demo_ref)
+    PARSE_OPTION_MULTIPLE_VALUES ref_demo_paths args || exit $?
+  ;;
+  --dataset_ref)
+    PARSE_OPTION_MULTIPLE_VALUES ref_dataset_paths args || exit $?
+    ;;
+  --zbrains_ref)
+    PARSE_OPTION_MULTIPLE_VALUES ref_zbrains_dirs args || exit $?
+    ;;
+
+  #-----------------------------------------------------------------------------
+  # We need them here but no need to include in help function
+  --deconfound)
+    PARSE_OPTION_MULTIPLE_VALUES deconfound args || exit $?
+    args_zbrains+=("${option}" "${deconfound[@]}")
+    ;;
+  --normative)
+    PARSE_OPTION_MULTIPLE_VALUES normative args || exit $?
+    args_zbrains+=("${option}" "${normative[@]}")
+    ;;
+  --column_map)
+    PARSE_OPTION_MULTIPLE_VALUES column_map args || exit $?
+    args_zbrains+=("${option}" "${column_map[@]}")
+    ;;
+  #-----------------------------------------------------------------------------
+
+  --scheduler)
+    PARSE_OPTION_SINGLE_VALUE scheduler args LIST_SCHEDULERS || exit $?
+    ;;
+  --scheduler_options)
+    PARSE_OPTION_SINGLE_VALUE scheduler_options args || exit $?
+    ;;
+  --verbose)
+    PARSE_OPTION_SINGLE_VALUE VERBOSE args || exit $?
+    export VERBOSE
+    args_zbrains+=("${option}" "${VERBOSE}")
+    ;;
+  --help)
+    help
+    exit 1
+    ;;
+  --version)
+    PRINT_VERSION
+    exit 1
+    ;;
+  --*)
+    # rest goes to zbrains
+    for ((i=1; i<${#args[@]}; i++)); do [[ "${args[$i]}" == --* ]] && break; done
+    args_zbrains+=("${args[@]::$((i))}")
+    args=("${args[@]:${i}}")
+    ;;
+  *)
+    SHOW_ERROR "Unknown option '$1'"
+    exit 1
+    ;;
+    esac
+done
+
+
+# ------------------------------------------------- Check arguments ------------------------------------------------- #
+ASSERT_REQUIRED "--run" "${run:-}"
+ASSERT_REQUIRED "--demo" "${demo_paths[@]:-}"
+ASSERT_REQUIRED "--dataset" "${dataset_paths[@]:-}"
+ASSERT_SAME_SIZE --dataset dataset_paths --demo demo_paths
+n_datasets=${#dataset_paths[@]}
+
+ASSERT_REQUIRED "--zbrains" "${zbrains_dirs[@]}"
+if [[ ${n_datasets} != "${#zbrains_dirs[@]}" ]]; then
+  if [[ ${#zbrains_dirs[@]} -gt 1 ]]; then
+    ASSERT_SAME_SIZE --dataset dataset_paths --zbrains zbrains_dirs
+  else
+    mapfile -t zbrains_dirs < <(printf "%.0s${zbrains_dirs[0]}\n" $(seq 1 "${n_datasets}"))
+  fi
+fi
+
+if [[ "$run" == "proc" ]]; then
+  ASSERT_REQUIRED "--micapipe" "${micapipe_dirs[@]}"
+  if [[ ${n_datasets} != "${#micapipe_dirs[@]}" ]]; then
+    if [[ ${#micapipe_dirs[@]} -gt 1 ]]; then
+      ASSERT_SAME_SIZE --dataset dataset_paths --micapipe micapipe_dirs
+    else
+      mapfile -t micapipe_dirs < <(printf "%.0s${micapipe_dirs[0]}\n" $(seq 1 "${n_datasets}"))
+    fi
+  fi
+
+  ASSERT_REQUIRED "--hippunfold" "${hip_dirs[@]}"
+  if [[ ${n_datasets} != "${#hip_dirs[@]}" ]]; then
+    if [[ ${#hip_dirs[@]} -gt 1 ]]; then
+      ASSERT_SAME_SIZE --dataset dataset_paths --hippunfold hip_dirs
+    else
+      mapfile -t hip_dirs < <(printf "%.0s${hip_dirs[0]}\n" $(seq 1 "${n_datasets}"))
+    fi
+  fi
+fi
+
+
+if [[ "$run" == "analysis" ]]; then
+  ASSERT_REQUIRED "--demo_ref" "${ref_demo_paths[@]:-}" "--demo_ref option required for analysis."
+  ASSERT_REQUIRED "--dataset_ref" "${ref_dataset_paths[@]:-}" "--dataset_ref option required for analysis."
+  ASSERT_SAME_SIZE --dataset_ref ref_dataset_paths --demo_ref ref_demo_paths
+
+  n_ref_datasets=${#ref_dataset_paths[@]}
+  ASSERT_REQUIRED "--zbrains_ref" "${ref_zbrains_dirs[@]:-}" "--zbrains_ref option required for analysis."
+  if [[ ${n_ref_datasets} != "${#ref_zbrains_dirs[@]}" ]]; then
+    if [[ ${#ref_zbrains_dirs[@]} -gt 1 ]]; then
+      ASSERT_SAME_SIZE --dataset_ref ref_dataset_paths --zbrains_ref ref_zbrains_dirs
+    else
+      mapfile -t ref_zbrains_dirs < <(printf "%.0s${ref_zbrains_dirs[0]}\n" $(seq 1 "${n_ref_datasets}"))
+    fi
+  fi
+fi
+
+scheduler=${scheduler:-"LOCAL"}
+scheduler_options=${scheduler_options:-""}
+
+
+[[ " ${args_zbrains[*]} " =~ " --sub " ]] && SHOW_ERROR "Subject ID should not be provided. Please remove --sub." && exit 1;
+[[ " ${args_zbrains[*]} " =~ " --ses " ]] && SHOW_ERROR "Session should not be provided: Please remove --ses." && exit 1;
+
+
+# --------------------------------------------------- CSV columns --------------------------------------------------- #
+declare -A expected_to_actual=([participant_id]=participant_id [session_id]=session_id [age]=age [sex]=sex [site]=site)
+while IFS='=' read -r key value; do
+  key=$(echo "${key}" | sed -e 's/^\s*//' -e 's/\s*$//')
+  value=$(echo "${value}" | sed -e 's/^\s*//' -e 's/\s*$//')
+  [[ -v expected_to_actual["${key}"] ]] && expected_to_actual[${key}]=${value}
+done < <(echo "${column_map[*]}" | grep -oP '\w+\s*=\s*[\w\s]+?(?=\w+\s*=|$)')
+
+# Columns needed for clinical report
+columns_report=("${expected_to_actual["age"]}" "${expected_to_actual["sex"]}")
+
+# Required columns
+required_columns=(participant_id)
+[[ "$run" == "analysis" ]] && required_columns+=("${normative[@]}" "${deconfound[@]}")
+for idx in "${!required_columns[@]}"; do
+  key=${required_columns[$idx]#-} # For deconfound, column names may be prepended with a -
+  required_columns[$idx]=${expected_to_actual[${key}]:-${key}}
+done
+
+
+# Remove duplicates
+mapfile -t required_columns < <(echo "${required_columns[@]}" | tr ' ' '\n' | sort -u)
+
+# Store column indices in each csv file
+declare -A col2idx
+for csv in "${demo_paths[@]}" "${ref_demo_paths[@]}"; do
+  ASSERT_EXISTS "$csv"
+  ASSERT_COLUMNS_IN_CSV "$csv" required_columns
+
+  IFS=$([[ $csv == *.tsv ]] && echo -e '\t' || echo ',') read -ra header < "$csv"
+
+  if [[ "$run" == "analysis" && " ${demo_paths[*]} " == *" $csv "* ]]; then
+    for col in "${columns_report[@]}"; do
+      if [[ " ${header[*]} " != *" ${col} "* ]]; then
+        SHOW_WARNING "Column '${col}' not found in $csv for clinical report."
+      fi
+    done
+  fi
+
+  for idx in "${!header[@]}"; do col2idx[$csv,${header[$idx]}]=$idx; done
+done
+
+
+# ------------------------------------------- Setting important variables ------------------------------------------- #
+# Get number of parallel processes for LOCAL execution
+if [[ $scheduler == "LOCAL" ]]; then
+  n_jobs=$(echo "$scheduler_options" | grep -oP "(^|\s+)\-n\s+[0]*\K([1-9][0-9]*)")
+  if [[ -z "$n_jobs" ]]; then
+    n_jobs=1  # default is 1 -> run serially
+  else
+    max_jobs=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null)
+    [[ -n "$max_jobs" ]] && n_jobs=$(( n_jobs < max_jobs ? n_jobs : max_jobs ))
+  fi
+
+  scheduler_options=""
+fi
+
+
+# ----------------------------------------------------- Cleanup ----------------------------------------------------- #
+# Function to clean up and kill child processes
+cleanup() {
+    echo "Terminating the script. Cleaning up..."
+
+    # Kill all child processes
+    pkill -P $$
+
+    echo "Cleanup complete. Exiting."
+    exit
+}
+
+# Trap signals and call the cleanup function
+trap cleanup SIGINT SIGTERM
+
+
+
+submit_job_with_timer() {
+  local name="$1"
+  local scheduler="$2"
+  local scheduler_options="$3"
+  local log_file="$4"
+  local cmd="$5"
+
+  SHOW_INFO "Starting ${run} for \033[38;5;220m${sid}${ses:+_${ses}}${NO_COLOR}"
+
+  local start_time
+  start_time=$(date +%s.%N)
+
+  # Submit the job to the scheduler
+  SUBMIT_JOB "${scheduler}" "${scheduler_options}" DO_CMD "$cmd" | sed 's/\x1b\[[0-9;]*m//g' > "${log_file}" &
+
+  local pid=$!
+  wait "$pid"
+
+  local end_time
+  end_time=$(date +%s.%N)
+
+  local elapsed_time
+  elapsed_time=$(printf "%.2f" "$(bc <<< "scale=2; $end_time - $start_time")")
+
+  # Print the elapsed time
+  SHOW_INFO "Job ${run} for \033[38;5;220m${sid}${ses:+_${ses}}${COLOR_INFO} finished in ${elapsed_time} seconds" "Check logs: \033[0;32m${log_file}${NO_COLOR}"
+}
+
+# ---------------------------------- Post-processing/analysis of controls/patients ---------------------------------- #
+if [[ "$run" == "proc" ]]; then
+  SHOW_INFO "Running post-processing";
+else
+  SHOW_INFO "Running analysis";
+fi
+
+col_sid=${expected_to_actual["participant_id"]}
+col_ses=${expected_to_actual["session_id"]}
+for iter in "${!demo_paths[@]}"; do
+  csv=${demo_paths[$iter]}
+
+  # Get indices for ID and SES columns
+  idx_sid=${col2idx[${csv},${col_sid}]}
+  idx_ses=${col2idx[${csv},${col_ses}]}
+
+  # Iterate over subjects - post-processing only
+  delimiter=$([[ $csv == *.tsv ]] && echo -e '\t' || echo ',')
+  while IFS=$delimiter read -ra row && [ ${#row[@]} -ne 0 ]; do
+    # sid=sub-${sid/sub-/}
+    sid=sub-${row[${idx_sid}]/sub-/}
+
+    ses="${row[${idx_ses}]}"
+    [[ "$ses" = "n/a" ]] && ses=""
+    ses=${ses:+ses-${ses/ses-/}}
+
+    dataset_path=${dataset_paths[$iter]}
+    zbrains_dir=${zbrains_dirs[$iter]}
+
+    if [[ $run == "proc" ]]; then
+      cmd="${ZBRAINS}/zbrains --run ${run} --sub ${sid} --dataset ${dataset_path} --zbrains ${zbrains_dir} \
+                              --micapipe ${micapipe_dirs[$iter]} --hippunfold ${hip_dirs[$iter]} ${args_zbrains[*]}"
+
+    else
+      cmd="${ZBRAINS}/zbrains --run ${run} --sub ${sid} --dataset ${dataset_path[*]} --zbrains ${zbrains_dir} \
+                              --demo_ref ${ref_demo_paths[*]} --dataset_ref ${ref_dataset_paths[*]} \
+                              --zbrains_ref ${ref_zbrains_dirs[*]} --demo ${csv} ${args_zbrains[*]}"
+    fi
+
+    [[ -n ${ses} ]] && cmd+=" --ses ${ses}"
+
+    # logging
+    out_dir=${dataset_path}/derivatives/${zbrains_dir}
+    logs_dir="${out_dir}/${sid}${ses:+/${ses}}/${FOLDER_LOGS}"
+    mkdir -p "${logs_dir}"
+
+    name="${sid}${ses:+_${ses}}_run-${run}"
+    log_file="${logs_dir}/${name}_$(date +'%d-%m-%Y')_${scheduler,,}.txt"
+
+    # submit job
+    if [[ "$scheduler" == "LOCAL" && "$n_jobs" -gt 1 ]]; then
+      submit_job_with_timer "$name" "${scheduler}" "${scheduler_options}" "${log_file}" "$cmd" &
+      while [[ $(jobs -r -p | wc -l) -ge $n_jobs ]]; do wait -n; done
+    else
+      if [[ "$scheduler" == "PBS" || "$scheduler" == "SGE" ]]; then
+        opts="-N ${name} -cwd -S/bin/bash -v ANTSPATH,WORKBENCH_PATH -j oe -o ${log_file}"
+        scheduler_options_ext="${scheduler_options} ${opts}"
+        SUBMIT_JOB "${scheduler}" "${scheduler_options_ext}" "$cmd"
+      else
+
+        SUBMIT_JOB "${scheduler}" "${scheduler_options}" "$cmd"
+      fi
+    fi
+
+  done < <(tail -n +2 "$csv")
+
+  # Wait for background processes to finish
+  [[ "$scheduler" == "LOCAL" && "$n_jobs" -gt 1 ]] && wait;
+
+done
