@@ -9,29 +9,12 @@ ZBRAINS=$(dirname "$(realpath "$0")")
 export ZBRAINS
 script_dir=${ZBRAINS}/functions
 
-# Source utilities functions
-# source "${ZBRAINS}/config.cfg" # Configuration file
-
+# Source constants and utilities
 tmpfile=$(mktemp)
 python "${script_dir}/constants.py" > "$tmpfile"
 # shellcheck source=/dev/null
 source "$tmpfile"
 rm "$tmpfile"
-
-#while IFS= read -r line; do
-#  if [[ $line =~ ^[[:space:]]*([^=]+)=\((.*)\) ]]; then
-#    var_name=${BASH_REMATCH[1]}
-#    var_value=${BASH_REMATCH[2]}
-##    declare -a "${var_name}"=("${var_value}")
-##    declare -a "${line}"
-#    export "${var_name}"
-#  else
-#    declare "${line}"
-#    export "${line?}"
-#  fi
-##  declare "${line}"
-##  export "${line?}"
-#done < <(python "${script_dir}/constants.py")
 
 source "${script_dir}/utilities.sh"
 
@@ -516,8 +499,7 @@ fi
 
 # Folders for regional/asymmetry analysis
 if [[ " ${tasks[*]} " =~ " analysis "  ]]; then
-  DO_CMD mkdir -m 770 -p "${SUBJECT_OUTPUT_DIR}"/{"${FOLDER_NORM_Z}","${FOLDER_NORM_MODEL}"}/\
-  {"${FOLDER_SCTX}","${FOLDER_CTX}","${FOLDER_HIP}"}
+  DO_CMD mkdir -m 770 -p "${SUBJECT_OUTPUT_DIR}"/{"${FOLDER_NORM_Z}","${FOLDER_NORM_MODEL}"}/{"${FOLDER_SCTX}","${FOLDER_CTX}","${FOLDER_HIP}"}
 fi
 
 # Temporary folder
@@ -544,19 +526,6 @@ cleanup() { # This script will clean the temporary directory
 # zbrains_json  # TODO is this necessary for zbrains?
 
 
-# -------------------------------- Command to write to terminal and append to logfile ------------------------------- #
-#run_command() {
-#  local logfile=$1
-#  shift 1
-#  local cmd="$*"
-#
-#  DO_CMD "$cmd" 2>&1 | tee >(sed 's/\x1b\[[0-9;]*m//g' >> "$logfile")
-##  DO_CMD "$cmd" 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > "$logfile"
-##  DO_CMD "$cmd" 2>&1 | tee >(sed 's/World/Assistant/') >(sed 's/\x1b\[[0-9;]*m//g' > "$logfile") > /dev/null
-#}
-
-
-
 # -------------------------------------------------- Postprocessing ------------------------------------------------- #
 if [[ " ${tasks[*]} " =~ " proc " ]]; then
   logfile=${logs_dir}/proc_$(date +'%d-%m-%Y').txt
@@ -576,7 +545,6 @@ if [[ " ${tasks[*]} " =~ " proc " ]]; then
       cmd+=" --fwhm ${smooth_ctx} --resolution ${list_resolutions[*]} --labels ${labels_ctx[*]}"
     fi
 
-#    DO_CMD "$cmd" 2>&1 | tee >(sed 's/\x1b\[[0-9;]*m//g' >> "$logfile")
     DO_CMD "$cmd"
 
   done
@@ -598,7 +566,7 @@ if [[ " ${tasks[*]} " =~ " analysis "  ]]; then
                                             --struct ${structures[*]} --feat ${features[*]} --smooth_ctx ${smooth_ctx} \
                                             --smooth_hip ${smooth_hip} --threshold ${threshold} --analysis zscore \
                                             --resolution ${resolutions[*]} --labels_ctx ${labels_ctx[*]} \
-                                            --labels_hip ${labels_hip[*]} --logfile ${logfile}"
+                                            --labels_hip ${labels_hip[*]} --logfile ${logfile} --verbose ${VERBOSE}"
 
   [[ -v demo ]] && cmd+=" --demo ${demo}"
   [[ -v normative ]] && cmd+=" --normative ${normative[*]}"
