@@ -109,6 +109,10 @@ cli.add_argument(
     help='Verbosity level (see zbrains script)'
 )
 cli.add_argument(
+    '--filter_warnings', default=False, action='store_true',
+    help='Filter warnings messages'
+)
+cli.add_argument(
     '--column_map', metavar='VAR=name', nargs='+', default=dict(),
     action=MapAction,
     help='Map expected column names (ID, SES, AGE, SEX, and SITE) to actual '
@@ -136,17 +140,21 @@ match args.verbose:
 logger = logging.getLogger('analysis_logger')
 logger.setLevel(logging.DEBUG)  # Default level
 
-formatter = logging.Formatter('%(asctime)s - %(levelname)-10.10s: %(message)s')
+# formatter = logging.Formatter('%(asctime)s - %(levelname)-10.10s: %(message)s')
 
 # Create a console handler
 console_handler = logging.StreamHandler(sys.stdout)
+formatter = logging.Formatter('%(message)s')
 console_handler.setFormatter(formatter)
 console_handler.setLevel(logging_level)
+if args.filter_warnings:
+    console_handler.addFilter(lambda record: record.levelno != logging.WARNING)
 logger.addHandler(console_handler)
 
 # Create a file handler - logs everything
 if args.logfile is not None:
     file_handler = logging.FileHandler(args.logfile, mode='w')
+    formatter = logging.Formatter('%(asctime)s - %(levelname)-10.10s: %(message)s')
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 
