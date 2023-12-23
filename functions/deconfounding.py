@@ -31,7 +31,7 @@ def _get_column_types(df):
     return categorical_vars, continuous_vars
 
 
-class RegressOutModel(TransformerMixin, BaseEstimator):
+class RegressOutModel(BaseEstimator):
     def __init__(self, remove: list[str] | None = None):
         self.remove = remove
         self.clf = None
@@ -53,7 +53,11 @@ class RegressOutModel(TransformerMixin, BaseEstimator):
 
         residuals = x - self.clf.predict(conf[self.remove])
         residuals += self.clf.named_steps['lr'].intercept_
-        return residuals
+        return residuals.astype(np.float32)
+
+    def fit_transform(self, x, conf, *args):
+        """Fit to data, then transform it"""
+        return self.fit(x, conf, *args).transform(x, conf, *args)
 
 
 def _find_priors(gamma_hat, delta_hat):
@@ -318,29 +322,6 @@ class CombatModel(BaseEstimator):
             self.n_remove = design_remove.shape[1]
 
         return np.hstack(design)
-
-        # keep = [] if self.keep is None else self.keep
-        # categorical_cov, continuous_cov = _get_column_types(conf[keep])
-        #
-        # if fitting:
-        #     self.site_encoder = OneHotEncoder(sparse_output=False).fit(site)
-        #
-        #     self.categorical_encoders = []
-        #     for _, x in conf[categorical_cov].items():
-        #         enc = OneHotEncoder(sparse_output=False, drop='first').fit(x.to_numpy()[:, None])
-        #         self.categorical_encoders.append(enc)
-        #
-        # design = []
-        # sites_design = self.site_encoder.transform(site)
-        # design.append(sites_design)
-        #
-        # for i, k in enumerate(categorical_cov):
-        #     design.append(self.categorical_encoders[i].transform(conf[[k]].to_numpy()))
-        #
-        # if len(continuous_cov) > 0:
-        #     design.append(conf[continuous_cov].to_numpy())
-        #
-        # return np.hstack(design)
 
     def transform(self, x: np.ndarray, conf: pd.DataFrame):
         """Transform data to harmonized space
