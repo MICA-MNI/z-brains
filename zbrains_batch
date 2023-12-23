@@ -6,9 +6,7 @@ export VERBOSE=-1  # Default
 ZBRAINS=$(dirname "$(realpath "$0")")
 script_dir=${ZBRAINS}/functions
 
-#while IFS= read -r line; do
-#  export "${line?}"
-#done < <(python "${script_dir}/constants.py")
+# Source constants and utilities
 tmpfile=$(mktemp)
 python "${script_dir}/constants.py" > "$tmpfile"
 # shellcheck source=/dev/null
@@ -16,9 +14,6 @@ source "$tmpfile"
 rm "$tmpfile"
 
 source "${script_dir}/utilities.sh"
-
-# ANTs, Workbench and python
-#source "${ZBRAINS}/functions/init.sh"
 
 
 #---------------- FUNCTION: HELP ----------------#
@@ -325,7 +320,6 @@ done
 # ------------------------------------------- Setting important variables ------------------------------------------- #
 # Get number of parallel processes for LOCAL execution
 if [[ $scheduler == "LOCAL" ]]; then
-#  n_jobs=$(awk -v RS=' ' '/^-n$/{getline; print; exit}' <<< "$scheduler_options")
   n_jobs=$(echo "$scheduler_options" | grep -oP "(^|\s+)\-n\s+[0]*\K([1-9][0-9]*)")
   if [[ -z "$n_jobs" ]]; then
     n_jobs=1  # default is 1 -> run serially
@@ -356,40 +350,31 @@ trap cleanup SIGINT SIGTERM
 
 
 submit_job_with_timer() {
-    local name="$1"
-    local scheduler="$2"
-    local scheduler_options="$3"
-    local log_file="$4"
-    local cmd="$5"
+  local name="$1"
+  local scheduler="$2"
+  local scheduler_options="$3"
+  local log_file="$4"
+  local cmd="$5"
 
-#    echo -e "Starting ${run} for \033[38;5;220m${sid}${ses:+_${ses}}${NO_COLOR}"
-    SHOW_INFO "Starting ${run} for \033[38;5;220m${sid}${ses:+_${ses}}${NO_COLOR}"
+  SHOW_INFO "Starting ${run} for \033[38;5;220m${sid}${ses:+_${ses}}${NO_COLOR}"
 
-    # Record the start time
-    local start_time
-    start_time=$(date +%s.%N)
+  local start_time
+  start_time=$(date +%s.%N)
 
-    # Submit the job to the scheduler
-    SUBMIT_JOB "${scheduler}" "${scheduler_options}" DO_CMD "$cmd" | sed 's/\x1b\[[0-9;]*m//g' > "${log_file}" &
+  # Submit the job to the scheduler
+  SUBMIT_JOB "${scheduler}" "${scheduler_options}" DO_CMD "$cmd" | sed 's/\x1b\[[0-9;]*m//g' > "${log_file}" &
 
-    # Capture the PID of the submitted job
-    local pid=$!
+  local pid=$!
+  wait "$pid"
 
-    # Wait for the job to finish
-    wait "$pid"
+  local end_time
+  end_time=$(date +%s.%N)
 
-    # Record the end time
-    local end_time
-    end_time=$(date +%s.%N)
+  local elapsed_time
+  elapsed_time=$(printf "%.2f" "$(bc <<< "scale=2; $end_time - $start_time")")
 
-    # Calculate elapsed time
-    local elapsed_time
-    elapsed_time=$(printf "%.2f" "$(bc <<< "scale=2; $end_time - $start_time")")
-
-    # Print the elapsed time
-    SHOW_INFO "Job ${run} for \033[38;5;220m${sid}${ses:+_${ses}}${COLOR_INFO} finished in ${elapsed_time} seconds" "Check logs: \033[0;32m${log_file}${NO_COLOR}"
-#    echo -e "Job ${run} for \033[38;5;220m${sid}${ses:+_${ses}}${NO_COLOR} finished in ${elapsed_time} seconds"
-#    echo -e "Check logs: \033[0;32m${log_file}${NO_COLOR}\n"
+  # Print the elapsed time
+  SHOW_INFO "Job ${run} for \033[38;5;220m${sid}${ses:+_${ses}}${COLOR_INFO} finished in ${elapsed_time} seconds" "Check logs: \033[0;32m${log_file}${NO_COLOR}"
 }
 
 # ---------------------------------- Post-processing/analysis of controls/patients ---------------------------------- #
@@ -411,9 +396,12 @@ for iter in "${!demo_paths[@]}"; do
   # Iterate over subjects - post-processing only
   delimiter=$([[ $csv == *.tsv ]] && echo -e '\t' || echo ',')
   while IFS=$delimiter read -ra row && [ ${#row[@]} -ne 0 ]; do
-    sid=${row[${idx_sid}]}
+    # sid=sub-${sid/sub-/}
+    sid=sub-${row[${idx_sid}]/sub-/}
+
     ses="${row[${idx_ses}]}"
     [[ "$ses" = "n/a" ]] && ses=""
+    ses=${ses:+ses-${ses/ses-/}}
 
     dataset_path=${dataset_paths[$iter]}
     zbrains_dir=${zbrains_dirs[$iter]}
@@ -441,8 +429,6 @@ for iter in "${!demo_paths[@]}"; do
     # submit job
     if [[ "$scheduler" == "LOCAL" && "$n_jobs" -gt 1 ]]; then
       submit_job_with_timer "$name" "${scheduler}" "${scheduler_options}" "${log_file}" "$cmd" &
-#      SUBMIT_JOB "${scheduler}" "${scheduler_options}" DO_CMD "$cmd" | sed 's/\x1b\[[0-9;]*m//g' > "${log_file}" &
-#      SUBMIT_JOB "${scheduler}" "${scheduler_options}" "$cmd" &
       while [[ $(jobs -r -p | wc -l) -ge $n_jobs ]]; do wait -n; done
     else
       if [[ "$scheduler" == "PBS" || "$scheduler" == "SGE" ]]; then
