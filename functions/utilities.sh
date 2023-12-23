@@ -1,20 +1,31 @@
 #!/bin/bash
 
 
-function DO_CMD() {
+DO_CMD() {
   # do_cmd sends command to stdout before executing it.
-  cmd=$*
+  if [ $# -eq 1 ]; then
+    readarray -t array < <(echo "$1" | xargs -n1)
+  else
+    array=("$@")
+  fi
+
+  local str_cmd=""
+  for element in "${array[@]}"; do
+      [[ $element =~ [[:space:]] ]] && element="\"$element\""
+      str_cmd+="$element "
+  done
+  str_cmd="${str_cmd% }"
 
 #  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 2 || ${VERBOSE} -lt 0 ]]; then
 #    str="$(whoami) @ $(uname -n) $(date)"
 #    echo -e "\033[38;5;118m${str}:\nCOMMAND -->  \033[38;5;122m${cmd}\n\033[0m";
 #  fi
 
-  str="$(whoami) @ $(uname -n) $(date)"
-  str_cmd="\033[38;5;118m${str}:\nCOMMAND -->  \033[38;5;122m${cmd}\n\033[0m"
-  log_message 3 "$str_cmd"
+  local header
+  header="$(whoami) @ $(uname -n) $(date)"
+  log_message 3 "\033[38;5;118m${header}:\nCOMMAND -->  \033[38;5;122m${str_cmd}\n\033[0m"
 
-  $cmd
+  "${array[@]}"
 }
 
 
@@ -129,27 +140,26 @@ log_message() {
 SHOW_ERROR() {
   str="\n${COLOR_ERROR}[ ERROR ]     $1${NO_COLOR}\n"
   for s in "${@:2}"; do str+="${COLOR_ERROR}              $s${NO_COLOR}\n"; done
-  str+="\n"
 
   log_message 0 "$str"
 }
 
 SHOW_WARNING() {
-  str="\n${COLOR_WARNING}[ WARNING ]   $1${NO_COLOR}\n"
-  for s in "${@:2}"; do str+="${COLOR_WARNING}              $s${NO_COLOR}\n"; done
+  str="${COLOR_WARNING}[ WARNING ]   $1${NO_COLOR}"
+  for s in "${@:2}"; do str+="\n${COLOR_WARNING}              $s${NO_COLOR}"; done
 
   log_message 1 "$str"
 }
 
 SHOW_NOTE() {
-  str="              $1\t${COLOR_NOTE}$2 ${NO_COLOR}\n"
+  str="              $1\t${COLOR_NOTE}$2 ${NO_COLOR}"
 
   log_message 2 "$str"
 }
 
 SHOW_INFO() {
-  str="\n${COLOR_INFO}[ INFO ]      $1${NO_COLOR}\n"
-  for s in "${@:2}"; do str+="${COLOR_INFO}              $s${NO_COLOR}\n"; done
+  str="${COLOR_INFO}[ INFO ]      $1${NO_COLOR}"
+  for s in "${@:2}"; do str+="\n${COLOR_INFO}              $s${NO_COLOR}"; done
 
   log_message 2 "$str"
 }
@@ -159,7 +169,6 @@ SHOW_TITLE() {
   str+="${COLOR_TITLE}$1${NO_COLOR}\n"
   for s in "${@:2}"; do str+="${COLOR_TITLE}$s${NO_COLOR}\n"; done
   str+="${COLOR_TITLE}-------------------------------------------------------------${NO_COLOR}\n"
-  str+="\n"
 
   log_message 2 "$str"
 }
