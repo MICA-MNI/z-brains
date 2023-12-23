@@ -17,8 +17,8 @@ sys.path.insert(0, os.path.abspath('..'))
 
 # -- Project information -----------------------------------------------------
 
-project = 'zbrains'
-copyright = '2022, micapipe'
+project = 'z-brains'
+copyright = '2022, zbrains'
 author = 'Jessica Royer,  Sara Larivière, Raul-Rodriguez-Cruces, Judy Chen, Boris Bernhardt'
 
 
@@ -27,8 +27,7 @@ author = 'Jessica Royer,  Sara Larivière, Raul-Rodriguez-Cruces, Judy Chen, Bor
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ['sphinx_tabs.tabs',
-              'sphinx.ext.autodoc',
+extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.autosectionlabel',
               'sphinx.ext.autosummary',
               #'sphinx.ext.doctest',
@@ -56,14 +55,14 @@ exclude_patterns = []
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinx_rtd_theme'
+html_theme = "sphinx_rtd_theme"
 
 html_theme_options = {
-    'style_nav_header_background': '#9E1B32',
+    'style_nav_header_background': '#e8e8e8',
     'logo_only': 'True'
 }
 
-html_logo = 'figures/tmp.png'
+html_logo = 'figures/zbrains_alpha.png'
 
 # The name of the Pygments (syntax highlighting) style to use.
 import os
