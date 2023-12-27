@@ -4,6 +4,7 @@ import sys
 import logging
 import itertools
 from pathlib import Path
+from typing import TypeAlias
 from functools import reduce
 from collections import defaultdict
 
@@ -12,19 +13,21 @@ import pandas as pd
 import nibabel as nib
 
 from deconfounding import CombatModel, RegressOutModel
-from constants import Structure, Resolution, Feature, struct_to_folder, \
-    map_feature_to_file, HIGH_RESOLUTION_CTX, LOW_RESOLUTION_CTX, HIGH_RESOLUTION_HIP, \
-    LOW_RESOLUTION_HIP, FOLDER_MAPS
-
+from constants import (Structure, Resolution, Feature, Analysis,
+                       Approach, struct_to_folder, approach_to_folder,
+                       map_feature_to_file, HIGH_RESOLUTION_CTX,
+                       LOW_RESOLUTION_CTX, HIGH_RESOLUTION_HIP,
+                       LOW_RESOLUTION_HIP, FOLDER_MAPS)
 
 COLUMN_DATASET = '__zbrains_dataset_identifier__'
 
+PathType: TypeAlias = str | os.PathLike[str]
 
 logger = logging.getLogger('analysis_logger')
 
 
 # Helpers -----------------------------------------------------------------------------------------
-def get_id(sid, add_prefix=True):
+def get_id(sid: str, add_prefix=True):
     if sid.startswith('sub-'):
         sid = sid[4:]
     if add_prefix:
@@ -42,7 +45,7 @@ def get_session(session, add_predix=True):
     return session
 
 
-def _get_bids_id(sid, ses):
+def get_bids_id(sid: str, ses: str | None = None):
     sid = get_id(sid, add_prefix=True)
     ses = get_session(ses, add_predix=True)
     if ses is None:
@@ -50,10 +53,11 @@ def _get_bids_id(sid, ses):
     return f'{sid}_{ses}'
 
 
-def _get_subject_dir(root_pth, sid, ses):
+def get_subject_dir(root_pth: PathType, sid: str, ses: str | None = None):
     sid = get_id(sid, add_prefix=True)
     ses = get_session(ses, add_predix=True)
-    return f'{root_pth}/{sid}' if ses is None else f'{root_pth}/{sid}/{ses}'
+    p = f'{root_pth}/{sid}' if ses is None else f'{root_pth}/{sid}/{ses}'
+    return Path(p)
 
 
 # Mahalanobis -------------------------------------------------------------------------------------
@@ -186,51 +190,54 @@ def mahalanobis_distance(x_train: np.ndarray, x_test: np.ndarray) -> np.ndarray:
 
 
 # Read/write functions ----------------------------------------------------------------------------
-def _map_resolution(struct: Structure, resolution: Resolution):
+def map_resolution(struct: Structure, res: Resolution):
     if struct == 'cortex':
-        return HIGH_RESOLUTION_CTX if resolution == 'high' else LOW_RESOLUTION_CTX
+        return HIGH_RESOLUTION_CTX if res == 'high' else LOW_RESOLUTION_CTX
     if struct == 'hippocampus':
-        return HIGH_RESOLUTION_HIP if resolution == 'high' else LOW_RESOLUTION_HIP
+        return HIGH_RESOLUTION_HIP if res == 'high' else LOW_RESOLUTION_HIP
     raise ValueError(f'Mapping resolution for unknown structure: {struct}')
 
 
-def _get_ipath_from_template(struct, **kwargs):
+def get_feature_path_from_template(struct: Structure, **kwargs) -> Path:
     if struct == 'subcortex':
         ipth = '{root_path}/{bids_id}_feature-{feat}.csv'
 
     elif struct == 'cortex':
-        ipth = ('{root_path}/{bids_id}_hemi-{hemi}_surf-fsLR-{res}_label-{label}_feature-{feat}'
-                '_smooth-{smooth}mm.func.gii')
+        ipth = ('{root_path}/{bids_id}_hemi-{hemi}_surf-fsLR-{res}_'
+                'label-{label}_feature-{feat}_smooth-{smooth}mm.func.gii')
 
     else:
-        ipth = ('{root_path}/{bids_id}_hemi-{hemi}_den-{res}_label-{label}_feature-{feat}'
-                '_smooth-{smooth}mm.func.gii')
+        ipth = ('{root_path}/{bids_id}_hemi-{hemi}_den-{res}_'
+                'label-{label}_feature-{feat}_smooth-{smooth}mm.func.gii')
 
     if 'res' in kwargs:
-        kwargs['res'] = _map_resolution(struct, kwargs['res'])
+        kwargs['res'] = map_resolution(struct, kwargs['res'])
 
-    return ipth.format(**kwargs)
+    return Path(ipth.format(**kwargs))
 
 
-def _get_opath_from_template(struct, **kwargs):
+def get_analysis_path_from_template(struct: Structure, **kwargs) -> Path:
     if struct == 'subcortex':
         opth = '{root_path}/{bids_id}_feature-{feat}_analysis-{analysis}.csv'
 
     elif struct == 'cortex':
-        opth = ('{root_path}/{bids_id}_hemi-{hemi}_surf-fsLR-{res}_label-{label}_feature-{feat}'
-                '_smooth-{smooth}mm_analysis-{analysis}.func.gii')
+        opth = ('{root_path}/{bids_id}_hemi-{hemi}_surf-fsLR-{res}_'
+                'label-{label}_feature-{feat}_smooth-{smooth}mm_'
+                'analysis-{analysis}.func.gii')
     else:
-        opth = ('{root_path}/{bids_id}_hemi-{hemi}_den-{res}_label-{label}_feature-{feat}'
-                '_smooth-{smooth}mm_analysis-{analysis}.func.gii')
+        opth = ('{root_path}/{bids_id}_hemi-{hemi}_den-{res}_label-{label}_'
+                'feature-{feat}_smooth-{smooth}mm_analysis-{analysis}.func.gii')
 
     if 'res' in kwargs:
-        kwargs['res'] = _map_resolution(struct, kwargs['res'])
-    return opth.format(**kwargs)
+        kwargs['res'] = map_resolution(struct, kwargs['res'])
+    return Path(opth.format(**kwargs))
 
 
-def _load_one(pth_zbrains: str, *, sid: str, ses: str, struct: Structure, feat: Feature,
-              resolution: Resolution | None = None, label: str | None = None,
-              smooth: float | None = None, asymmetry=False, raise_error: bool = True) \
+def _load_one(pth_zbrains: PathType, *, sid: str, ses: str, struct: Structure,
+              feat: Feature, resolution: Resolution | None = None,
+              label: str | None = None, smooth: float | None = None,
+              # analysis: Analysis,
+              raise_error: bool = True) \
         -> np.ndarray | pd.DataFrame | None:
     """ Load subject data
 
@@ -249,24 +256,25 @@ def _load_one(pth_zbrains: str, *, sid: str, ses: str, struct: Structure, feat: 
     resolution:
         Resolution. Required when struct='cortex' or struct='hippocampus'.
     label:
-        Label indicates the surfaces used in the volume to surface mapping. Required when
-        struct='cortex' or struct='hippocampus'.
+        Label indicates the surfaces used in the volume to surface mapping.
+        Required when struct='cortex' or struct='hippocampus'.
     smooth:
-        Size of gaussian smoothing kernel. Required when struct='cortex' or struct='hippocampus'.
+        Size of gaussian smoothing kernel. Required when struct='cortex' or
+         struct='hippocampus'.
     raise_error:
         Raise error if file not found
 
     Returns
     -------
     x:
-        Subject data. If structure is 'cortex' or 'hippocampus', shape ndarray of shape
-        (2 * n_vertices_per_hemisphere,). Otherwise, return DataFrame of shape
-        (1, 2 * n_subcortical_structures_per_hemisphere).
+        Subject data. If structure is 'cortex' or 'hippocampus', ndarray of
+        shape (2 * n_vertices_per_hemisphere,). Otherwise, return DataFrame of
+        shape (1, 2 * n_subcortical_structures_per_hemisphere).
         None if no data available for at least one hemisphere.
     """
 
-    bids_id = _get_bids_id(sid, ses)
-    subject_dir = _get_subject_dir(pth_zbrains, sid, ses)
+    bids_id = get_bids_id(sid, ses)
+    subject_dir = get_subject_dir(pth_zbrains, sid, ses)
     if not os.path.isdir(subject_dir):
         logger.debug(f"Subject '{bids_id}' zbrains directory does not exist")
 
@@ -275,8 +283,10 @@ def _load_one(pth_zbrains: str, *, sid: str, ses: str, struct: Structure, feat: 
     if struct == 'subcortex' and feat == 'thickness':
         feat = 'volume'
 
+    kwds = dict(root_path=folder, bids_id=bids_id, feat=feat)
+
     if struct == 'subcortex':
-        ipth = _get_ipath_from_template(struct, root_path=folder, bids_id=bids_id, feat=feat)
+        ipth = get_feature_path_from_template(struct, **kwds)
 
         try:
             x = pd.read_csv(ipth, header=[0], index_col=0)
@@ -287,17 +297,17 @@ def _load_one(pth_zbrains: str, *, sid: str, ses: str, struct: Structure, feat: 
             logger.debug(f'File not found: "{ipth}"')
             return None
 
-        if asymmetry:
-            y = x.to_numpy()
-            n = x.shape[1] // 2
-            x.iloc[:, :n] = compute_asymmetry(y[:, :n], y[:, n:])
-            return x.iloc[:, :n]
+        # if analysis == 'asymmetry':
+        #     y = x.to_numpy()
+        #     n = x.shape[1] // 2
+        #     x.iloc[:, :n] = compute_asymmetry(y[:, :n], y[:, n:])
+        #     return x.iloc[:, :n]
         return x
 
     x = []
     for h in ['L', 'R']:
-        ipth = _get_ipath_from_template(struct, root_path=folder, bids_id=bids_id, hemi=h,
-                                        res=resolution, label=label, feat=feat, smooth=smooth)
+        ipth = get_feature_path_from_template(struct, hemi=h, res=resolution,
+                                              label=label, smooth=smooth, **kwds)
         try:
             x.append(nib.load(ipth).darrays[0].data)
         except FileNotFoundError:
@@ -307,16 +317,17 @@ def _load_one(pth_zbrains: str, *, sid: str, ses: str, struct: Structure, feat: 
             logger.debug(f'File not found: "{ipth}"')
             return None
 
-    if asymmetry:
-        return compute_asymmetry(x[0], x[1])
+    # if analysis == 'asymmetry':
+    #     return compute_asymmetry(x[0], x[1])
     return np.concatenate(x)
 
 
 def _load_data(
-        pth_zbrains: str | list[str], *,
-        df_subjects: pd.DataFrame | list[pd.DataFrame], struct: Structure,
-        feat: Feature, resolution: Resolution | None = None,
-        label: str | None = None, smooth: float | None = None, asymmetry=False) \
+        pth_zbrains: str | list[str], *, struct: Structure, feat: Feature,
+        df_subjects: pd.DataFrame | list[pd.DataFrame],
+        # analysis: Analysis,
+        resolution: Resolution | None = None, label: str | None = None,
+        smooth: float | None = None) \
         -> tuple[pd.DataFrame | None | np.ndarray, pd.DataFrame | None]:
     """ Load data form all subjects in 'df_subjects'.
 
@@ -325,7 +336,8 @@ def _load_data(
     pth_zbrains:
         Path to the zbrains derivatives folder.
     df_subjects:
-        Data frame with subjects. Must contain participant_id column. session_id col optional.
+        Data frame with subjects. Must contain participant_id column.
+        session_id col optional.
     struct:
         Structure.
     feat:
@@ -333,19 +345,20 @@ def _load_data(
     resolution:
         Resolution. Required when struct='cortex' or struct='hippocampus'.
     label:
-        Label indicates the surfaces used in the volume to surface mapping. Required when
-        struct='cortex' or struct='hippocampus'.
+        Label indicates the surfaces used in the volume to surface mapping.
+        Required when struct='cortex' or struct='hippocampus'.
     smooth:
-        Size of gaussian smoothing kernel. Required when struct='cortex' or struct='hippocampus'.
+        Size of gaussian smoothing kernel. Required when struct='cortex' or
+        struct='hippocampus'.
 
     Returns
     -------
     x:
-        Data for CN. Return ndarray of shape (n_available_subjects, 2 * n_points_per_hemisphere).
-        If struct='subcortex', return DataFrame.
+        Data for CN. Return ndarray of shape (n_available_subjects,
+        2 * n_points_per_hemisphere). If struct='subcortex', return DataFrame.
     df_controls_available:
-        Dataframe of shape (n_available_subjects, n_cols), only including those rows in
-        'df_controls' with available data.
+        Dataframe of shape (n_available_subjects, n_cols), only including those
+        rows in 'df_controls' with available data.
     """
 
     if isinstance(pth_zbrains, list):
@@ -354,7 +367,7 @@ def _load_data(
             x, df = _load_data(
                 pth, df_subjects=df, struct=struct, feat=feat,
                 resolution=resolution, label=label, smooth=smooth,
-                asymmetry=asymmetry
+                # analysis=analysis
             )
 
             if x is not None:
@@ -382,7 +395,8 @@ def _load_data(
 
         x = _load_one(pth_zbrains, sid=sid, ses=ses, struct=struct, feat=feat,
                       resolution=resolution, label=label, smooth=smooth,
-                      asymmetry=asymmetry, raise_error=False)
+                      # analysis=analysis,
+                      raise_error=False)
         if x is not None:
             data.append(x)
             missing_subjects[i] = False
@@ -396,9 +410,10 @@ def _load_data(
     return np.stack(data, axis=0), df_subjects
 
 
-def _save(pth_analysis: str, *, x: np.ndarray | pd.DataFrame, sid: str, struct: Structure,
-          feat: Feature | list[Feature], ses: str = None, resolution: Resolution | None = None,
-          label: str | None = None, smooth: float | None = None, asymmetry=False):
+def _save(pth_analysis: str, *, x: np.ndarray | pd.DataFrame, sid: str,
+          struct: Structure, feat: Feature | list[Feature], ses: str = None,
+          resolution: Resolution | None = None, label: str | None = None,
+          smooth: float | None = None, analysis: Analysis):
     """ Save results
 
     Parameters
@@ -406,7 +421,8 @@ def _save(pth_analysis: str, *, x: np.ndarray | pd.DataFrame, sid: str, struct: 
     pth_analysis:
         Path to the analysis folder in the zbrains derivatives folder.
     x:
-        Patient data to save. shape ndarray of shape (2, n_points) or (n_points,)
+        Patient data to save. shape ndarray of shape (2, n_points)
+        or (n_points,)
     sid:
         Subject id.
     struct:
@@ -418,51 +434,54 @@ def _save(pth_analysis: str, *, x: np.ndarray | pd.DataFrame, sid: str, struct: 
     resolution:
         Resolution. Required when struct='cortex' or struct='hippocampus'.
     label:
-        Label indicates the surfaces used in the volume to surface mapping. Required when
-        struct='cortex' or struct='hippocampus'.
+        Label indicates the surfaces used in the volume to surface mapping.
+        Required when struct='cortex' or struct='hippocampus'.
     smooth:
-        Size of gaussian smoothing kernel. Required when struct='cortex' or struct='hippocampus'.
-    asymmetry:
-        If true, data is from asymmetry analysis, so only left hemisphere.
+        Size of gaussian smoothing kernel. Required when struct='cortex' or
+        struct='hippocampus'.
+    analysis:
+        If 'asymmetry', only save left hemisphere.
     """
 
-    bids_id = _get_bids_id(sid, ses)
+    bids_id = get_bids_id(sid, ses)
     folder = f'{pth_analysis}/{struct_to_folder[struct]}'
 
     # Handle the case when feat is a list of string (used for Mahalanobis)
     is_list = isinstance(feat, list)
     feat = feat if is_list else [feat]
-    feat = ['volume' if (k == 'thickness' and struct == 'subcortex') else k for k in feat]
+    feat = ['volume' if (k == 'thickness' and struct == 'subcortex')
+            else k for k in feat]
     feat = [map_feature_to_file[k] for k in feat]
     feat = '-'.join(feat) if is_list else feat[0]
 
-    analysis = 'asymmetry' if asymmetry else 'regional'
-
+    kwds = dict(root_path=folder, bids_id=bids_id, feat=feat, analysis=analysis)
     if struct == 'subcortex':
-        opth = _get_opath_from_template(struct, root_path=folder, bids_id=bids_id, feat=feat,
-                                        analysis=analysis)
+        opth = get_analysis_path_from_template(struct, **kwds)
         x.to_csv(opth)
         return
 
     for i, h in enumerate(['L', 'R']):
-        data_array = nib.gifti.GiftiDataArray(data=x if asymmetry else x[i])  # per hemisphere
+        data = x if analysis == 'asymmetry' else x[i]
+        data_array = nib.gifti.GiftiDataArray(data=data)  # per hemisphere
         image = nib.gifti.GiftiImage()
         image.add_gifti_data_array(data_array)
 
-        opth = _get_opath_from_template(struct, root_path=folder, bids_id=bids_id, hemi=h,
-                                        res=resolution, label=label, feat=feat, smooth=smooth,
-                                        analysis=analysis)
+        opth = get_analysis_path_from_template(
+            struct, hemi=h, res=resolution, label=label, smooth=smooth, **kwds)
         nib.save(image, opth)
 
-        if asymmetry:
+        if analysis == 'asymmetry':
             break
 
 
-def load_demo(path: Path | list[Path], *, rename: dict[str, str] | None = None,
-              dtypes: dict | None = None):
-
+def load_demo(
+        path: PathType | list[PathType], *,
+        rename: dict[str, str] | None = None,
+        dtypes: dict[str, type] | None = None
+):
     if not (is_list := isinstance(path, list)):
         path = [path]
+    path = [Path(p) for p in path]
 
     list_df = []
     for p in path:
@@ -475,7 +494,7 @@ def load_demo(path: Path | list[Path], *, rename: dict[str, str] | None = None,
                 pids = df['participant_id'].tolist()
                 for v in pids:
                     if not re.match(r'^sub-.+', v):
-                        msg = (f'Participant ID must have the form \'sub-XXXX\'.'
+                        msg = (f'Participant ID must have the form "sub-XXXX".'
                                f'\nCheck demographics file: {p}')
                         logger.error(msg)
                         exit(1)
@@ -484,7 +503,7 @@ def load_demo(path: Path | list[Path], *, rename: dict[str, str] | None = None,
                 pids = df['session_id'].tolist()
                 for v in pids:
                     if not re.match(r'^ses-.+', v):
-                        msg = (f'Session ID must have the form \'ses-XXXX\'.'
+                        msg = (f'Session ID must have the form "ses-XXXX".'
                                f'\nCheck demographics file: {p}')
                         logger.error(msg)
                         exit(1)
@@ -496,111 +515,158 @@ def load_demo(path: Path | list[Path], *, rename: dict[str, str] | None = None,
     return list_df
 
 
+def load_px_demo(
+        *, sid: str, ses: str | None = None, demo_px: PathType,
+        actual_to_expected: dict[str, str],
+        col_dtypes: dict[str, type] | None = None
+):
+
+    df_px = load_demo(demo_px, rename=actual_to_expected, dtypes=col_dtypes)
+    mask_px = df_px['participant_id'] == sid
+    if ses is not None:
+        mask_px &= df_px['session_id'] == ses
+    return df_px[mask_px]
+
+
+# def _subject_zscore(
+#         *, dir_px, px_sid, px_ses, data_cn: np.ndarray, feat: Feature,
+#         deconfounder: CombatModel | RegressOutModel | None,
+#         df_px: pd.Series | None, analyses: list[Analysis], **kwargs):
+#
+#     # Load patient data
+#     data_px = _load_one(dir_px, sid=px_sid, ses=px_ses, raise_error=True,
+#                         feat=feat, **kwargs)
+#
+#     # For subcortex, we have dataframes
+#     cols_df = index_df = None
+#     if is_df := isinstance(data_px, pd.DataFrame):
+#         index_df, cols_df = data_px.index, data_px.columns
+#         data_px = data_px.to_numpy().ravel()
+#
+#     # Deconfounding
+#     if deconfounder:
+#         df_px = df_px.to_frame().T
+#         data_px = deconfounder.transform(data_px.reshape(1, -1), df_px)[0]
+#
+#     # Analysis: z-scoring
+#     z = zscore(data_cn, data_px)
+#     if is_df:
+#         z = pd.DataFrame(z.reshape(1, -1), index=index_df, columns=cols_df)
+#
+#     # Store data for mahalanobis
+#     return dict(z=z, data_px=data_px, index_df=index_df, cols_df=cols_df)
+
 def _subject_zscore(
-        *, dir_px, px_sid, px_ses, data_cn: np.ndarray, feat: Feature,
-        deconfounder: CombatModel | RegressOutModel | None,
-        df_px: pd.DataFrame | None, **kwargs):
+        *, data_cn: np.ndarray, data_px: np.ndarray, index_df=None,
+        cols_df=None, analyses: list[Analysis]
+):
 
-    # Load patient data
-    data_px = _load_one(dir_px, sid=px_sid, ses=px_ses, raise_error=True,
-                        feat=feat, **kwargs)
+    res = dict()
 
-    # For subcortex, we have dataframes
-    cols_df = index_df = None
-    if is_df := isinstance(data_px, pd.DataFrame):
-        index_df, cols_df = data_px.index, data_px.columns
-        data_px = data_px.to_numpy().ravel()
+    if 'regional' in analyses:
+        z = zscore(data_cn, data_px)
+        if index_df is not None:
+            z = pd.DataFrame(z.reshape(1, -1), index=index_df, columns=cols_df)
 
-    # Deconfounding
-    if deconfounder:
-        data_px = deconfounder.transform(data_px.reshape(1, -1), df_px)[0]
+        res['regional'] = z
 
-    # Analysis: z-scoring
-    z = zscore(data_cn, data_px)
-    if is_df:
-        z = pd.DataFrame(z.reshape(1, -1), index=index_df, columns=cols_df)
+    if 'asymmetry' in analyses:
+        xh_cn = data_cn.reshape(2, data_cn.shape[0], -1)
+        data_cn_asym = compute_asymmetry(xh_cn[0], xh_cn[1])
 
-    # Store data for mahalanobis
-    return dict(z=z, data_px=data_px, index_df=index_df, cols_df=cols_df)
+        xh_px = data_px.reshape(2, -1)
+        data_px_asym = compute_asymmetry(xh_px[0], xh_px[1])
+        # za = zscore(data_cn_asym, data_px_asym)
+
+        # if index_df:
+        #     za = pd.DataFrame(za.reshape(1, -1), index=index_df,
+        #                       columns=cols_df[:za.size])
+        # res['asymmetry'] = za
+        cols_df = None if cols_df is None else cols_df[:xh_px.shape[1]]
+        res['asymmetry'] = _subject_zscore(
+            data_cn=data_cn_asym, data_px=data_px_asym, index_df=index_df,
+            cols_df=cols_df, analyses=['regional'])['regional']
+
+    return res
 
 
-def _subject_mahalanobis(*, data: defaultdict[str, list]):
-
+def _subject_mahalanobis(
+        *, data: defaultdict[str, list], analyses: list[Analysis]
+):
     list_df_cn = data['df_cn']
-    list_data_cn = data['data_cn']
+    list_data_cn = []
     common_ids = reduce(np.intersect1d, [df.index for df in list_df_cn])
-    for i, (df, x) in enumerate(zip(list_df_cn, list_data_cn)):
+    for i, (df, x) in enumerate(zip(list_df_cn, data['data_cn'])):
         mask = df.index.isin(common_ids)
-        list_data_cn[i] = x[mask]
+        list_data_cn.append(x[mask])
+        # list_df_cn[i] = df[mask]
 
-    data_cn = np.stack(list_data_cn, axis=-1)
-    data_px = np.stack(data['data_px'], axis=-1)
-
-    md = mahalanobis_distance(data_cn, data_px)
     cols_df = data['cols_df'][0]
     index_df = data['index_df'][0]
-    if index_df is not None:
-        md = pd.DataFrame(md.reshape(1, -1), index=index_df, columns=cols_df)
 
-    return dict(md=md, data_cn=data_cn, data_px=data_px)
+    res = dict()
+    if 'regional' in analyses:
+        data_cn = np.stack(list_data_cn, axis=-1)
+        data_px = np.stack(data['data_px'], axis=-1)
+
+        md = mahalanobis_distance(data_cn, data_px)
+
+        if index_df is not None:
+            md = pd.DataFrame(md.reshape(1, -1), index=index_df, columns=cols_df)
+
+        res['regional'] = dict(md=md, data_cn=data_cn, data_px=data_px)
+
+    if 'asymmetry' in analyses:
+        n = len(data['data_px'])
+        list_data_cn = [None] * n
+        list_data_px = [None] * n
+        list_cols_df = [None] * n
+        for i, x_cn in enumerate(data['data_cn']):
+            xh_cn = x_cn.reshape(2, x_cn.shape[0], -1)
+            list_data_cn[i] = compute_asymmetry(xh_cn[0], xh_cn[1])
+
+            x_px = data['data_px'][i]
+            xh_px = x_px.reshape(2, -1)
+            list_data_px[i] = compute_asymmetry(xh_px[0], xh_px[1])
+
+            list_cols_df[i] = data['data_px'][i][:xh_px.shape[1]]
+
+        data['data_cn'] = list_data_cn
+        data['data_px'] = list_data_px
+        data['cols_df'] = list_cols_df
+
+        res['asymmetry'] = _subject_mahalanobis(
+            data=data, analyses=['regional'])['regional']
+
+    return res
 
 
 def run_analysis(
-        *, px_sid: str, px_ses: str = None, dir_cn: list[str],
-        demo_cn: list[Path], dir_px: str, demo_px: Path | None = None,
+        *, px_sid: str, px_ses: str = None, cn_zbrains: list[PathType],
+        cn_demo_paths: list[PathType], px_zbrains: PathType,
+        px_demo: pd.Series | None = None,
         structures: list[Structure], features: list[Feature],
         cov_normative: list[str] | None = None,
         cov_deconfound: list[str] | None = None, smooth_ctx: float,
         smooth_hip: float, resolutions: list[Resolution], labels_ctx: list[str],
         labels_hip: list[str], actual_to_expected: dict[str, str],
-        asymmetry=False, analysis_folder: str
+        analyses: list[Analysis], approach: Approach,
+        col_dtypes: dict[str, type] | None = None
 ):
+    approach_folder = approach_to_folder[approach]
 
     logger.debug(f'Logging call: {sys.argv[0]} {" ".join(sys.argv[1:])}')
-    logger.info(f'{"Asymmetry" if asymmetry else "Regional"} analysis\n')
+    # logger.info(f'{analysis.capitalize()} analysis\n')
 
-    pth_analysis = f'{_get_subject_dir(dir_px, px_sid, px_ses)}/{analysis_folder}'
+    pth_analysis = (f'{get_subject_dir(px_zbrains, px_sid, px_ses)}/'
+                    f'{approach_folder}')
 
     # Load dataframes ----------------------------------------------------------
-    # Read participant_id, session_id, sex, site as categorical if available
-    dtypes = {actual: (str if expected != 'age' else float)
-              for actual, expected in actual_to_expected.items()}
-
-    # Controls
-    list_df_cn = load_demo(demo_cn, rename=actual_to_expected, dtypes=dtypes)
+    list_df_cn = load_demo(cn_demo_paths, rename=actual_to_expected,
+                           dtypes=col_dtypes)
     n_cn = sum(len(df) for df in list_df_cn)
 
-    # Patient
-    df_px = None
-    if demo_px:
-        df_px = load_demo(demo_px, rename=actual_to_expected, dtypes=dtypes)
-        mask_px = df_px['participant_id'] == px_sid
-        if px_ses is not None:
-            mask_px &= df_px['session_id'] == px_ses
-        df_px = df_px[mask_px]
-
-        bids_id = _get_bids_id(px_sid, px_ses)
-        if df_px.shape[0] > 1:
-            msg = (f'Provided participant ID{"" if px_ses is None else " and session ID"} for {bids_id} not '
-                   f'unique\nCheck demographics file: {demo_px}')
-            if cov_normative is not None or cov_deconfound is not None:
-                logger.error(msg)
-                exit(1)
-            else:  # For report
-                logger.warning(msg)
-                df_px = None  # Dont use
-
-        if df_px.shape[0] == 0:
-            msg = (f'Provided participant ID{"" if px_ses is None else " and session ID"} for {bids_id} missing '
-                   f'\nCheck demographics file: {demo_px}')
-            if cov_normative is not None or cov_deconfound is not None:
-                logger.error(msg)
-                exit(1)
-            else:  # For report
-                logger.warning(msg)
-                df_px = None  # Dont use
-
-    # Load dataframes ----------------------------------------------------------
+    # Iterables ----------------------------------------------------------------
     iterables = []
     for st in structures:
         if st == 'subcortex':
@@ -609,6 +675,11 @@ def run_analysis(
             iterables += itertools.product([st], resolutions, labels_ctx)
         else:
             iterables += itertools.product([st], resolutions, labels_hip)
+
+    # Available features -------------------------------------------------------
+    available_features = {k: defaultdict(dict) for k in structures}
+    if 'subcortex' in structures:
+        available_features['subcortex'] = []
 
     # Main loop ----------------------------------------------------------------
     for struct, resol, label in iterables:
@@ -619,14 +690,16 @@ def run_analysis(
         # Shared kwds
         smooth = smooth_ctx if struct == 'cortex' else smooth_hip
         kwds = dict(struct=struct, resolution=resol, label=label, smooth=smooth,
-                    asymmetry=asymmetry)
+                    # analysis=analysis
+                    )
 
         data_mahalanobis = defaultdict(list)
         for feat in features:
 
             # Load control data
             kwds |= dict(feat=feat)
-            data_cn, df_cn = _load_data(dir_cn, df_subjects=list_df_cn, **kwds)
+            data_cn, df_cn = _load_data(cn_zbrains, df_subjects=list_df_cn,
+                                        **kwds)
             if data_cn is None:
                 logger.warning(f'\t{feat:<15}: \tNo data available for '
                                f'reference subjects.')
@@ -637,50 +710,85 @@ def run_analysis(
 
             # Deconfounding
             dec = None
-            if cov_deconfound is not None and df_px is not None:
+            if cov_deconfound is not None and px_demo is not None:
                 dec = get_deconfounder(covariates=cov_deconfound)
                 data_cn = dec.fit_transform(data_cn, df_cn)
 
-            # zscore
-            try:
-                res = _subject_zscore(
-                    dir_px=dir_px, px_sid=px_sid, px_ses=px_ses, data_cn=data_cn,
-                    deconfounder=dec, df_px=df_px, **kwds)
-            except FileNotFoundError:
-                logger.warning(f'\t{feat:<15}: \tNo data available for target subject.')
+            # Load patient data
+            data_px = _load_one(px_zbrains, sid=px_sid, ses=px_ses,
+                                raise_error=False, **kwds)
+            if data_px is None:
+                logger.warning(f'\t{feat:<15}: \tNo data available for target '
+                               f'subject.')
                 continue
+
+            # For subcortex, we have dataframes
+            cols_df = index_df = None
+            if is_df := isinstance(data_px, pd.DataFrame):
+                index_df, cols_df = data_px.index, data_px.columns
+                data_px = data_px.to_numpy().ravel()
+
+            # Deconfounding
+            if dec:
+                df_px = px_demo.to_frame().T
+                data_px = dec.transform(data_px.reshape(1, -1), df_px)[0]
+
+            # Analysis: zscoring
+            res = _subject_zscore(
+                data_cn=data_cn, data_px=data_px, index_df=index_df,
+                cols_df=cols_df, analyses=analyses)
 
             logger.info(f'\t{feat:<15}: \t[{df_cn.shape[0]}/{n_cn} '
                         f'reference subjects available]')
 
             # Save results
-            z = res['z']
-            if not asymmetry and struct != 'subcortex':
-                z = z.reshape(2, -1)
+            for analysis in analyses:
+                z = res[analysis]
+                if analysis == 'regional' and struct != 'subcortex':
+                    z = z.reshape(2, -1)
+                _save(pth_analysis, x=z, sid=px_sid, ses=px_ses,
+                      analysis=analysis, **kwds)
 
-            _save(pth_analysis, x=z, sid=px_sid, ses=px_ses, **kwds)
+            # store for mahalanobis
+            res = dict(data_cn=data_cn, data_px=data_px,
+                       df_cn=df_cn, feat=feat,
+                       index_df=index_df, cols_df=cols_df)
 
-            res |= dict(data_cn=data_cn, df_cn=df_cn, feat=feat)
             for k, v in res.items():
                 data_mahalanobis[k].append(v)
+
+        # store available features
+        if struct == 'subcortex':
+            available_features[struct] = data_mahalanobis['feat']
+        else:
+            available_features[struct][resol][label] = data_mahalanobis['feat']
 
         # Mahalanobis
         if len(data_mahalanobis['feat']) < 2:
             continue
 
         # Analysis: mahalanobis distance
-        res = _subject_mahalanobis(data=data_mahalanobis)
+        res = _subject_mahalanobis(data=data_mahalanobis, analyses=analyses)
 
-        n_available_cn = res['data_cn'].shape[0]
+        # Save results
+        kwds |= dict(feat=data_mahalanobis['feat'])
+
+        n_available_cn = 0
+        for analysis in analyses:
+            data = res[analysis]
+            md = data['md']
+            n_available_cn = data['data_cn'].shape[0]
+
+            if analysis == 'regional' and struct != 'subcortex':
+                md = md.reshape(2, -1)
+
+            _save(pth_analysis, x=md, sid=px_sid, ses=px_ses,
+                  analysis=analysis, **kwds)
+
+        # n_available_cn = res['data_cn'].shape[0]
         logger.info(f'\n\t{"Mahalanobis":<15}: \t[{n_available_cn}/{n_cn} '
                     f'controls available]\n')
 
-        # Save results
-        md = res['md']
-        if not asymmetry and struct != 'subcortex':
-            md = md.reshape(2, -1)
-
-        kwds |= dict(feat=data_mahalanobis['feat'])
-        _save(pth_analysis, x=md, sid=px_sid, ses=px_ses, **kwds)
-
     logger.info('Done!\n\n')
+
+    return available_features
