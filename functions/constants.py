@@ -14,7 +14,10 @@ LIST_STRUCTURES: list[Structure] = list(get_args(Structure))
 Task = Literal['proc', 'analysis']
 LIST_TASKS: list[Task] = list(get_args(Task))
 
-Analysis = Literal['zscore', 'norm']
+Approach = Literal['zscore', 'norm']
+LIST_APPROACHES: list[Approach] = list(get_args(Approach))
+
+Analysis = Literal['regional', 'asymmetry']
 LIST_ANALYSES: list[Analysis] = list(get_args(Analysis))
 
 Resolution = Literal['low', 'high']
@@ -28,6 +31,9 @@ FOLDER_LOGS = 'logs'
 FOLDER_MAPS = 'maps'
 FOLDER_NORM_Z = 'norm-z'
 FOLDER_NORM_MODEL = 'norm-normative'
+
+approach_to_folder = dict(zip(LIST_APPROACHES,
+                              [FOLDER_NORM_Z, FOLDER_NORM_MODEL]))
 
 # Structure folders
 FOLDER_CTX = 'cortex'
