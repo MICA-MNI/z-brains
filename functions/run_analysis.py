@@ -3,11 +3,18 @@ import logging
 import argparse
 from pathlib import Path
 
+import numpy as np
 
-from utils_analysis import get_id, get_session, run_analysis
-from constants import LIST_FEATURES, LIST_STRUCTURES, LIST_ANALYSES, \
-    LIST_RESOLUTIONS, DEFAULT_SMOOTH_CTX, DEFAULT_SMOOTH_HIP, \
-    DEFAULT_THRESHOLD, FOLDER_NORM_Z, FOLDER_NORM_MODEL
+from constants import (
+    LIST_FEATURES, LIST_STRUCTURES, LIST_APPROACHES, LIST_RESOLUTIONS,
+    DEFAULT_SMOOTH_CTX, DEFAULT_SMOOTH_HIP, DEFAULT_THRESHOLD, LIST_ANALYSES,
+    Resolution
+)
+
+from utils_analysis import (
+    get_id, get_session, run_analysis, get_bids_id, load_demo
+)
+from clinical_reports import generate_clinical_report
 
 
 class MapAction(argparse.Action):
@@ -61,13 +68,14 @@ cli.add_argument(
 cli.add_argument(
     '--deconfound', type=str, nargs='+', default=None,
     help='Perform deconfounding based on provided covariates. If covariates '
-         'include \'site\', deconfounding is performed using ComBat. Otherwise, '
-         'linear regression is used to regress out the effects of the '
-         'covariates from the data. By default, ComBat preserves additional '
-         'covariates. To remove the effects of a covariate, prepend with \'-\' '
-         '(ignored when not using ComBat). '
-         'Example: \'--deconfound site -age -sex group\' to harmonize data while '
-         'preserving the effects of group and removing those of age and sex.'
+         'include \'site\', deconfounding is performed using ComBat. '
+         'Otherwise, linear regression is used to regress out the effects of '
+         'the covariates from the data. By default, ComBat preserves '
+         'additional covariates. To remove the effects of a covariate, prepend '
+         'with \'-\' (ignored when not using ComBat). '
+         'Example: \'--deconfound site -age -sex group\' to harmonize data '
+         'while preserving the effects of group and removing those of age and '
+         'sex.'
 )
 cli.add_argument(
     '--smooth_ctx', type=str, default=DEFAULT_SMOOTH_CTX,
@@ -82,8 +90,8 @@ cli.add_argument(
     help='Z-score threshold.'
 )
 cli.add_argument(
-    '--analysis', type=str, choices=LIST_ANALYSES, default='norm-z',
-    help='Type of analysis.'
+    '--approach', type=str, choices=LIST_APPROACHES,
+    default='zscore', help='Comparison approach.'
 )
 cli.add_argument(
     '--resolution', type=str, nargs='+', choices=LIST_RESOLUTIONS,
@@ -103,6 +111,10 @@ cli.add_argument(
 cli.add_argument(
     '--logfile', metavar='PATH', type=Path, default=None,
     help='Specify the path to the log file'
+)
+cli.add_argument(
+    '--tmp', metavar='PATH', type=Path, default=None,
+    help='Temporary folder'
 )
 cli.add_argument(
     '--verbose', metavar='LEVEL', type=int, default=-1,
@@ -144,8 +156,8 @@ logger.setLevel(logging.DEBUG)  # Default level
 
 # Create a console handler
 console_handler = logging.StreamHandler(sys.stdout)
-formatter = logging.Formatter('%(message)s')
-console_handler.setFormatter(formatter)
+fmt = logging.Formatter('%(message)s')
+console_handler.setFormatter(fmt)
 console_handler.setLevel(logging_level)
 if args.filter_warnings:
     console_handler.addFilter(lambda record: record.levelno != logging.WARNING)
@@ -154,8 +166,8 @@ logger.addHandler(console_handler)
 # Create a file handler - logs everything
 if args.logfile is not None:
     file_handler = logging.FileHandler(args.logfile, mode='w')
-    formatter = logging.Formatter('%(asctime)s - %(levelname)-10.10s: %(message)s')
-    file_handler.setFormatter(formatter)
+    fmt = logging.Formatter('%(asctime)s - %(levelname)-10.10s: %(message)s')
+    file_handler.setFormatter(fmt)
     logger.addHandler(file_handler)
 
 
@@ -177,59 +189,159 @@ sys.excepthook = handle_unhandled_exception
 ################################################################################
 # Analysis
 ################################################################################
-px_id = get_id(args.subject_id, add_prefix=True)
-px_ses = get_session(args.session, add_predix=True)
-threshold = abs(args.threshold)
-
-analysis_type = args.analysis
-analysis_folder = FOLDER_NORM_Z
-if analysis_type == "norm-modelling":
-    analysis_folder = FOLDER_NORM_MODEL
-
-expected_to_actual = dict(
-    participant_id='participant_id', session_id='session_id', age='age',
-    sex='sex', site='site'
-)
-unknown_cols = set(args.column_map.keys()).difference(expected_to_actual.keys())
-if len(unknown_cols) > 0:
-    raise ValueError(f'Unknown column names: {unknown_cols}. '
-                     f'Allowed options are: {list(expected_to_actual.keys())}')
-expected_to_actual.update(args.column_map)
-
-actual_to_expected = {v: k for k, v in expected_to_actual.items()}
-
-cov_normative = args.normative
-if cov_normative is not None:
-    cov_normative = [actual_to_expected.get(col, col) for col in cov_normative]
-
-cov_deconfound = args.deconfound
-if cov_deconfound is not None:
-    for i, col in enumerate(cov_deconfound):
-        prefix = ''
-        if col.startswith('-'):
-            prefix = '-'
-            col = col[1:]
-        cov_deconfound[i] = prefix + actual_to_expected.get(col, col)
-
-if len(args.zbrains_ref) != len(args.demo_ref):
-    raise ValueError('The number of values provided with --zbrains_ref '
-                     'and --demo_ref must be the same.')
-
-
 def main():
-    for asymmetry in [False, True]:
-        run_analysis(
-            px_sid=px_id, px_ses=px_ses, dir_cn=args.zbrains_ref,
-            demo_cn=args.demo_ref, dir_px=args.zbrains, demo_px=args.demo,
-            structures=args.struct, features=args.feat,
-            cov_normative=cov_normative, cov_deconfound=cov_deconfound,
-            smooth_ctx=args.smooth_ctx, smooth_hip=args.smooth_hip,
-            resolutions=args.resolution, labels_ctx=args.labels_ctx,
-            labels_hip=args.labels_hip, actual_to_expected=actual_to_expected,
-            asymmetry=asymmetry, analysis_folder=analysis_folder
+    # Some checks
+    if len(args.zbrains_ref) != len(args.demo_ref):
+        raise ValueError('The number of values provided with --zbrains_ref '
+                         'and --demo_ref must be the same.')
+
+    # Handle columns names -----------------------------------------------------
+    # Column mapping
+    expected_to_actual = dict(
+        participant_id='participant_id', session_id='session_id', age='age',
+        sex='sex', site='site'
+    )
+    unknown_cols = set(args.column_map.keys()).difference(
+        expected_to_actual.keys()
+    )
+    if len(unknown_cols) > 0:
+        raise ValueError(
+            f'Unknown column names: {unknown_cols}. Allowed options '
+            f'are: {list(expected_to_actual.keys())}')
+
+    expected_to_actual.update(args.column_map)
+    actual_to_expected = {v: k for k, v in expected_to_actual.items()}
+
+    # Column types
+    col_dtypes = {actual: (str if expected != 'age' else float)
+                  for actual, expected in actual_to_expected.items()}
+
+    # Rename covariates for normative modeling
+    cov_normative = args.normative
+    if cov_normative is not None:
+        cov_normative = [actual_to_expected.get(col, col)
+                         for col in cov_normative]
+
+    # Rename covariates for deconfounding
+    cov_deconfound = args.deconfound
+    if cov_deconfound is not None:
+        for i, col in enumerate(cov_deconfound):
+            prefix = ''
+            if col.startswith('-'):
+                prefix = '-'
+                col = col[1:]
+            cov_deconfound[i] = prefix + actual_to_expected.get(col, col)
+
+    # Identifiers --------------------------------------------------------------
+    px_id = get_id(args.subject_id, add_prefix=True)
+    px_ses = get_session(args.session, add_predix=True)
+    bids_id = get_bids_id(px_id, px_ses)
+
+    # subject_dir = get_subject_dir(zbrains_path, sid, ses)
+    # path_analysis = f'{subject_dir}/{approach_folder}'
+
+    # Load px dataframe --------------------------------------------------------
+    px_demo = None
+    if args.demo is not None:
+        px_demo = load_demo(args.demo, rename=actual_to_expected,
+                            dtypes=col_dtypes)
+        if px_demo.shape[0] != 1:
+
+            msg = (f'Provided {bids_id} is not unique in demographics file.'
+                   f'\nFile: {args.demo}\n')
+            if px_demo.shape[0] == 0:
+                msg = (f'Cannot find {bids_id} in demographics file.\nFile: '
+                       f'{args.demo}\n')
+
+            if cov_normative is not None or cov_deconfound is not None:
+                raise ValueError(msg)
+                # logger.error(msg)
+                # exit(1)
+            else:  # For report
+                logger.warning(msg)
+                px_demo = None  # Dont use
+
+    # Run analyses -------------------------------------------------------------
+    # logger.info('\n\nStarting analysis')
+    # for analysis in LIST_ANALYSES:
+    #     run_analysis(
+    #         px_sid=px_id, px_ses=px_ses, cn_zbrains=args.zbrains_ref,
+    #         cn_demo_paths=args.demo_ref, px_zbrains=args.zbrains,
+    #         px_demo=px_demo, structures=args.struct, features=args.feat,
+    #         cov_normative=cov_normative, cov_deconfound=cov_deconfound,
+    #         smooth_ctx=args.smooth_ctx, smooth_hip=args.smooth_hip,
+    #         resolutions=args.resolution, labels_ctx=args.labels_ctx,
+    #         labels_hip=args.labels_hip, actual_to_expected=actual_to_expected,
+    #         analysis=analysis, approach=args.approach, col_dtypes=col_dtypes
+    #     )
+
+    logger.info('\n\nStarting analysis')
+    available_features = run_analysis(
+        px_sid=px_id, px_ses=px_ses, cn_zbrains=args.zbrains_ref,
+        cn_demo_paths=args.demo_ref, px_zbrains=args.zbrains, px_demo=px_demo,
+        structures=args.struct, features=args.feat, cov_normative=cov_normative,
+        cov_deconfound=cov_deconfound, smooth_ctx=args.smooth_ctx,
+        smooth_hip=args.smooth_hip, resolutions=args.resolution,
+        labels_ctx=args.labels_ctx, labels_hip=args.labels_hip,
+        actual_to_expected=actual_to_expected, analyses=LIST_ANALYSES,
+        approach=args.approach, col_dtypes=col_dtypes
         )
 
-        # Generate report - threshold
+    # Generate report ----------------------------------------------------------
+    logger.info('\n\nStarting report generation')
+
+    threshold = abs(args.threshold)
+
+    res_hip: Resolution = 'high'
+    res_ctx: Resolution = 'high'
+    if 'high' not in args.resolution:
+        res_ctx = res_hip = 'low'
+
+    lab_ctx = args.labels_ctx[0]
+    lab_hip = args.labels_hip[0]
+
+    age = None
+    sex = None
+    if px_demo is not None:
+        age = px_demo.iloc[0].get('age', None)
+        sex = px_demo.iloc[0].get('sex', None)
+
+    feat_ctx = available_features['cortex'][res_ctx][lab_ctx]
+    feat_sctx = available_features['subcortex']
+    feat_hip = available_features['hippocampus'][res_hip][lab_hip]
+
+    feat_report = list(np.union1d(np.union1d(feat_ctx, feat_sctx), feat_hip))
+    multi = None
+    for feat in [feat_ctx, feat_sctx, feat_hip]:
+        if multi is None:
+            multi = feat
+        elif len(feat) > 1 and multi is not None and len(feat) > len(multi):
+            multi = feat
+
+        # print(feat)
+        # if len(feat) > 1 and feat not in feat_report:
+        #     feat_report.append(feat)
+    if multi is not None:
+        feat_report.append(multi)
+
+    print(f'{feat_report=}')
+
+    tmp = '/tmp' if args.tmp is None else args.tmp
+    generate_clinical_report(
+        zbrains_path=args.zbrains, sid=px_id, ses=px_ses, age=age, sex=sex,
+        analyses=LIST_ANALYSES, features=feat_report, approach=args.approach,
+        threshold=threshold, smooth_ctx=args.smooth_ctx,
+        smooth_hip=args.smooth_hip, res_ctx=res_ctx, res_hip=res_hip,
+        label_ctx=lab_ctx, label_hip=lab_hip, tmp_dir=tmp
+    )
+
+    # clinical_reports(norm='z', sub=px_id, ses=px_ses, outdir=args.zbrains, cmap='cmo.balance',
+    #                  Range=(-2, 2), thr=1.96, color_bar='bottom', den='0p5',
+    #                  smooth_ctx=5, smooth_hipp=2,
+    #                  sex='unknown' if sex is None else sex,
+    #                  age='unknown' if age is None else age,
+    #                  thr_alpha=0.3, analysis=None, feature=None, cmap_asymmetry='PRGn',
+    #                  tmp=tmp)
 
 
 if __name__ == '__main__':
