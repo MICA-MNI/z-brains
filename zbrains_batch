@@ -68,7 +68,7 @@ ${pcolor}OPTIONS:${nc}
                                     analysis. There must be one file for each reference dataset (i.e., those provided
                                     with --dataset_ref). These files must include subject and session (if available)
                                     identifiers, and other demographics. See the zbrains script for more info.
-\t${gcolor}--dataset_ref${nc} [path ...]  : Paths to BIDS datasets containing data for the target subjects. Each dataset
+\t${gcolor}--dataset_ref${nc} [path ...]  : Paths to BIDS datasets containing data for the reference subjects. Each dataset
                                     must correspond to one file in --demo_ref. Required only for analysis.
 \t${gcolor}--zbrains_ref${nc} [dir ...]   :Names of the zbrains derivative folder in each of the reference datasets. If
                                     only one folder name is provided but there are multiple reference datasets, we
