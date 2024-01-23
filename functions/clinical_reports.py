@@ -419,7 +419,8 @@ def _make_png_ctx(
                views=['dorsal', 'dorsal', 'ventral', 'ventral'],
                label_text={'bottom': ['Left Superior', 'Right Superior',
                                       'Right Inferior', 'Left Inferior']},
-               share='both', zoom=2.95, size=(550, 350),
+               # share='both', zoom=2.95, size=(550, 350),
+               share='both', zoom=2.75, size=(550, 350),
                filename=out_png2, **kwds)
 
     return report_1x2_table(fig1=out_png, fig2=out_png2, height=300)

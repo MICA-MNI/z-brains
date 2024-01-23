@@ -311,9 +311,18 @@ def main():
     feat_hip = available_features['hippocampus'][res_hip][lab_hip]
 
     feat_report = list(np.union1d(np.union1d(feat_ctx, feat_sctx), feat_hip))
+    multi = None
     for feat in [feat_ctx, feat_sctx, feat_hip]:
-        if len(feat) > 1 and feat not in feat_report:
-            feat_report.append(feat)
+        if multi is None:
+            multi = feat
+        elif len(feat) > 1 and multi is not None and len(feat) > len(multi):
+            multi = feat
+
+        # print(feat)
+        # if len(feat) > 1 and feat not in feat_report:
+        #     feat_report.append(feat)
+    if multi is not None:
+        feat_report.append(multi)
 
     print(f'{feat_report=}')
 
