@@ -64,7 +64,7 @@ You must be inside the ``zbrains`` repository to run the following commands.
 .. code-block:: bash
 
     # path for dataset in BIDS structure
-    pth_dataset=/path/to/BIDS_dataset
+    pth_dataset="/path/to/BIDS_dataset"
 
     micapipe_dir="name_of_micapipe_folder"
     hippunfold_dir="name_of_hippunfold_folder"
