@@ -49,7 +49,7 @@ Tutorial
 --------------------------------------------
 
 You must be inside the ``zbrains`` repository to run the following commands.
-.. ..
+..
    cd /path/to/zbrains/directory
 .. ::
 
