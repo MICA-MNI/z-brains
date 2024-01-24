@@ -86,14 +86,14 @@ To process features for healthy controls as a batch, run the following. Note tha
 .. code-block:: bash
   
       ./zbrains_batch --run proc \
-      --demo "${demo_controls}" \
-      --dataset "${pth_dataset}" \
-      --zbrains ${zbrains_dir} \
-      --micapipe ${micapipe_dir} \
-      --hippunfold ${hippunfold_dir} \
-      --column_map participant-id=ID session_id=SES \
-      --verbose 2 \
-      --scheduler_options "-n 20" #specify threads here
+         --demo "${demo_controls}" \
+         --dataset "${pth_dataset}" \
+         --zbrains ${zbrains_dir} \
+         --micapipe ${micapipe_dir} \
+         --hippunfold ${hippunfold_dir} \
+         --column_map participant-id=ID session_id=SES \
+         --verbose 2 \
+         --scheduler_options "-n 20" #specify threads here
 
 
 Processing and analyzing patient features
