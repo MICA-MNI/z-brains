@@ -48,7 +48,11 @@ Multimodal lesion mapping in focal epilepsy with ``zbrains``
 Tutorial
 --------------------------------------------
 
-``z-brains`` requires input and output directories:
+You must be inside the ``zbrains`` repository to run the following commands.
+.. code-block:: bash
+   cd /path/to/zbrains/directory
+
+``zbrains`` requires input and output directories:
 
 - ``root_path`` points to the BIDS-format dataset that stores imaging data
 - ``rawdir`` contains the raw imaging data
@@ -78,7 +82,7 @@ To process features for healthy controls, subject and session identifiers are re
 
   while IFS=',' read -r id ses _
   do
-      ./z-brains -sub "$id" -ses "$ses" \
+      ./zbrains -sub "$id" -ses "$ses" \
       -micapipedir "${micapipedir}" \
       -hippdir "${hippdir}" \
       -outdir "${outdir}" \
@@ -106,7 +110,7 @@ Processing and analyzing patient features
     do
         ses=${px_ses[$i]}
 
-        ./z-brains -sub "$id" -ses "$ses" \
+        ./zbrains -sub "$id" -ses "$ses" \
         -micapipedir "${micapipedir}" \
         -hippdir "${hippdir}" \
         -outdir "${outdir}" \
