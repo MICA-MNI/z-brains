@@ -124,6 +124,5 @@ Processing and analyzing patient features
                   --dataset_ref ${pth_dataset} \
                   --zbrains_ref ${zbrains_dir} \
                   --column_map participant_id=ID session_id=SES \
-                  --struct cortex subcortex \
                   --verbose 2
       done
