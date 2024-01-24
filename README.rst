@@ -102,25 +102,28 @@ Processing and analyzing patient features
 .. code-block:: bash
 
     # specify the list of subject IDs along with corresponding session
-    px_id=(PX001 PX002 PX003)
-    px_ses=(1 1 1)
+    subject_ids=(sub-PX001 sub-PX002)
+    session_ids=(ses-01 ses-01)
 
     # csv file with ID and session for control participants for comparison
-    PATH_CSV_CONTROLS='/path/to/control/participants.csv'
+    demo_controls='/path/to/control/participants.csv'
 
-    i=0
-    for id in "${px_id[@]}"
-    do
-        ses=${px_ses[$i]}
-
-        ./zbrains -sub "$id" -ses "$ses" \
-        -micapipedir "${micapipedir}" \
-        -hippdir "${hippdir}" \
-        -outdir "${outdir}" \
-        -approach "zscore" \
-        -demo_cn "${PATH_CSV_CONTROLS}" \
-        -mica -verbose 2
-
-        i=$((i+1))
-
-    done
+      for i in "${!subject_ids[@]}"
+      do
+        sid=${subject_ids[$i]}
+        ses=${session_ids[$i]:-""}
+        echo -e "$i\t\tID: $sid, SES: $ses"
+      
+      
+        ./zbrains --run analysis \
+                  --sub "${sid}" \
+                  --ses "${ses}" \
+                  --dataset ${pth_dataset} \
+                  --zbrains ${zbrains_dir} \
+                  --demo_ref ${demo_controls} \
+                  --dataset_ref ${pth_dataset} \
+                  --zbrains_ref ${zbrains_dir} \
+                  --column_map participant_id=ID session_id=SES \
+                  --struct cortex subcortex \
+                  --verbose 2
+      done
