@@ -286,6 +286,7 @@ def main():
         actual_to_expected=actual_to_expected, analyses=LIST_ANALYSES,
         approach=args.approach, col_dtypes=col_dtypes
         )
+    print(args.struct)
 
     # Generate report ----------------------------------------------------------
     logger.info('\n\nStarting report generation')
@@ -308,7 +309,11 @@ def main():
 
     feat_ctx = available_features['cortex'][res_ctx][lab_ctx]
     feat_sctx = available_features['subcortex']
+    #if 'hippocampus' in available_features:
+    print(available_features)
     feat_hip = available_features['hippocampus'][res_hip][lab_hip]
+    #else:
+    #    feat_hip = None
 
     feat_report = list(np.union1d(np.union1d(feat_ctx, feat_sctx), feat_hip))
     multi = None
