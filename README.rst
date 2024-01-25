@@ -107,13 +107,6 @@ Processing and analyzing patient features
 
     # csv file with ID and session for control participants for comparison
     demo_controls='/path/to/control/participants.csv'
-
-      for i in "${!subject_ids[@]}"
-      do
-        sid=${subject_ids[$i]}
-        ses=${session_ids[$i]:-""}
-        echo -e "$i\t\tID: $sid, SES: $ses"
-      
       
         ./zbrains --run analysis \
                   --sub "${sid}" \
@@ -125,4 +118,3 @@ Processing and analyzing patient features
                   --zbrains_ref ${zbrains_dir} \
                   --column_map participant_id=ID session_id=SES \
                   --verbose 2
-      done
