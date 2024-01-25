@@ -270,7 +270,7 @@ while (( "${#args[@]}" )); do
     PARSE_OPTION_MULTIPLE_VALUES deconfound args || exit $?
     ;;
   --resolution)
-    PARSE_OPTION_MULTIPLE_VALUES resolution args LIST_RESOLUTIONS "all" || exit $?
+    PARSE_OPTION_MULTIPLE_VALUES resolutions args LIST_RESOLUTIONS "all" || exit $?
     ;;
   --label_ctx)
     PARSE_OPTION_SINGLE_VALUE labels_ctx args LIST_LABELS_CTX || exit $?

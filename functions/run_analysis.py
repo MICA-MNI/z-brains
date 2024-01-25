@@ -321,7 +321,7 @@ def main():
         # print(feat)
         # if len(feat) > 1 and feat not in feat_report:
         #     feat_report.append(feat)
-    if multi is not None:
+    if multi is not None and len(multi) > 0:
         feat_report.append(multi)
 
     print(f'{feat_report=}')
