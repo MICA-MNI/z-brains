@@ -146,7 +146,7 @@ map_cortex() {
     prefix="${BIDS_ID}_hemi-${h}_surf-fsLR-${resol}"
     if [[ "$feat" == "thickness" ]]; then
       input_file="${input_dir}/${prefix}_label-${input_feat}.func.gii"
-      output_file="${output_dir}/${prefix}_feature-${output_feat}_smooth-${fwhm}mm.func.gii"
+      output_file="${output_dir}/${prefix}_label-${label}_feature-${output_feat}_smooth-${fwhm}mm.func.gii"
     else
       input_file="${input_dir}/${prefix}_label-${label}_${input_feat}.func.gii"
       output_file="${output_dir}/${prefix}_label-${label}_feature-${output_feat}_smooth-${fwhm}mm.func.gii"
