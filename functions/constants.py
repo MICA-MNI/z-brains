@@ -21,6 +21,7 @@ Analysis = Literal['regional', 'asymmetry']
 LIST_ANALYSES: list[Analysis] = list(get_args(Analysis))
 
 Resolution = Literal['low', 'high']
+Resolution = Literal['high']
 LIST_RESOLUTIONS: list[Resolution] = list(get_args(Resolution))
 
 LIST_LABELS_CTX = ['white', 'midthickness', 'pial', 'swm[0-9]+']

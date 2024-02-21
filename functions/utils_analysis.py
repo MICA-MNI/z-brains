@@ -164,6 +164,7 @@ def mahalanobis_distance(x_train: np.ndarray, x_test: np.ndarray) -> np.ndarray:
 
     cov = np.moveaxis(x_train, 0, -1) @ x_train.swapaxes(0, 1)
     cov /= n_train - 1
+    print(cov)
     cov_inv = np.linalg.inv(cov)
 
     x_test = x_test - mu
@@ -272,7 +273,8 @@ def _load_one(pth_zbrains: PathType, *, sid: str, ses: str, struct: Structure,
         shape (1, 2 * n_subcortical_structures_per_hemisphere).
         None if no data available for at least one hemisphere.
     """
-
+    if feat == 'qT1':
+        feat = "T1map"
     bids_id = get_bids_id(sid, ses)
     subject_dir = get_subject_dir(pth_zbrains, sid, ses)
     if not os.path.isdir(subject_dir):

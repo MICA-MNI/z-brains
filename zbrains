@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Z-BRAINS - Generating, normalizing, and visualizing structural imaging features
-
+PATH+=:/home/igoodall/anaconda3/envs/zbrains/bin
 export VERBOSE=-1  # Default
 
 
@@ -388,16 +388,17 @@ threshold=${threshold:-$DEFAULT_THRESHOLD}
 # Dependencies required for processing
 if [[ " ${tasks[*]} " =~ " proc "  ]]; then
 
-  # TODO: ANTs not needed now, maybe in the future for flair?
-  binary=$(type -P ${ANTSPATH:+${ANTSPATH%/}/}antsRegistration)
-  if [[ -z "${binary}" ]]; then
-    SHOW_ERROR "ANTs not found. Please set the ANTSPATH variable to the location of ANTs binaries."
-    exit 1
-  fi
-  ANTSPATH=$(dirname "$(which "$binary")")
-  export ANTSPATH
+  # # TODO: ANTs not needed now, maybe in the future for flair?
+  # binary=$(type -P ${ANTSPATH:+${ANTSPATH%/}/}antsRegistration)
+  # if [[ -z "${binary}" ]]; then
+  #   SHOW_ERROR "ANTs not found. Please set the ANTSPATH variable to the location of ANTs binaries."
+  #   exit 1
+  # fi
+  # ANTSPATH=$(dirname "$(which "$binary")")
+  # export ANTSPATH
 
   binary=$(type -P ${WORKBENCH_PATH:+${WORKBENCH_PATH%/}/}wb_command)
+  echo $binary
   if [[ -z "${binary}" ]]; then
     SHOW_ERROR "Workbench not found. Please set the WORKBENCH_PATH variable to the location of Workbench binaries."
     exit 1
@@ -421,7 +422,7 @@ px_zbrains_path=${dataset_path}/${zbrains_dir}
 # export BIDS_ID, SUBJECT_OUTPUT_DIR
 export BIDS_ID="${sid}${ses:+_${ses}}"
 export SUBJECT_OUTPUT_DIR="${px_zbrains_path}/${sid}${ses:+/${ses}}"
-
+echo ${ses:+/${ses}}
 # Sanity checks required for processing
 if [[ " ${tasks[*]} " =~ " proc " ]]; then
 
@@ -432,6 +433,7 @@ if [[ " ${tasks[*]} " =~ " proc " ]]; then
   # Subject's hippunfold directory exists
   if [[ " ${structures[*]} " =~ " hippocampus " ]]; then
     export SUBJECT_HIPPUNFOLD_DIR=${dataset_path}/${hipunfold_dir}/hippunfold/${sid}${ses:+/${ses}}
+    echo $SUBJECT_HIPPUNFOLD_DIR
     ASSERT_EXISTS "${SUBJECT_HIPPUNFOLD_DIR}" "${BIDS_ID} hippunfold directory does not exist."
   fi
 
@@ -456,6 +458,7 @@ if [[ " ${tasks[*]} " =~ " proc " ]]; then
 
     # recon is 'freesurfer' or 'fastsurfer'
     export SUBJECT_SURF_DIR=${dataset_path}/${recon}/${BIDS_ID}
+    echo $SUBJECT_SURF_DIR
     ASSERT_EXISTS "${SUBJECT_SURF_DIR}" "${BIDS_ID} ${recon} directory does not exist."
   fi
 fi
@@ -466,8 +469,8 @@ fi
 # ------------------------------------------------------------------------------------------------------------------- #
 SHOW_INFO "zbrains is running with:"
 if [[ " ${tasks[*]} " =~ " proc " ]]; then
-  SHOW_NOTE "ANTs........" "$("${ANTSPATH}/antsRegistration" --version | awk -F '[: ]' '/ANTs Version/{print $4}')"
-  SHOW_NOTE "            " "$(which "${ANTSPATH}/antsRegistration")"
+  # SHOW_NOTE "ANTs........" "$("${ANTSPATH}/antsRegistration" --version | awk -F '[: ]' '/ANTs Version/{print $4}')"
+  # SHOW_NOTE "            " "$(which "${ANTSPATH}/antsRegistration")"
   SHOW_NOTE "WorkBench..." "$("${WORKBENCH_PATH}/wb_command" -version | awk -F ': ' '/^Version/{print $2}')"
   SHOW_NOTE "            " "$(which "${WORKBENCH_PATH}/wb_command")"
 fi
@@ -561,6 +564,18 @@ if [[ " ${tasks[*]} " =~ " analysis "  ]]; then
     ref_zbrains_paths+=("${ref_dataset_paths[$idx]}/derivatives/${ref_zbrains_dirs[$idx]}")
   done
 
+  # # Profiling
+  # cmd="kernprof -l ${script_dir}/run_analysis.py --subject_id ${sid} --session ${ses} --zbrains_ref ${ref_zbrains_paths[*]} \
+  #                                           --demo_ref ${ref_demos[*]} --zbrains ${px_zbrains_path} \
+  #                                           --struct ${structures[*]} --feat ${features[*]} --smooth_ctx ${smooth_ctx} \
+  #                                           --smooth_hip ${smooth_hip} --threshold ${threshold} --approach zscore \
+  #                                           --resolution ${resolutions[*]} --labels_ctx ${labels_ctx[*]} \
+  #                                           --labels_hip ${labels_hip[*]} --logfile ${logfile} --tmp ${tmp_dir} \
+  #                                           --verbose ${VERBOSE}"
+
+  
+
+
   cmd="python ${script_dir}/run_analysis.py --subject_id ${sid} --session ${ses} --zbrains_ref ${ref_zbrains_paths[*]} \
                                             --demo_ref ${ref_demos[*]} --zbrains ${px_zbrains_path} \
                                             --struct ${structures[*]} --feat ${features[*]} --smooth_ctx ${smooth_ctx} \
@@ -573,7 +588,7 @@ if [[ " ${tasks[*]} " =~ " analysis "  ]]; then
   [[ -v normative ]] && cmd+=" --normative ${normative[*]}"
   [[ -v deconfound ]] && cmd+=" --deconfound ${deconfound[*]}"
   [[ -v column_map ]] && cmd+=" --column_map ${column_map[*]}"
-
+  echo ${cmd[*]}
   DO_CMD "$cmd"
 fi
 

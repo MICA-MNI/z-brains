@@ -35,6 +35,7 @@ import uuid
 import logging
 import itertools
 from pathlib import Path
+import os
 
 import cmocean
 import numpy as np
@@ -687,7 +688,8 @@ def generate_clinical_report(
     # Remove volume from the features
     if 'volume' in features:
         features.remove('volume')
-
+    
+    os.environ['PYVIRTUALDISPLAY_DISPLAYFD'] = '0'
     # Display for headless plotting
     dsize = (900, 750)
     display = Display(visible=False, size=dsize)
