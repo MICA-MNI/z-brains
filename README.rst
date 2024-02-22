@@ -2,7 +2,7 @@
    :alt: alternate text
    :align: center
 
-Multimodal lesion mapping in focal epilepsy with ``zbrains``
+Multimodal lesion mapping with ``zbrains``
 --------------------------------------------
 
 .. image:: https://img.shields.io/github/v/tag/MICA-MNI/z-brains
