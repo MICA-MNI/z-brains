@@ -1,222 +1,66 @@
 #!/bin/bash
 
-#source ../config.cfg
 
-
-bids_variables() {
-  # This functions assigns variable names acording to:
-  #     Subject ID =                        $1
-  #     Raw data directory =                $2
-  #     Hippunfold directory derivatives =  $3
-  #     Micapipe derivatives directory =    $4
-  #     Z-brains derivatives directory =    $5
-  #     Session ID (optional) =             $6
-  id=$1 # id in the for HC001
-  raw_dir=$2
-  hipp_dir=$3
-  micapipe_dir=$4
-  out_dir=$5
-  session=$6
-  umask 002
-
-  # Define utilities/functions directory
-  export SCRIPT_DIR=${ZBRAINS}/functions
-
-  export SUBJECT=sub-${id}
-
-  # Handle Single Session
-  if [ "$session" == "SINGLE" ]; then
-      export SUBJECT_RAW=${raw_dir}/${SUBJECT}           # subject's raw data directory
-      export SUBJECT_HIPP=${hipp_dir}/hippundold/${SUBJECT}         # subject's hippunfold directory
-      export SUBJECT_MICAPIPE=${micapipe_dir}/${SUBJECT} # subject's micapipe directory
-      export SUBJECT_OUT=${out_dir}/${SUBJECT}           # subject's output directory
-      session_suffix=""
+DO_CMD() {
+  # do_cmd sends command to stdout before executing it.
+  if [ $# -eq 1 ]; then
+    readarray -t array < <(echo "$1" | xargs -n1)
   else
-    predix_session="ses-${session/ses-/}";
-    export SUBJECT_RAW=${raw_dir}/${SUBJECT}/${predix_session}           # subject's raw data directory
-    export SUBJECT_HIPP=${hipp_dir}/hippunfold/${SUBJECT}/${predix_session}         # subject's hippunfold directory
-    export SUBJECT_MICAPIPE=${micapipe_dir}/${SUBJECT}/${predix_session} # subject's micapipe directory
-    export SUBJECT_OUT=${out_dir}/${SUBJECT}/${predix_session}           # subject's output directory
-    session_suffix="_${predix_session}"
+    array=("$@")
   fi
 
-  export BIDS_ID="${SUBJECT}${session_suffix}"
+  local str_cmd=""
+  for element in "${array[@]}"; do
+      [[ $element =~ [[:space:]] ]] && element="\"$element\""
+      str_cmd+="$element "
+  done
+  str_cmd="${str_cmd% }"
 
-  # Structural directories derivatives/
-  export PROC_STRUCT=$SUBJECT_MICAPIPE/anat  # Structural processing directory
-  export DIR_VOLUM=$SUBJECT_MICAPIPE/parc    # Cortical segmentations
-  export DIR_CONTE69=$SUBJECT_MICAPIPE/surf  # Conte69 surfaces
-  export DIR_MAPS=$SUBJECT_MICAPIPE/maps
-
-  export DIR_WARP=$SUBJECT_MICAPIPE/xfm     # Transformation matrices
-  export DIR_LOGS=$SUBJECT_OUT/logs         # directory where log files will be written
-  export DIR_QC=$SUBJECT_MICAPIPE/QC        # directory with micapipe qc files
-
-  # post structural Files (the resolution might vary depending on the dataset)
-  RES=$(mrinfo "${PROC_STRUCT}"/"${BIDS_ID}"_space-nativepro_T1w.nii.gz -spacing | awk '{printf "%.1f\n", $2}')
-  export RES
-  export T1NATIVEPRO=${PROC_STRUCT}/${BIDS_ID}_space-nativepro_T1w.nii.gz
-  export T1NATIVEPRO_BRAIN=${PROC_STRUCT}/${BIDS_ID}_space-nativepro_T1w_brain.nii.gz
-  export T1NATIVEPRO_MASK=${PROC_STRUCT}/${BIDS_ID}_space-nativepro_T1w_brain_mask.nii.gz
-  export T1FAST_SEG=${DIR_VOLUM}/${BIDS_ID}_space-nativepro_T1w_atlas-subcortical.nii.gz
-
-  # raw files
-  RAW_FLAIR=$(ls "$SUBJECT_RAW"/anat/*FLAIR*.nii* 2>/dev/null)
-  export RAW_FLAIR
-}
-
-set_surface_directory() {
-  local recon=${1}
-  DIR_SURF=$(dirname "${out_dir}")/${recon}    # surf
-  export DIR_SURF
-  export DIR_SUBJSURF=${DIR_SURF}/${BIDS_ID}  # Subject surface dir
-  export T1SURF=${DIR_SUBJSURF}/mri/orig.mgz
-
-  # Native midsurface in gifti format
-  export LH_MIDSURF="${DIR_CONTE69}/${BIDS_ID}_hemi-L_surf-fsnative_label-midthickness.surf.gii"
-  export RH_MIDSURF="${DIR_CONTE69}/${BIDS_ID}_hemi-R_surf-fsnative_label-midthickness.surf.gii"
-}
-
-bids_print.variables-ctx() {
-  # This functions prints BIDS variables names and files if found
-  Info "Cortical processing variables:"
-  Note "T1 nativepro         :" "$(find "$T1NATIVEPRO" 2>/dev/null)"
-  Note "T1 resolution        :" "$RES"
-  Note "fs-LR-32k-lh surface :" "$(find "${DIR_CONTE69}/${BIDS_ID}_hemi-L_space-nativepro_surf-fsLR-32k_label-white.surf.gii" 2>/dev/null)"
-  Note "fs-LR-32k-rh surface :" "$(find "${DIR_CONTE69}/${BIDS_ID}_hemi-R_space-nativepro_surf-fsLR-32k_label-white.surf.gii" 2>/dev/null)"
-
-}
-
-bids_print() {
-  # This functions prints BIDS variables names and files if found
-
-  struct=$1
-
-  case $struct in
-    "cortex")
-      Info "Cortical processing variables:"
-      Note "T1 nativepro         :" "$(find "$T1NATIVEPRO" 2>/dev/null)"
-      Note "T1 resolution        :" "$RES"
-      Note "fs-LR-32k-lh surface :" "$(find "${DIR_CONTE69}/${BIDS_ID}_hemi-L_space-nativepro_surf-fsLR-32k_label-white.surf.gii" 2>/dev/null)"
-      Note "fs-LR-32k-rh surface :" "$(find "${DIR_CONTE69}/${BIDS_ID}_hemi-R_space-nativepro_surf-fsLR-32k_label-white.surf.gii" 2>/dev/null)"
-      ;;
-    "subcortex")
-      Info "Subcortical processing variables:"
-      Note "T1 nativepro    :" "$(find "$T1NATIVEPRO" 2>/dev/null)"
-      Note "T1 sctx seg     :" "$(find "$T1FAST_SEG" 2>/dev/null)"
-      Note "Sctx volume     :" "$(find "$DIR_SUBJSURF/stats/aseg.stats" 2>/dev/null)"
-      Note "T1 resolution   :" "$RES"
-      ;;
-    "hippocampus")
-      Info "Hippocampal processing variables:"
-      Note "T1 nativepro    :" "$(find "$T1NATIVEPRO" 2>/dev/null)"
-      Note "T1 resolution   :" "$RES"
-      ;;
-    *)  # Default case if none of the above patterns match
-      echo "Unknown structure in bids_print."
-      ;;
-  esac
-}
-
-bids_print.variables-hipp() {
-  # This functions prints BIDS variables names and files if found
-  Info "Hippocampal processing variables:"
-  Note "T1 nativepro    :" "$(find "$T1NATIVEPRO" 2>/dev/null)"
-  Note "T1 resolution   :" "$RES"
-}
-
-bids_variables_unset() {
-  # This function unsets all environment variables defined by bids_variables
-  unset SCRIPT_DIR
-  unset SUBJECT
-  unset SUBJECT_RAW
-  unset SUBJECT_HIPP
-  unset SUBJECT_MICAPIPE
-  unset SUBJECT_OUT
-  unset PROC_STRUCT
-  unset DIR_VOLUM
-  unset DIR_CONTE69
-  unset DIR_MAPS
-  unset DIR_WARP
-  unset DIR_LOGS
-  unset DIR_QC
-  unset RES
-  unset T1NATIVEPRO
-  unset T1NATIVEPRO_BRAIN
-  unset T1NATIVEPRO_MASK
-  unset T1FAST_SEG
-  unset RAW_FLAIR
-  unset DIR_SURF
-  unset DIR_SUBJSURF
-  unset T1SURF
-  unset LH_MIDSURF
-  unset RH_MIDSURF
-}
-
-function zbrains_json() {
-  # Name is the name of the raw-BIDS directory
-  if [ -f "${BIDS}/dataset_description.json" ]; then
-    Name=$(grep Name "${BIDS}"/dataset_description.json | awk -F '"' '{print $4}')
-    BIDSVersion=$(grep BIDSVersion "${BIDS}"/dataset_description.json | awk -F '"' '{print $4}')
-  else
-    Name="BIDS dataset_description NOT found"
-    BIDSVersion="BIDS dataset_description NOT found"
-  fi
-
-  echo -e "{
-    \"Name\": \"${Name}\",
-    \"BIDSVersion\": \"${BIDSVersion}\",
-    \"DatasetType\": \"derivative\",
-    \"GeneratedBy\": [{
-        \"Name\": \"z-brains\",
-        \"Version\": \"${VERSION}\",
-        \"Reference\": \"tbd\",
-        \"DOI\": \"tbd\",
-        \"URL\": \"https://z-brains.readthedocs.io\",
-        \"GitHub\": \"https://github.com/MICA-MNI/z-brains\",
-        \"Container\": {
-          \"Type\": \"tbd\",
-          \"Tag\": \"ello:zbrains:$(echo "${VERSION}" | awk '{print $1}')\"
-        },
-        \"RunBy\": \"$(whoami)\",
-        \"Workstation\": \"$(uname -n)\",
-        \"LastRun\": \"$(date)\",
-        \"Processing\": \"${PROC}\"
-      }]
-  }" > "${out_dir}/dataset_description.json"
-}
-
-zbrains_software() {
-  Info "Z-BRAINS - Software versions"
-  Note "ANTS........" "$(antsRegistration --version | awk -F ':' 'NR==1{print $2}')"
-  Note "            " "$ANTSPATH"
-  Note "WorkBench..." "$(wb_command -version | awk 'NR==3{print $2}')"
-  Note "            " "$(which wb_command)"
-  Note "python......" "$(python --version | awk 'NR==1{print $2}')"
-  Note "            " "$(which python)"
-  Note "conda......." "$(conda --version)"
-  Note "            " "$(which conda)"
-}
-
-function cleanup() {
-  # This script will clean the temporary directory
-  # and reset the old user path upon interrupt and termination.
-  tmp_dir=$1
-#  nocleanup=$2
-
-  rm -Rf "${tmp_dir:?}" 2>/dev/null
-  bids_variables_unset
-
-#  # Clean temporary directory and temporary fsaverage5
-#  if [[ $nocleanup == "FALSE" ]]; then
-#      rm -Rf "${tmp_dir:?}" 2>/dev/null
-#  else
-#      echo -e "z-brains tmp directory was not erased: \n\t\t${tmp_dir}";
+#  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 2 || ${VERBOSE} -lt 0 ]]; then
+#    str="$(whoami) @ $(uname -n) $(date)"
+#    echo -e "\033[38;5;118m${str}:\nCOMMAND -->  \033[38;5;122m${cmd}\n\033[0m";
 #  fi
-##  cd "$here" || exit
-#  bids_variables_unset
-  if [[ -n "$OLD_PATH" ]]; then export PATH=$OLD_PATH; unset OLD_PATH; fi
+
+  local header
+  header="$(whoami) @ $(uname -n) $(date)"
+  log_message 3 "\033[38;5;118m${header}:\nCOMMAND -->  \033[38;5;122m${str_cmd}\n\033[0m"
+
+  "${array[@]}"
 }
+
+
+#function zbrains_json() {
+#  # Name is the name of the raw-BIDS directory
+#  if [ -f "${BIDS}/dataset_description.json" ]; then
+#    Name=$(grep Name "${BIDS}"/dataset_description.json | awk -F '"' '{print $4}')
+#    BIDSVersion=$(grep BIDSVersion "${BIDS}"/dataset_description.json | awk -F '"' '{print $4}')
+#  else
+#    Name="BIDS dataset_description NOT found"
+#    BIDSVersion="BIDS dataset_description NOT found"
+#  fi
+#
+#  echo -e "{
+#    \"Name\": \"${Name}\",
+#    \"BIDSVersion\": \"${BIDSVersion}\",
+#    \"DatasetType\": \"derivative\",
+#    \"GeneratedBy\": [{
+#        \"Name\": \"zbrains\",
+#        \"Version\": \"${VERSION}\",
+#        \"Reference\": \"tbd\",
+#        \"DOI\": \"tbd\",
+#        \"URL\": \"https://z-brains.readthedocs.io\",
+#        \"GitHub\": \"https://github.com/MICA-MNI/z-brains\",
+#        \"Container\": {
+#          \"Type\": \"tbd\",
+#          \"Tag\": \"ello:zbrains:$(echo "${VERSION}" | awk '{print $1}')\"
+#        },
+#        \"RunBy\": \"$(whoami)\",
+#        \"Workstation\": \"$(uname -n)\",
+#        \"LastRun\": \"$(date)\",
+#        \"Processing\": \"${PROC}\"
+#      }]
+#  }" > "${out_dir}/dataset_description.json"
+#}
 
 
 # ----------------------------------------------------------------------------------------------- #
@@ -226,78 +70,289 @@ function cleanup() {
 #     Error messages
 #     Warning messages
 #     Note messages
-#     Warn messages
+#     Info messages
 #     Title messages
+# VERBOSE is defined by the zbrains main script
 
 COLOR_ERROR="\033[38;5;9m"
-COLOR_NOTE="\033[38;5;122m"
-COLOR_INFO="\033[38;5;75m"
 COLOR_WARNING="\033[38;5;184m"
-COLOR_TITLE="\033[38;5;141m"
+COLOR_INFO="\033[38;5;75m"
 COLOR_NOTE="\033[0;36;10m"
-NC="\033[0m" # No color
+COLOR_TITLE="\033[38;5;141m"
 
-Error() {
-echo -e "${COLOR_ERROR}\n-------------------------------------------------------------\n\n[ ERROR ]..... $1\n
--------------------------------------------------------------${NC}\n"
+NO_COLOR="\033[0m" # No color
+
+#SHOW_ERROR() {
+##echo -e "${COLOR_ERROR}\n-------------------------------------------------------------\n\n[ ERROR ]..... $1\n
+##-------------------------------------------------------------${NO_COLOR}\n"
+#  echo ""
+#  echo -e "${COLOR_ERROR}[ ERROR ]     $1${NO_COLOR}"
+#  for s in "${@:2}"; do echo -e "${COLOR_ERROR}              $s${NO_COLOR}"; done
+#  echo ""
+#}
+#
+#SHOW_WARNING() {
+#  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 0 || ${VERBOSE} -lt 0 ]]; then
+#    echo ""
+#    echo -e "${COLOR_WARNING}[ WARNING ]   $1${NO_COLOR}"
+#    for s in "${@:2}"; do echo -e "${COLOR_WARNING}              $s${NO_COLOR}"; done
+#  fi
+#}
+#
+#SHOW_NOTE() {
+#  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then
+#    echo -e "              $1\t${COLOR_NOTE}$2 ${NO_COLOR}";
+#  fi
+#}
+#
+#SHOW_INFO() {
+#  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then
+#    echo ""
+#    echo -e "${COLOR_INFO}[ INFO ]      $1${NO_COLOR}"
+#    for s in "${@:2}"; do echo -e "${COLOR_INFO}              $s${NO_COLOR}"; done
+#  fi
+#}
+#
+#SHOW_TITLE() {
+#  if [[ -z ${VERBOSE} || ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then
+#    echo -e "\n${COLOR_TITLE}-------------------------------------------------------------${NO_COLOR}"
+#    echo -e "${COLOR_TITLE}$1${NO_COLOR}"
+#    for s in "${@:2}"; do echo -e "${COLOR_TITLE}$s${NO_COLOR}"; done
+#    echo -e "${COLOR_TITLE}-------------------------------------------------------------${NO_COLOR}"
+#    echo ""
+#  fi
+#}
+
+log_message() {
+    local level=$1
+    local messages="${*:2}"
+
+#    echo -e "${messages[*]}" >> "${LOGFILE}"
+    if [[ -n $LOGFILE ]]; then
+      echo -e "${messages[*]}" | sed 's/\x1b\[[0-9;]*m//g' >> "${LOGFILE}"
+    fi
+
+    if [[ -z $VERBOSE || $VERBOSE -ge $level || $VERBOSE -lt 0 ]]; then
+      echo -e "${messages[*]}"
+    fi
 }
-Note() {
-if [[ ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then echo -e "\t\t$1\t${COLOR_NOTE}$2 ${NC}"; fi
+
+SHOW_ERROR() {
+  str="\n${COLOR_ERROR}[ ERROR ]     $1${NO_COLOR}\n"
+  for s in "${@:2}"; do str+="${COLOR_ERROR}              $s${NO_COLOR}\n"; done
+
+  log_message 0 "$str"
 }
-Info() {
-if [[ ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then echo  -e "${COLOR_INFO}\n[ INFO ]..... $1 ${NC}"; fi
+
+SHOW_WARNING() {
+  str="${COLOR_WARNING}[ WARNING ]   $1${NO_COLOR}"
+  for s in "${@:2}"; do str+="\n${COLOR_WARNING}              $s${NO_COLOR}"; done
+
+  log_message 1 "$str"
 }
-Warning() {
-if [[ ${VERBOSE} -gt 0 || ${VERBOSE} -lt 0 ]]; then echo  -e "${COLOR_WARNING}\n[ WARNING ]..... $1 ${NC}"; fi
+
+SHOW_NOTE() {
+  str="              $1\t${COLOR_NOTE}$2 ${NO_COLOR}"
+
+  log_message 2 "$str"
 }
-Warn() {
-if [[ ${VERBOSE} -gt 0 || ${VERBOSE} -lt 0 ]]; then echo  -e "${COLOR_WARNING}
--------------------------------------------------------------\n
-[ WARNING ]..... $1
-\n-------------------------------------------------------------${NC}"; fi
+
+SHOW_INFO() {
+  str="${COLOR_INFO}[ INFO ]      $1${NO_COLOR}"
+  for s in "${@:2}"; do str+="\n${COLOR_INFO}              $s${NO_COLOR}"; done
+
+  log_message 2 "$str"
 }
-Title() {
-if [[ ${VERBOSE} -gt 1 || ${VERBOSE} -lt 0 ]]; then echo -e "\n${COLOR_TITLE}
--------------------------------------------------------------
-\t$1
--------------------------------------------------------------${NC}"; fi
+
+SHOW_TITLE() {
+  str="\n${COLOR_TITLE}-------------------------------------------------------------${NO_COLOR}\n"
+  str+="${COLOR_TITLE}$1${NO_COLOR}\n"
+  for s in "${@:2}"; do str+="${COLOR_TITLE}$s${NO_COLOR}\n"; done
+  str+="${COLOR_TITLE}-------------------------------------------------------------${NO_COLOR}\n"
+
+  log_message 2 "$str"
+}
+
+
+function allowed_to_regex() {
+  local array=("$@")
+#  array=("${array[@]/#/ }")  # Adds a leading space
+#  array=("${array[@]/%/ }")  # Adds a trailing space
+  IFS='|'; echo "${array[*]}"; unset IFS
+}
+
+PARSE_OPTION_SINGLE_VALUE() {
+  # PARSE_OPTION_SINGLE_VALUE output_variable args allowed_values
+  # or
+  # PARSE_OPTION_SINGLE_VALUE output_variable args
+  local -n _out=$1
+  local -n _args=$2
+
+  local allowed_regex
+  if [[ $# -gt 2 ]]; then
+    local -n _allowed_values=$3
+    allowed_regex=$(allowed_to_regex "${_allowed_values[@]}")
+  fi
+
+  local option="${_args[0]}"
+  local value="${_args[1]}"
+
+  # Check if the option has a value and if the value is not another option
+  if [[ -z "${value}" || "${value}" == --* ]]; then
+      SHOW_ERROR "${option} option requires a value."
+      return 1
+  fi
+
+  # Check if value is in the list of allowed values
+  if [[ -v allowed_regex && ! " ${value} " =~ ${allowed_regex} ]]; then
+      SHOW_ERROR "Invalid value '${value}' for ${option} option." "Allowed values are: ${allowed_regex//|/, }."
+      return 1
+  fi
+
+  _out="${value}"
+  _args=("${_args[@]:2}")  # shift
+  return 0
+}
+
+
+PARSE_OPTION_MULTIPLE_VALUES() {
+  # PARSE_OPTION_MULTIPLE_VALUES output_variable args allowed_values all
+  # or
+  # PARSE_OPTION_MULTIPLE_VALUES output_variable args allowed_values
+  # or
+  # PARSE_OPTION_MULTIPLE_VALUES output_variable args
+  local -n _out=$1
+  # shellcheck disable=SC2178
+  local -n _args=$2
+  [[ $# -gt 2 ]] && local -n _allowed_values=$3
+  [[ $# -gt 3 ]] && all=$4;  # accept "all" as an additional value
+
+  local allowed_regex
+  if [[ -v "${_allowed_values[*]}" ]]; then
+    local list_allowed=("${_allowed_values[@]}")
+    [[ -n "$all" ]] && list_allowed+=("$all");
+    allowed_regex=$(allowed_to_regex "${list_allowed[@]}")
+  fi
+
+  local option="${_args[0]}"
+  _args=("${_args[@]:1}")
+
+  local _values=()
+  while [[ ${#_args[@]} -gt 0 && "${_args[0]}" != --* ]]; do
+    local value="${_args[0]}"
+
+    # Check if the value is in the list of allowed values
+    if [[ -v allowed_regex && ! " ${value} " =~ ${allowed_regex} ]]; then
+      SHOW_ERROR "Invalid value '$value' for ${option} option." "Allowed values are: ${allowed_regex//|/, }."
+      return 1
+    fi
+
+    _values+=("$value")
+    _args=("${_args[@]:1}")  # shift
+  done
+
+  [[ ${#_values[@]} == 0 ]] && SHOW_ERROR "${option} option requires at least one value." && return 1
+
+#  if [[ -v all || " ${_values[*]} " != *" $all "* ]]; then
+#    _values=("${_allowed_values[@]}")
+#  fi
+
+  _out=("${_values[@]}")
+  return 0
+}
+
+
+ASSERT_REQUIRED() {
+  local option="$1"
+  local value="$2"
+  local error_message="${3:-$option option is required}"
+
+  [[ -z "${value}" ]] && SHOW_ERROR "$error_message" && exit 1;
+}
+
+ASSERT_SAME_SIZE() {
+  local option1=$1
+  local -n list1=$2
+  local option2=$3
+  local -n list2=$4
+
+  if [[ ${#list1[@]} -ne ${#list2[@]} ]]; then
+    SHOW_ERROR "The number of values provided with ${option1} and ${option2} must be the same."
+    exit 1
+  fi
+}
+
+ASSERT_EXISTS() {
+  local path="$1"
+  local error_message="${2:-$path does not exist}"
+
+  [[ ! -e "$path" ]] && SHOW_ERROR "$error_message" && exit 1;
+}
+
+
+ASSERT_COLUMNS_IN_CSV() {
+  local csv="$1"
+  local -n _required=$2
+
+  IFS=$([[ $csv == *.tsv ]] && echo -e '\t' || echo ',') read -ra header < "$csv"
+
+  # Check if each required column exists in the CSV file
+  for col in "${_required[@]}"; do
+    if [[ " ${header[*]} " != *" ${col} "* ]]; then
+      SHOW_ERROR "Column '${col}' do not exist in $csv"
+      exit 1
+    fi
+  done
+}
+
+
+SUBMIT_JOB() {
+  if [ $# -lt 2 ]; then
+    echo "Error: Not enough arguments"
+    echo "Usage: submit_job scheduler [scheduler_options] command"
+    return 1
+  fi
+
+  local scheduler="${1,,}"  # Convert to lower case
+  local cmd="${*:2}"
+#  shift
+
+  case "$scheduler" in
+    "local")
+      $cmd
+      ;;
+    "sge"|"pbs")
+      # Check if qsub is installed
+      if ! command -v qsub &> /dev/null; then
+          echo "Error: qsub could not be found"
+          return 1
+      fi
+      qsub "$cmd"
+      ;;
+    "slurm")
+      # Check if sbatch is installed
+      if ! command -v sbatch &> /dev/null; then
+          echo "Error: sbatch could not be found"
+          return 1
+      fi
+      sbatch "$cmd"
+      ;;
+    *)
+      echo "Error: Unsupported scheduler '$scheduler'"
+      return 1
+      ;;
+  esac
+}
+
+
+PRINT_VERSION() {
+  echo -e "\z-brains April 2023 (Version ${VERSION})\n"
 }
 
 
 # Export
-export -f Error Note Info Warning Warn Title
-
-
-function Do_cmd() {
-# do_cmd sends command to stdout before executing it.
-str="$(whoami) @ $(uname -n) $(date)"
-local l_command=""
-local l_sep=" "
-local l_index=1
-
-while [ ${l_index} -le $# ]; do
-    eval "arg=\${$l_index}"
-    if [ "$arg" = "-fake" ]; then
-      arg=""
-    fi
-    if [ "$arg" = "-no_stderr" ]; then
-      arg=""
-    fi
-    if [ "$arg" == "-log" ]; then
-      next_arg=$(("${l_index}" + 1))
-      eval "logfile=\${${next_arg}}"
-      arg=""
-      l_index=$((l_index+1))
-    fi
-    l_command="${l_command}${l_sep}${arg}"
-    l_sep=" "
-    l_index=$((l_index+1))
-   done
-
-#[[ ${QUIET} != true ]] && echo -e "\033[38;5;118m\n${str}:\nCOMMAND -->  \033[38;5;122m${l_command}  \033[0m";
-if [[ ${VERBOSE} -gt 2 || ${VERBOSE} -lt 0 ]]; then
-  echo -e "\033[38;5;118m\n${str}:\nCOMMAND -->  \033[38;5;122m${l_command}  \033[0m";
-fi
-if [ -z "$TEST" ]; then $l_command; fi
-}
+export COLOR_ERROR COLOR_WARNING COLOR_NOTE COLOR_INFO COLOR_TITLE NO_COLOR
+export -f DO_CMD SHOW_ERROR SHOW_WARNING SHOW_NOTE SHOW_INFO SHOW_TITLE SUBMIT_JOB PRINT_VERSION \
+          PARSE_OPTION_SINGLE_VALUE PARSE_OPTION_MULTIPLE_VALUES ASSERT_REQUIRED ASSERT_SAME_SIZE \
+          ASSERT_EXISTS ASSERT_COLUMNS_IN_CSV
 

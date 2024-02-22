@@ -2,7 +2,7 @@
    :alt: alternate text
    :align: center
 
-Multimodal lesion mapping in focal epilepsy with ``zbrains``
+Multimodal lesion mapping with ``zbrains``
 --------------------------------------------
 
 .. image:: https://img.shields.io/github/v/tag/MICA-MNI/z-brains
@@ -48,47 +48,52 @@ Multimodal lesion mapping in focal epilepsy with ``zbrains``
 Tutorial
 --------------------------------------------
 
-``z-brains`` requires input and output directories:
+You must be inside the ``zbrains`` repository to run the following commands.
 
-- ``root_path`` points to the BIDS-format dataset that stores imaging data
-- ``rawdir`` contains the raw imaging data
-- ``micapipedir`` contains the output of ``micapipe`` previously run on the BIDS dataset
-- ``hippdir`` contains the output of ``hippunfold`` previously run on the BIDS dataset
-- ``outdir`` points to the directory that will hold ``z-brains`` outputs
+.. code-block:: bash
+
+   cd /path/to/zbrains/repository
+
+``zbrains`` requires input and output directories:
+
+- ``pth_dataset`` points to the BIDS-format dataset path where micapipe, hippunfold, and zbrains directories will be stored
+- ``micapipe_dir`` contains the output of ``micapipe`` previously run on the BIDS dataset (also BIDS-format)
+- ``hippunfold_dir`` contains the output of ``hippunfold`` previously run on the BIDS dataset (also BIDS-format)
+- ``zbrains_dir`` points to the directory that will hold ``z-brains`` outputs
 
 .. code-block:: bash
 
     # path for dataset in BIDS structure
-    root_path=/path/to/BIDS_dataset
+    pth_dataset="/path/to/BIDS_dataset"
 
-    rawdir=${root_path}/rawdata
-    micapipedir=${root_path}/derivatives/micapipe_folder
-    hippdir=${root_path}/derivatives/hippunfold_folder
-    outdir=${root_path}/derivatives/z-brains_folder
+    micapipe_dir="name_of_micapipe_folder"
+    hippunfold_dir="name_of_hippunfold_folder"
+    zbrains_dir="name_of_z-brains_folder"
 
 
 Preparing control data
 ---------------------------------------------
 
-To process features for healthy controls, subject and session identifiers are required
+A ``.csv`` file with ID and session for healthy controls are required
 
 .. code-block:: bash
 
   # csv file with ID and session for control participants to be processed
-  PATH_CSV_CONTROLS='/path/to/control/participants.csv'
+  demo_controls='/path/to/control/participants.csv'
 
-  while IFS=',' read -r id ses rest
-  do
-      ./z-brains -sub "$id" -ses "$ses" \
-      -rawdir "${rawdir}" \
-      -micapipedir "${micapipedir}" \
-      -hippdir "${hippdir}" \
-      -outdir "${outdir}" \
-      -run proc \
-      -mica \
-      -verbose 2
+To process features for healthy controls as a batch, run the following. Note that column names of the healthy controls ``.csv`` file must be specified under ``--column_map``.
 
-  done <<< "$(tail -n +2 "${PATH_CSV_CONTROLS}")"
+.. code-block:: bash
+  
+      ./zbrains_batch --run proc \
+         --demo "${demo_controls}" \
+         --dataset "${pth_dataset}" \
+         --zbrains ${zbrains_dir} \
+         --micapipe ${micapipe_dir} \
+         --hippunfold ${hippunfold_dir} \
+         --column_map participant-id=ID session_id=SES \
+         --verbose 2 \
+         --scheduler_options "-n 20" #specify threads here
 
 
 Processing and analyzing patient features
@@ -97,26 +102,19 @@ Processing and analyzing patient features
 .. code-block:: bash
 
     # specify the list of subject IDs along with corresponding session
-    px_id=(PX001 PX002 PX003)
-    px_ses=(1 1 1)
+    subject_ids=(sub-PX001 sub-PX002)
+    session_ids=(ses-01 ses-01)
 
     # csv file with ID and session for control participants for comparison
-    PATH_CSV_CONTROLS='/path/to/control/participants.csv'
-
-    i=0
-    for id in "${px_id[@]}"
-    do
-        ses=${px_ses[$i]}
-
-        ./z-brains -sub "$id" -ses "$ses" \
-        -rawdir "${rawdir}" \
-        -micapipedir "${micapipedir}" \
-        -hippdir "${hippdir}" \
-        -outdir "${outdir}" \
-        -approach "zscore" \
-        -demo_cn "${PATH_CSV_CONTROLS}" \
-        -mica -verbose 2
-
-        i=$((i+1))
-
-    done
+    demo_controls='/path/to/control/participants.csv'
+      
+        ./zbrains --run analysis \
+                  --sub "${sid}" \
+                  --ses "${ses}" \
+                  --dataset ${pth_dataset} \
+                  --zbrains ${zbrains_dir} \
+                  --demo_ref ${demo_controls} \
+                  --dataset_ref ${pth_dataset} \
+                  --zbrains_ref ${zbrains_dir} \
+                  --column_map participant_id=ID session_id=SES \
+                  --verbose 2
