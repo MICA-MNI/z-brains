@@ -2,7 +2,7 @@ from typing import get_args, Literal
 
 VERSION = "v0.0.2 'reborn'"
 
-Feature = Literal['ADC', 'FA', 'flair', 'qT1', 'thickness']
+Feature = Literal['ADC', 'FA', 'flair', 'qT1', 'thickness', 'plugin-*']
 LIST_FEATURES: list[Feature] = list(get_args(Feature))
 
 map_feature_to_file = dict(thickness='thickness', volume='volume',

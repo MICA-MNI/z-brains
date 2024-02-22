@@ -242,6 +242,9 @@ while (( "${#args[@]}" )); do
   --hippunfold)
     PARSE_OPTION_SINGLE_VALUE hipunfold_dir args || exit $?
     ;;
+  --plugin)
+    PARSE_OPTION_SINGLE_VALUE plugin_dir args || exit $?
+    ;;
   --dataset_ref)
     PARSE_OPTION_MULTIPLE_VALUES ref_dataset_paths args || exit $?
     ;;
@@ -371,7 +374,7 @@ mapfile -t features < <(printf "%s\n" "${features[@]}" | sort -f)  # case-insens
 resolutions=("${resolutions[@]:-"all"}")
 [[ " ${resolutions[*]} " =~ " all " ]] && resolutions=("${LIST_RESOLUTIONS[@]}")
 
-labels_ctx=("${labels_ctx[@]:-"white"}")
+labels_ctx=("${labels_ctx[@]:-"midthickness"}")
 labels_hip=("${labels_hip[@]:-"midthickness"}")
 
 smooth_ctx=${smooth_ctx:-$DEFAULT_SMOOTH_CTX}
@@ -434,6 +437,11 @@ if [[ " ${tasks[*]} " =~ " proc " ]]; then
     export SUBJECT_HIPPUNFOLD_DIR=${dataset_path}/${hipunfold_dir}/hippunfold/${sid}${ses:+/${ses}}
     ASSERT_EXISTS "${SUBJECT_HIPPUNFOLD_DIR}" "${BIDS_ID} hippunfold directory does not exist."
   fi
+
+  # Subject's plugin directory exists
+  export SUBJECT_PLUGIN_DIR=${dataset_path}/${plugin_dir}/${sid}${ses:+/${ses}}
+  ASSERT_EXISTS "${SUBJECT_PLUGIN_DIR}" "${BIDS_ID} plugin directory does not exist."
+
 
   # Check if subject's freesurfer/fastsurfer directory exists - only needed for subcortex
   if [[ " ${structures[*]} " =~ " subcortex " ]]; then
