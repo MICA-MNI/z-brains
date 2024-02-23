@@ -4,26 +4,26 @@ Generate the clinical reports for ZBRAINS
 zbrains MUST exist on the global environment
 
 USAGE:
-
+    
     outdir='<PATH to output directory>/derivatives/z-brains'
     zbrains='<PATH to repository>/z-brains'
 
     # Run the function per norm ['z', 'normative'] to create one PDF per norm
-    clinical_reports(norm='z',
-                     sub='sub-PX069',
-                     ses='ses-01',
-                     outdir=outdir,
-                     cmap='cmo.balance',
+    clinical_reports(norm='z', 
+                     sub='sub-PX069', 
+                     ses='ses-01', 
+                     outdir=outdir, 
+                     cmap='cmo.balance', 
                      cmap_asymmetry='PRGn',
                      Range=(-3,3),
-                     thr=1.96,
-                     thr_alpha=0.3,
-                     color_bar='left',
-                     den='0p5',
-                     tmp='/tmp',
-                     sex='F',
+                     thr=1.96, 
+                     thr_alpha=0.3, 
+                     color_bar='left', 
+                     den='0p5', 
+                     tmp='/tmp', 
+                     sex='F', 
                      age='40',
-                     analysis=['asymmetry', 'regional'],
+                     analysis=['asymmetry', 'regional'], 
                      feature=['ADC', 'FA', 'T1map', 'flair', 'thickness', 'volume']
                      )
 

@@ -85,12 +85,36 @@ map_subcortex() {
   aseg_stats_file="${SUBJECT_SURF_DIR}/stats/aseg.stats"
   seg_file=${SUBJECT_MICAPIPE_DIR}/parc/${BIDS_ID}_space-nativepro_T1w_atlas-subcortical.nii.gz
   input_dir=${SUBJECT_MICAPIPE_DIR}/maps
+
+  #surf_dir=${SUBJECT_HIPPUNFOLD_DIR}/surf
+  #input_dir=${SUBJECT_MICAPIPE_DIR}/maps
+  if [[ $feat == plugin-* ]]; then 
+    #aseg_stats_file="${SUBJECT_SURF_DIR}/stats/aseg.stats"
+    #seg_file=${SUBJECT_MICAPIPE_DIR}/parc/${BIDS_ID}_space-nativepro_T1w_atlas-subcortical.nii.gz
+    input_dir=${SUBJECT_PLUGIN_DIR}/maps
+    feat=${feat:7}; 
+  fi
+
+  # feat name in filenames
+  if [[ -v map_input[${feat,,}] ]];then
+    input_feat="${map_input[${feat,,}]}"
+    output_feat=${map_output[${feat,,}]}
+  else
+    input_feat=$feat
+    output_feat=$feat
+  fi
+
+  
+
+  #aseg_stats_file="${SUBJECT_SURF_DIR}/stats/aseg.stats"
+  #seg_file=${SUBJECT_MICAPIPE_DIR}/parc/${BIDS_ID}_space-nativepro_T1w_atlas-subcortical.nii.gz
+  #input_dir=${SUBJECT_MICAPIPE_DIR}/maps
   output_dir=${SUBJECT_OUTPUT_DIR}/${FOLDER_MAPS}/${FOLDER_SCTX}
-  output_file="${output_dir}/${BIDS_ID}_feature-${map_output[${feat,,}]}.csv"
+  output_file="${output_dir}/${BIDS_ID}_feature-${output_feat}.csv"
 
   # check that input files exist & if not volume
   if [[ "$feat" != "volume" ]]; then
-    input_file="${input_dir}/${BIDS_ID}_space-nativepro_${map_input[${feat,,}]}.nii.gz"
+    input_file="${input_dir}/${BIDS_ID}_space-nativepro_${input_feat}.nii.gz"
 
     for file in ${seg_file} ${input_file}; do
       if [[ ! -f "${file}" ]]; then
@@ -123,9 +147,12 @@ map_cortex() {
   local resol=$2
   local label="${3:-white}"
 
+  root_dir=$SUBJECT_MICAPIPE_DIR  
+  if [[ $feat == plugin-* ]]; then root_dir=$SUBJECT_PLUGIN_DIR; feat=${feat:7}; fi
+    
   # Input & output locations
-  surf_dir=${SUBJECT_MICAPIPE_DIR}/surf
-  input_dir=${SUBJECT_MICAPIPE_DIR}/maps
+  surf_dir=${root_dir}/surf
+  input_dir=${root_dir}/maps
   output_dir=${SUBJECT_OUTPUT_DIR}/${FOLDER_MAPS}/${FOLDER_CTX}
 
   # Mappings from features names to the way they appear in the input and output filenames
@@ -134,8 +161,13 @@ map_cortex() {
   SHOW_INFO "${BIDS_ID}: Mapping '${feat}' to cortex [label=${label}, resolution=${resol}]"
 
   # feat name in filenames
-  input_feat="${map_feat[${feat,,}]}"
-  output_feat=${map_feat[${feat,,}]}
+  if [[ -v map_feat[${feat,,}] ]];then
+    input_feat="${map_feat[${feat,,}]}"
+    output_feat=${map_feat[${feat,,}]}
+  else
+    input_feat=$feat
+    output_feat=$feat
+  fi
 
   n=0
   for h in L R;
@@ -187,6 +219,12 @@ map_hippocampus() {
   # Input & output locations
   surf_dir=${SUBJECT_HIPPUNFOLD_DIR}/surf
   input_dir=${SUBJECT_MICAPIPE_DIR}/maps
+  ISSURF=false
+  if [[ $feat == plugin-* ]]; then 
+    surf_dir=$SUBJECT_PLUGIN_DIR/surf; 
+    input_dir=$SUBJECT_PLUGIN_DIR/maps; 
+    feat=${feat:7}; 
+  fi
   output_dir=${SUBJECT_OUTPUT_DIR}/${FOLDER_MAPS}/${FOLDER_HIP}
 
   # Mappings from features names to the way they appear in the input, intermediate and output filenames
@@ -196,37 +234,52 @@ map_hippocampus() {
   declare -A map_output=([thickness]=thickness [flair]=flair [adc]=ADC [fa]=FA [qt1]=T1map)
 
   # feat name in filenames
-  input_feat="${map_input[${feat,,}]}"
-  inter_feat="${map_inter[${feat,,}]}"
-  output_feat="${map_output[${feat,,}]}"
+  if [[ -v map_input[${feat,,}] ]]; then
+    input_feat="${map_input[${feat,,}]}"
+    inter_feat="${map_inter[${feat,,}]}"
+    output_feat="${map_output[${feat,,}]}"
+  else
+    input_feat=$feat
+    inter_feat=$feat
+    output_feat=$feat
+  fi
 
   n=0
   for h in L R;
   do
 
-    # Set paths
-    prefix="${BIDS_ID}_hemi-${h}"
+  # Set paths
+  prefix="${BIDS_ID}_hemi-${h}"
+  surf_file="${surf_dir}/${prefix}_space-T1w_den-${resol}_label-hipp_${label}.surf.gii"
+  input_file="${input_dir}/${BIDS_ID}_space-nativepro_${input_feat}.nii.gz" # Not used for thickness
+  output_file="${output_dir}/${prefix}_den-${resol}_label-${label}_feature-${output_feat}_smooth-${fwhm}mm.func.gii"
+  # Note the logic here is that if a [shape|func].gii exists, use that. Otherwise map a .nii.gz file
+  if [ -f "${surf_dir}/${prefix}_space-T1w_den-${resol}_label-hipp_${feat}.*.gii" ]; then
+    inter_file=$(ls "${surf_dir}/${prefix}_space-T1w_den-${resol}_label-hipp_${feat}.*.gii")
+    ISSURF=true
+  elif [ -f "${input_dir}/${prefix}_space-T1w_den-${resol}_label-hipp_${feat}.*.gii" ]; then
+    inter_file=$(ls "${input_dir}/${prefix}_space-T1w_den-${resol}_label-hipp_${feat}.*.gii")
+    ISSURF=true
+  else
+    inter_file="${tmp_dir}/${prefix}_space-T1w_desc-${inter_feat}_den-${resol}_feature-hipp_${label}.func.gii"
+    ISSURF=false
+  fi
 
-    surf_file="${surf_dir}/${prefix}_space-T1w_den-${resol}_label-hipp_${label}.surf.gii"
-    input_file="${input_dir}/${BIDS_ID}_space-nativepro_${input_feat}.nii.gz" # Not used for thickness
-    if [[ "$feat" == "thickness" ]]; then
-      inter_file="${surf_dir}/${prefix}_space-T1w_den-${resol}_label-hipp_thickness.shape.gii"
-    else
-      inter_file="${tmp_dir}/${prefix}_space-T1w_desc-${inter_feat}_den-${resol}_feature-hipp_${label}.func.gii"
+  # Check if file exists
+  if $ISSURF; then
+    check_file=${inter_file}
+  else
+    check_file=${input_file}
+  fi
+  for file in ${surf_file} ${check_file}; do
+    if [[ ! -f "${file}" ]]; then
+      SHOW_WARNING "${BIDS_ID}: cannot map '${feat}' [label=${label}, resolution=${resol}] to hippocampus." "Missing file: ${file}"
+      return
     fi
-    output_file="${output_dir}/${prefix}_den-${resol}_label-${label}_feature-${output_feat}_smooth-${fwhm}mm.func.gii"
-
-    # Check if file exists
-    [[ "$feat" != "thickness" ]] && check_file=${input_file} || check_file=${inter_file}
-    for file in ${surf_file} ${check_file}; do
-      if [[ ! -f "${file}" ]]; then
-        SHOW_WARNING "${BIDS_ID}: cannot map '${feat}' [label=${label}, resolution=${resol}] to hippocampus." "Missing file: ${file}"
-        return
-      fi
-    done
+  done
 
     # Perform mapping
-    if [[ "$feat" != "thickness" ]]; then
+    if ! $ISSURF; then
       cmd="${WORKBENCH_PATH}/wb_command -volume-to-surface-mapping ${input_file} ${surf_file} ${inter_file} -trilinear"
       DO_CMD "$cmd"
     fi

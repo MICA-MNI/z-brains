@@ -3,7 +3,7 @@
     pygments.styles.micapipe
     ~~~~~~~~~~~~~~~~~~~~~
 
-    A modern style based on the VIM pyte theme.
+    A modern style based on the VIM pyte theme. 
 
 
 """
@@ -18,27 +18,27 @@ class micapipeLexerStyle(Style):
     A modern style based on the VIM pyte theme.
     """
 
-    background_color = "#c6afe9"
+    background_color = "#f7ccd4"
     default_style = ""
 
     styles = {
         Whitespace:                "#bbbbbb",
         Comment:                   "italic #888888",
-        Comment.Preproc:           "noitalic #5a2ca0",
-        Comment.Special:           "noitalic bg:#e3d7f4",
+        Comment.Preproc:           "noitalic #15993a",
+        Comment.Special:           "noitalic bg:#fff0f0",
 
-        Keyword:                   "bold #5a2ca0",
+        Keyword:                   "bold #15993a",
         Keyword.Pseudo:            "nobold",
         Keyword.Type:              "nobold #902000",
 
         Operator:                  "#000000",
-        Operator.Word:             "bold #5a2ca0",
+        Operator.Word:             "bold #15993a",
 
-        Name.Builtin:              "#5a2ca0",
+        Name.Builtin:              "#15993a",
         Name.Function:             "#06287e",
-        Name.Class:                "bold #7137c8",
-        Name.Namespace:            "bold #7137c8",
-        Name.Exception:            "#5a2ca0",
+        Name.Class:                "bold #9E1B32",
+        Name.Namespace:            "bold #9E1B32",
+        Name.Exception:            "#15993a",
         Name.Variable:             "#bb60d5",
         Name.Constant:             "#60add5",
         Name.Label:                "bold #002070",

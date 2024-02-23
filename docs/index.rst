@@ -82,6 +82,14 @@ FLAIR (intensity), and quantitative T1 (intensity) imaging data to standard neoc
    pages/11.features/index
    pages/12.reports/index
 
+.. toctree::
+   :maxdepth: 1
+   :hidden:
+   :caption: Adding plugin features
+
+   pages/13.plugins/index
+
+
 
 ___________________________________________________________________________________________________
 
@@ -100,7 +108,6 @@ at the McConnell Brain Imaging Centre of the Montreal Neurological Institute and
 - **Raúl Rodríguez-Cruces**, *MICA Lab - Montreal Neurological Institute*
 - **Oualid Benkarim**, *MICA Lab - Montreal Neurological Institute*
 - **Jordan Dekraker**, *MICA Lab - Montreal Neurological Institute*
-- **Ian Goodall Halliwell**, *MICA Lab - Montreal Neurological Institute*
 - **Yigu Zhou**, *MICA Lab - Montreal Neurological Institute*
 - **Youngeun Hwang**, *MICA Lab - Montreal Neurological Institute*
 - **Judy Chen**, *MICA Lab - Montreal Neurological Institute*
