@@ -82,6 +82,14 @@ FLAIR (intensity), and quantitative T1 (intensity) imaging data to standard neoc
    pages/11.features/index
    pages/12.reports/index
 
+.. toctree::
+   :maxdepth: 1
+   :hidden:
+   :caption: Adding plugin features
+
+   pages/13.plugins/index
+
+
 
 ___________________________________________________________________________________________________
 
