@@ -528,34 +528,6 @@ def load_px_demo(
     return df_px[mask_px]
 
 
-# def _subject_zscore(
-#         *, dir_px, px_sid, px_ses, data_cn: np.ndarray, feat: Feature,
-#         deconfounder: CombatModel | RegressOutModel | None,
-#         df_px: pd.Series | None, analyses: list[Analysis], **kwargs):
-#
-#     # Load patient data
-#     data_px = _load_one(dir_px, sid=px_sid, ses=px_ses, raise_error=True,
-#                         feat=feat, **kwargs)
-#
-#     # For subcortex, we have dataframes
-#     cols_df = index_df = None
-#     if is_df := isinstance(data_px, pd.DataFrame):
-#         index_df, cols_df = data_px.index, data_px.columns
-#         data_px = data_px.to_numpy().ravel()
-#
-#     # Deconfounding
-#     if deconfounder:
-#         df_px = df_px.to_frame().T
-#         data_px = deconfounder.transform(data_px.reshape(1, -1), df_px)[0]
-#
-#     # Analysis: z-scoring
-#     z = zscore(data_cn, data_px)
-#     if is_df:
-#         z = pd.DataFrame(z.reshape(1, -1), index=index_df, columns=cols_df)
-#
-#     # Store data for mahalanobis
-#     return dict(z=z, data_px=data_px, index_df=index_df, cols_df=cols_df)
-
 def _subject_zscore(
         *, data_cn: np.ndarray, data_px: np.ndarray, index_df=None,
         cols_df=None, analyses: list[Analysis]
@@ -576,12 +548,7 @@ def _subject_zscore(
 
         xh_px = data_px.reshape(2, -1)
         data_px_asym = compute_asymmetry(xh_px[0], xh_px[1])
-        # za = zscore(data_cn_asym, data_px_asym)
 
-        # if index_df:
-        #     za = pd.DataFrame(za.reshape(1, -1), index=index_df,
-        #                       columns=cols_df[:za.size])
-        # res['asymmetry'] = za
         cols_df = None if cols_df is None else cols_df[:xh_px.shape[1]]
         res['asymmetry'] = _subject_zscore(
             data_cn=data_cn_asym, data_px=data_px_asym, index_df=index_df,
@@ -653,6 +620,46 @@ def run_analysis(
         analyses: list[Analysis], approach: Approach,
         col_dtypes: dict[str, type] | None = None
 ):
+    """
+
+    Parameters
+    ----------
+    px_sid:
+        Patient ID
+    px_ses:
+        Patient Ses
+    cn_zbrains:
+        Names of zbrains folders in for the controls datasets (zbrains, abrains_v03)
+    cn_demo_paths:
+        CSVs with demographics
+    px_zbrains:
+        Name of zbrains folder for patient
+    px_demo:
+        CSV of patient
+    structures:
+        list of struct
+    features:
+        list of feat
+    cov_normative:
+        list de covariates
+    cov_deconfound
+        list de covariates
+    smooth_ctx
+    smooth_hip
+    resolutions
+    labels_ctx
+    labels_hip
+    actual_to_expected
+    analyses
+    approach
+    col_dtypes
+
+    Returns
+    -------
+
+    """
+
+
     approach_folder = approach_to_folder[approach]
 
     logger.debug(f'Logging call: {sys.argv[0]} {" ".join(sys.argv[1:])}')

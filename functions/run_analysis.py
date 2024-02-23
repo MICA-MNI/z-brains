@@ -262,19 +262,6 @@ def main():
                 px_demo = None  # Dont use
 
     # Run analyses -------------------------------------------------------------
-    # logger.info('\n\nStarting analysis')
-    # for analysis in LIST_ANALYSES:
-    #     run_analysis(
-    #         px_sid=px_id, px_ses=px_ses, cn_zbrains=args.zbrains_ref,
-    #         cn_demo_paths=args.demo_ref, px_zbrains=args.zbrains,
-    #         px_demo=px_demo, structures=args.struct, features=args.feat,
-    #         cov_normative=cov_normative, cov_deconfound=cov_deconfound,
-    #         smooth_ctx=args.smooth_ctx, smooth_hip=args.smooth_hip,
-    #         resolutions=args.resolution, labels_ctx=args.labels_ctx,
-    #         labels_hip=args.labels_hip, actual_to_expected=actual_to_expected,
-    #         analysis=analysis, approach=args.approach, col_dtypes=col_dtypes
-    #     )
-
     logger.info('\n\nStarting analysis')
     available_features = run_analysis(
         px_sid=px_id, px_ses=px_ses, cn_zbrains=args.zbrains_ref,
