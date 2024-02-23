@@ -108,7 +108,6 @@ at the McConnell Brain Imaging Centre of the Montreal Neurological Institute and
 - **Raúl Rodríguez-Cruces**, *MICA Lab - Montreal Neurological Institute*
 - **Oualid Benkarim**, *MICA Lab - Montreal Neurological Institute*
 - **Jordan Dekraker**, *MICA Lab - Montreal Neurological Institute*
-- **Ian Goodall Halliwell**, *MICA Lab - Montreal Neurological Institute*
 - **Yigu Zhou**, *MICA Lab - Montreal Neurological Institute*
 - **Youngeun Hwang**, *MICA Lab - Montreal Neurological Institute*
 - **Judy Chen**, *MICA Lab - Montreal Neurological Institute*
