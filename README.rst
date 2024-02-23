@@ -54,6 +54,9 @@ You must be inside the ``zbrains`` repository to run the following commands.
 
    cd /path/to/zbrains/repository
 
+   ZBRAINS=$(dirname "$(realpath "$0")")
+   source "${ZBRAINS}/functions/init.sh"
+
 ``zbrains`` requires input and output directories:
 
 - ``pth_dataset`` points to the BIDS-format dataset path where micapipe, hippunfold, and zbrains directories will be stored
