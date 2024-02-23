@@ -5,12 +5,12 @@
 Multimodal lesion mapping in focal epilepsy with ``zbrains``
 --------------------------------------------
 
+.. image:: https://img.shields.io/badge/license-BSD-brightgreen
+   :target: https://opensource.org/licenses/BSD-3-Clause
+
 .. image:: https://img.shields.io/github/v/tag/MICA-MNI/z-brains
   :target: https://github.com/MICA-MNI/z-brains
   :alt: version
-
-.. image:: https://img.shields.io/badge/license-BSD-brightgreen
-   :target: https://opensource.org/licenses/BSD-3-Clause
 
 .. image:: https://readthedocs.org/projects/z-brains/badge/?version=latest&color=brightgreen
   :target: https://z-brains.readthedocs.io/en/latest/?badge=latest
