@@ -18,7 +18,7 @@
   :target: https://z-brains.readthedocs.io/en/latest/?badge=latest
   :alt: Documentation Status
 
-**Welcome to z-brains's documentation!**
+**Welcome to zbrains's documentation!**
 ========================================================
 
 \
@@ -52,12 +52,12 @@ using features with previously demonstrated potential for localization and later
 
 Breaking news ️‍📰
 --------------------------------------------------------
-`z-brains version 0.0.2 "Reborn"` is up and running!
+``zbrains`` version v1.0 "lido" is up and running!
 
 
 About 👁️‍🗨️
 --------------------------------------------------------
-`z-brains` is an open toolbox promoting standardized procedures to map and normalize structural imaging features in epilepsy research.
+``zbrains`` is an open toolbox promoting standardized procedures to map and normalize structural imaging features in epilepsy research.
 This pipeline integrates processing streams to map and normalize T1-weighted (cortical thickness, subcortical volume), diffusion-weighted (mean diffusivity, fractional anisotropy),
 FLAIR (intensity), and quantitative T1 (intensity) imaging data to standard neocortical, subcortical, and hippocampal spaces.
 
