@@ -11,7 +11,7 @@ For example, the following plugin will import the data that is already mapped to
 
 .. code-block:: console
 
-    /data/mica3/BIDS_MICs/derivatives/plugin-InTS/
+    /PATH-TO/BIDS_MICs/derivatives/plugin-InTS/
     └── sub-HC002
         └── ses-01
             ├── maps
@@ -30,7 +30,7 @@ Similarly, the following input plugin will automatically map volumetric data to 
 
 .. code-block:: console
 
-    /data/mica3/BIDS_MICs/derivatives/plugin-InTS/
+    /PATH-TO/BIDS_MICs/derivatives/plugin-InTS/
     └── sub-HC002
         └── ses-01
             ├── maps
@@ -43,15 +43,19 @@ Similarly, the following input plugin will automatically map volumetric data to 
 
 For many calculations, its better to perform calculations on a surface rather than in a volume. Thus, when hippocampal surface data are available, they are prioritized. If they are not available, a volumetric image will be mapped to the surfaces in the `huippunfold` directory. 
 
-In this example, we consdered the feature `InTS` or "intrinsic timescale". Thus we should add this to the list of features for zbrains to consider, but since it comes from a plugin, we add the prefix `plugin-`.
+.. note::
+    - In this example, we only have ``fsLR-32k`` surfaces in the cortex (no ``fsLR-5k``) and ``den-2mm`` in the hippocampus (no ``den-0p5mm``).
+    - In this example, we consdered the feature ``InTS`` or "intrinsic timescale". Thus we should add this to the list of features for zbrains to consider, but since it comes from a plugin, we add the prefix `plugin-`.
 
-For example, zbrains can be run with the following command:
+For the example above, zbrains can be run with the following command:
 
 .. code-block:: console
-    zbrains --sub HC002 --ses 01 --dataset /data/mica3/BIDS_MICs --zbrains OUTPUT --micapipe micapipe_v0.2.0  --hippunfold hippunfold_v1.3.0 --plugin plugin-INts --feat plugin-InTS
+
+    zbrains --sub HC002 --ses 01 --dataset /PATH-TO/BIDS_MICs --zbrains OUTPUT --micapipe micapipe_v0.2.0  --hippunfold hippunfold_v1.3.0 --plugin plugin-INts --feat plugin-InTS
 
 If we also want to consider the usual default zbrains features, we would run:
 
 .. code-block:: console
-    zbrains --sub HC002 --ses 01 --dataset /data/mica3/BIDS_MICs --zbrains OUTPUT --micapipe micapipe_v0.2.0  --hippunfold hippunfold_v1.3.0 --plugin plugin-INts --feat ADC FA flair qT1 thickness plugin-InTS
+
+    zbrains --sub HC002 --ses 01 --dataset /PATH-TO/BIDS_MICs --zbrains OUTPUT --micapipe micapipe_v0.2.0  --hippunfold hippunfold_v1.3.0 --plugin plugin-INts --feat ADC FA flair qT1 thickness plugin-InTS
 
