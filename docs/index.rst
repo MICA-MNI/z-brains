@@ -21,6 +21,27 @@
 **Welcome to z-brains's documentation!**
 ========================================================
 
+\
+
+.. image:: https://img.shields.io/badge/license-BSD-brightgreen
+   :target: https://opensource.org/licenses/BSD-3-Clause
+
+.. image:: https://img.shields.io/github/v/tag/MICA-MNI/z-brains
+  :target: https://github.com/MICA-MNI/z-brains
+  :alt: version
+
+.. image:: https://readthedocs.org/projects/z-brains/badge/?version=latest&color=brightgreen
+  :target: https://z-brains.readthedocs.io/en/latest/?badge=latest
+  :alt: Documentation Status
+
+.. image:: https://img.shields.io/github/issues/MICA-MNI/z-brains?color=brightgreen
+  :target: https://github.com/MICA-MNI/z-brains/issues
+  :alt: GitHub issues
+
+.. image:: https://img.shields.io/github/stars/MICA-MNI/z-brains.svg?style=flat&label=%E2%9C%A8%EF%B8%8F%20be%20a%20stargazer&color=brightgreen
+    :target: https://github.com/MICA-MNI/z-brains/stargazers
+    :alt: GitHub stars
+
 `z-brains` identifies patient-specific signal alterations in brain morphology and microstructure,
 using features with previously demonstrated potential for localization and lateralization of epileptogenic lesions.
 
