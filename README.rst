@@ -91,7 +91,7 @@ To process features for healthy controls as a batch, run the following. Note tha
          --zbrains ${zbrains_dir} \
          --micapipe ${micapipe_dir} \
          --hippunfold ${hippunfold_dir} \
-         --column_map participant-id=ID session_id=SES \
+         --column_map participant_id=ID session_id=SES \
          --verbose 2 \
          --scheduler_options "-n 20" #specify threads here
 
