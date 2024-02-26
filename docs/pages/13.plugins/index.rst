@@ -1,11 +1,11 @@
 .. _plugins:
 
-.. title:: ``z-brains`` plugins
+.. title:: zbrains plugins
 
-Exploring ``z-brains`` plugins
+Exploring ``zbrains`` plugins
 ============================================================
 
-zbrains can accept data outside of micapipe and hippunfold as a 'plugin' folder. However, these data MUST be formatted as BIDS-derivatives exactly as in micapipe and hippunfold. If hippocampal surface data are present then they will be used but otherwise volumetric data will be mapped to hippocampal and subcortical surfaces. 
+zbrains can accept data outside of micapipe and hippunfold as a 'plugin' folder. However, these data MUST be formatted as BIDS-derivatives exactly as in micapipe and hippunfold. If hippocampal surface data are present then they will be used but otherwise volumetric data will be mapped to hippocampal and subcortical surfaces.
 
 For example, the following plugin will import the data that is already mapped to hippocampal surfaces:
 
@@ -44,7 +44,7 @@ Similarly, the following input plugin will automatically map volumetric data to 
 
 .. note::
     - In this example, we only have ``fsLR-32k`` surfaces in the cortex (no ``fsLR-5k``) and ``den-2mm`` in the hippocampus (no ``den-0p5mm``).
-    - For many calculations, its better to perform calculations on a surface rather than in a volume. Thus, when hippocampal surface data are available, they are prioritized. If they are not available, a volumetric image will be mapped to the surfaces in the `huippunfold` directory. 
+    - For many calculations, its better to perform calculations on a surface rather than in a volume. Thus, when hippocampal surface data are available, they are prioritized. If they are not available, a volumetric image will be mapped to the surfaces in the `huippunfold` directory.
 
 In this example, we consdered the feature ``InTS`` or "intrinsic timescale". Thus we should add this to the list of features for zbrains to consider, but since it comes from a plugin, we add the prefix `plugin-`. For the example above, zbrains can be run with the following command:
 
@@ -57,4 +57,3 @@ If we also want to consider the usual default zbrains features, we would run:
 .. code-block:: console
 
     $ zbrains --sub HC002 --ses 01 --dataset /PATH-TO/BIDS_MICs --zbrains OUTPUT --micapipe micapipe_v0.2.0  --hippunfold hippunfold_v1.3.0 --plugin plugin-INts --feat ADC FA flair qT1 thickness plugin-InTS
-

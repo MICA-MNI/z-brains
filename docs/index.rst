@@ -42,7 +42,7 @@
     :target: https://github.com/MICA-MNI/z-brains/stargazers
     :alt: GitHub stars
 
-`z-brains` identifies patient-specific signal alterations in brain morphology and microstructure,
+`zbrains` identifies patient-specific signal alterations in brain morphology and microstructure,
 using features with previously demonstrated potential for localization and lateralization of epileptogenic lesions.
 
 .. raw:: html
