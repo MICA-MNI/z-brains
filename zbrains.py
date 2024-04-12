@@ -180,19 +180,22 @@ def main(args):
     # do_cmd(['mkdir', '-m', '770', '-p', logs_dir])
 
     if "proc" in tasks:
-        dirs = [FOLDER_MAPS, FOLDER_SCTX, FOLDER_CTX, FOLDER_HIP]
+        dirs = [FOLDER_SCTX, FOLDER_CTX, FOLDER_HIP]
         for dir in dirs:
-            path = os.path.join(SUBJECT_OUTPUT_DIR, dir)
+            path = os.path.join(SUBJECT_OUTPUT_DIR, FOLDER_MAPS, dir)
             if not os.path.exists(path):
-                os.mkdir(path)
+                os.makedirs(path, exist_ok=True)
 
     # Folders for regional/asymmetry analysis
     if "analysis" in tasks:
-        dirs = [FOLDER_NORM_Z, FOLDER_NORM_MODEL, FOLDER_SCTX, FOLDER_CTX, FOLDER_HIP]
+        dirs = [FOLDER_SCTX, FOLDER_CTX, FOLDER_HIP]
         for dir in dirs:
-            path = os.path.join(SUBJECT_OUTPUT_DIR, dir)
+            path = os.path.join(SUBJECT_OUTPUT_DIR, FOLDER_NORM_Z, dir)
             if not os.path.exists(path):
-                os.mkdir(path)
+                os.makedirs(path, exist_ok=True)
+            path = os.path.join(SUBJECT_OUTPUT_DIR, FOLDER_NORM_MODEL, dir)
+            if not os.path.exists(path):
+                os.makedirs(path, exist_ok=True)
 
     # Temporary folder
     tmp_dir = tempfile.mkdtemp(dir=SUBJECT_OUTPUT_DIR, prefix="z_brains_temp.")
@@ -572,6 +575,6 @@ else:
     # procjobs.append(args)
 
 Parallel(n_jobs=args.n_jobs)(delayed(main)(job) for job in procjobs)
-Parallel(n_jobs=args.n_jobs)(delayed(main)(job) for job in analysisjobs)
+# Parallel(n_jobs=args.n_jobs)(delayed(main)(job) for job in analysisjobs)
 
 

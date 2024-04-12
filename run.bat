@@ -52,7 +52,7 @@ for %%s in (%sids%) do (
    @REM                 --verbose 2
    @REM  )
            call python zbrains.py --run proc ^
-                   --sub "%%s" ^
+                   --sub "all" ^
                    --micapipe %micapipe_dir% ^
                    --hippunfold %hippunfold_dir% ^
                    --dataset %pth_dataset% ^
