@@ -564,18 +564,6 @@ if [[ " ${tasks[*]} " =~ " analysis "  ]]; then
     ref_zbrains_paths+=("${ref_dataset_paths[$idx]}/derivatives/${ref_zbrains_dirs[$idx]}")
   done
 
-  # # Profiling
-  # cmd="kernprof -l ${script_dir}/run_analysis.py --subject_id ${sid} --session ${ses} --zbrains_ref ${ref_zbrains_paths[*]} \
-  #                                           --demo_ref ${ref_demos[*]} --zbrains ${px_zbrains_path} \
-  #                                           --struct ${structures[*]} --feat ${features[*]} --smooth_ctx ${smooth_ctx} \
-  #                                           --smooth_hip ${smooth_hip} --threshold ${threshold} --approach zscore \
-  #                                           --resolution ${resolutions[*]} --labels_ctx ${labels_ctx[*]} \
-  #                                           --labels_hip ${labels_hip[*]} --logfile ${logfile} --tmp ${tmp_dir} \
-  #                                           --verbose ${VERBOSE}"
-
-  
-
-
   cmd="python ${script_dir}/run_analysis.py --subject_id ${sid} --session ${ses} --zbrains_ref ${ref_zbrains_paths[*]} \
                                             --demo_ref ${ref_demos[*]} --zbrains ${px_zbrains_path} \
                                             --struct ${structures[*]} --feat ${features[*]} --smooth_ctx ${smooth_ctx} \

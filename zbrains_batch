@@ -305,28 +305,6 @@ for csv in "${demo_paths[@]}" "${ref_demo_paths[@]}"; do
   ASSERT_COLUMNS_IN_CSV "$csv" required_columns
 
   IFS=$([[ $csv == *.tsv ]] && echo -e '\t' || echo ',') read -ra header < "$csv"
-  # IFS=',' read -ra header < "$csv"
-  # IFS= read -r header < "$csv"
-  # header="${header,,}"  # Convert to lowercase to ensure consistency
-  # header="${header#"${header%%[![:space:]]*}"}"   # Trim leading whitespace
-  # header="${header%"${header##*[![:space:]]}"}"   # Trim trailing whitespace
-  # IFS=',' read -ra header_elements <<< "$header"
-  # header=$(head -n 1 "$csv")
-  # header=$(echo "$header" | tr -d '\r')  # Remove carriage return characters
-  # IFS=',' read -ra header_elements <<< "$header"
-
-  # Add debug prints
-  # echo "Debug: CSV File: $csv"
-  # echo "Debug: Header Line: $header"
-  # echo "Debug: Header Elements Array: ${header_elements[@]}"
-  # echo "Debug: Entire Content of CSV File:"
-  # cat "$csv"
-  # Add debug prints
-  # echo "Debug: CSV File: $csv"
-  # echo "Debug: Header Line: $header"
-  # echo "Debug: Header Elements Array: ${header_elements[@]}"
-  # echo "Debug: CSV File: $csv"
-  # echo "Debug: Header Array: ${header[@]}"
   if [[ "$run" == "analysis" && " ${demo_paths[*]} " == *" $csv "* ]]; then
     for col in "${columns_report[@]}"; do
       if [[ " ${header[*]} " != *" ${col} "* ]]; then
@@ -334,15 +312,10 @@ for csv in "${demo_paths[@]}" "${ref_demo_paths[@]}"; do
       fi
     done
   fi
-  # echo "Debug: CSV File: $csv"
-  # echo "Debug: Header Array: ${header[@]}"
 
   for idx in "${!header[@]}"; do
     col2idx["$csv,${header[$idx]}"]=$idx
   done
-  #for idx in "${!header[@]}"; do col2idx[$csv,${header[$idx]}]=$idx; done
-  #echo "Debug: CSV File: $csv"
-  #echo "Debug: Header Array: ${header[@]}"
   echo "Debug: col2idx Array: ${!col2idx[@]}"
 done
 
@@ -416,34 +389,21 @@ fi
 
 col_sid=${expected_to_actual["participant_id"]}
 col_ses=${expected_to_actual["session_id"]}
-echo ${col_ses[*]}
-echo ${col_sid[*]}
+
 for iter in "${!demo_paths[@]}"; do
   csv=${demo_paths[$iter]}
-  
+
   # Get indices for ID and SES columns
   idx_sid=${col2idx[${csv},${col_sid}]}
   idx_ses=${col2idx[${csv},${col_ses}]}
-  echo ${csv[*]}
-  echo ${col_ses[*]}
-  #idx_ses=1
   
   # Iterate over subjects - post-processing only
   delimiter=$([[ $csv == *.tsv ]] && echo -e '\t' || echo ',')
   while IFS=$delimiter read -ra row && [ ${#row[@]} -ne 0 ]; do
-    # sid=sub-${sid/sub-/}
-    
     sid=sub-${row[${idx_sid}]/sub-/}
-    # echo ${idx_sid[*]}
-    # echo ${idx_ses}
-    #echo ${row[*]}
     ses="${row[${idx_ses}]}"
-    #echo $ses
     [[ "$ses" = "n/a" ]] && ses=""
-    #echo $ses
     ses=${ses:+ses-${ses/ses-/}}
-    echo $ses
-    
     dataset_path=${dataset_paths[$iter]}
     zbrains_dir=${zbrains_dirs[$iter]}
     

@@ -24,31 +24,6 @@ done
 echo "${sid}"
 echo "${sids}"
 
-# for sid in "${sids[@]}" ; do
-#    echo $sid
-#    sess=()
-#    for d in "$pth_dataset"/derivatives/"$micapipe_dir"/"$sid"/*/ ; do
-#       part2=$(basename "$d")
-#       # Extract the subject ID without the "sub-" prefix
-#       ses_part2="${part2#ses-}"
-#       # Add the "sub-" prefix to the sids array
-#       sess+=("ses-$ses_part2")
-#    done
-#    for ses in "${sess[@]}" ; do
-#       ./z-brains/zbrains --run proc \
-#                   --sub "${sid}" \
-#                   --ses "${ses}" \
-#                   --micapipe ${micapipe_dir} \
-#                   --hippunfold ${hippunfold_dir} \
-#                   --dataset ${pth_dataset} \
-#                   --zbrains ${zbrains_dir} \
-#                   --demo_ref ${demo_controls} \
-#                   --dataset_ref ${pth_dataset} \
-#                   --zbrains_ref ${zbrains_dir} \
-#                   --column_map participant_id=ID session_id=SES \
-#                   --verbose 2
-#    done
-# done
 sids=(sub-PX070)
 for sid in "${sids[@]}" ; do
    echo $sid

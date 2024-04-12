@@ -51,10 +51,10 @@ from scipy.spatial.transform import Rotation
 # from vtk import vtkPolyDataNormals
 from pyvirtualdisplay import Display
 
-from constants import (
+from functions.constants import (
     Structure, Resolution, Feature, Analysis, Approach, LIST_ANALYSES,
     struct_to_folder, approach_to_folder)
-from utils_analysis import (
+from functions.utils_analysis import (
     get_bids_id, map_resolution, get_analysis_path_from_template,
     get_subject_dir, PathType)
 
@@ -692,8 +692,8 @@ def generate_clinical_report(
     os.environ['PYVIRTUALDISPLAY_DISPLAYFD'] = '0'
     # Display for headless plotting
     dsize = (900, 750)
-    display = Display(visible=False, size=dsize)
-    display.start()
+    # display = Display(visible=False, size=dsize)
+    # display.start()
 
     report = ''
     # for analysis in analyses:
@@ -742,7 +742,7 @@ def generate_clinical_report(
         report += '<div style="page-break-after: always;"></div>'
 
     # Stop display for headless plotting
-    display.stop()
+    # display.stop()
 
     # Report file name
     file_pdf = f'{subject_dir}/{bids_id}_approach-{approach}_summary-report.pdf'

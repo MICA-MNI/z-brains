@@ -12,8 +12,8 @@ import numpy as np
 import pandas as pd
 import nibabel as nib
 
-from deconfounding import CombatModel, RegressOutModel
-from constants import (Structure, Resolution, Feature, Analysis,
+from functions.deconfounding import CombatModel, RegressOutModel
+from functions.constants import (Structure, Resolution, Feature, Analysis,
                        Approach, struct_to_folder, approach_to_folder,
                        map_feature_to_file, HIGH_RESOLUTION_CTX,
                        LOW_RESOLUTION_CTX, HIGH_RESOLUTION_HIP,
