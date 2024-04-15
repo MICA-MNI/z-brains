@@ -203,14 +203,13 @@ def main(zbrains_ref,demo_ref,column_map,subject_id,session,demo,zbrains,struct,
         participant_id='participant_id', session_id='session_id', age='age',
         sex='sex', site='site'
     )
-    if unknown_cols := set(column_map.keys()).difference(
-        expected_to_actual.keys()
-    ):
+    unknown_cols = set(column_map.keys()).difference(expected_to_actual.keys())
+    if unknown_cols:
         raise ValueError(
             f'Unknown column names: {unknown_cols}. Allowed options '
             f'are: {list(expected_to_actual.keys())}')
 
-    expected_to_actual.update(column_map)
+    expected_to_actual |= column_map
     actual_to_expected = {v: k for k, v in expected_to_actual.items()}
 
     # Column types
