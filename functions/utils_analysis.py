@@ -21,7 +21,7 @@ from functions.constants import (Structure, Resolution, Feature, Analysis,
 
 COLUMN_DATASET = '__zbrains_dataset_identifier__'
 
-PathType = Union[str, os.PathLike[str]]
+PathType = Union[str, os.PathLike]
 
 logger = logging.getLogger('analysis_logger')
 
