@@ -1,28 +1,28 @@
-from typing import get_args, Literal
+from typing import List
 
 VERSION = "v0.0.2 'reborn'"
 
-Feature = Literal['ADC', 'FA', 'flair', 'qT1', 'thickness']
-LIST_FEATURES: list[Feature] = list(get_args(Feature))
+Feature = ['ADC', 'FA', 'flair', 'qT1', 'thickness']
+LIST_FEATURES: List[str] = Feature
 
 map_feature_to_file = dict(thickness='thickness', volume='volume',
                            flair='flair', ADC='ADC', FA='FA', qT1='T1map')
 
-Structure = Literal['cortex', 'subcortex', 'hippocampus']
-LIST_STRUCTURES: list[Structure] = list(get_args(Structure))
+Structure = ['cortex', 'subcortex', 'hippocampus']
+LIST_STRUCTURES: List[str] = Structure
 
-Task = Literal['proc', 'analysis']
-LIST_TASKS: list[Task] = list(get_args(Task))
+Task = ['proc', 'analysis']
+LIST_TASKS: List[str] = Task
 
-Approach = Literal['zscore', 'norm']
-LIST_APPROACHES: list[Approach] = list(get_args(Approach))
+Approach = ['zscore', 'norm']
+LIST_APPROACHES: List[str] = Approach
 
-Analysis = Literal['regional', 'asymmetry']
-LIST_ANALYSES: list[Analysis] = list(get_args(Analysis))
+Analysis = ['regional', 'asymmetry']
+LIST_ANALYSES: List[str] = Analysis
 
-Resolution = Literal['low', 'high']
-Resolution = Literal['high']
-LIST_RESOLUTIONS: list[Resolution] = list(get_args(Resolution))
+Resolution = ['low', 'high']
+Resolution = ['high']
+LIST_RESOLUTIONS: List[str] = Resolution
 
 LIST_LABELS_CTX = ['white', 'midthickness', 'pial', 'swm[0-9]+']
 LIST_LABELS_HIP = ['midthickness']
@@ -63,6 +63,6 @@ if __name__ == '__main__':
     constants = {k: v for k, v in globals().items() if k.isupper()}
     for k, v in constants.items():
         if isinstance(v, list):
-            print(f'export {k}=({" ".join(v)})')
+            print('export {}="{}"'.format(k, " ".join(v)))
         else:
-            print(f'export {k}="{v}"')
+            print('export {}="{}"'.format(k, v))
