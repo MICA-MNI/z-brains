@@ -3,6 +3,7 @@ Adapted from https://github.com/Warvito/neurocombat_sklearn
 """
 import numpy as np
 import pandas as pd
+from typing import List, Union, Optional
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.compose import make_column_transformer
@@ -32,7 +33,7 @@ def _get_column_types(df):
 
 
 class RegressOutModel(BaseEstimator):
-    def __init__(self, remove: list[str] | None = None):
+    def __init__(self, remove: Optional[List[str]] | None = None):
         self.remove = remove
         self.clf = None
 
@@ -154,7 +155,7 @@ class CombatModel(BaseEstimator):
     measurements across scanners and sites." Neuroimage 167 (2018): 104-120.
     """
 
-    def __init__(self, site_key='SITE', keep: list[str] | None = None, remove: list[str] | None = None, copy=True):
+    def __init__(self, site_key='SITE', keep: Optional[List[str]] | None = None, remove: Optional[List[str]] | None = None, copy=True):
         self.site_key = site_key
         self.keep = keep
         self.remove = remove
