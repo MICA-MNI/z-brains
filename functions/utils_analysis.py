@@ -4,7 +4,7 @@ import sys
 import logging
 import itertools
 from pathlib import Path
-from typing import Union
+from typing import Union, Optional, List, Dict
 from functools import reduce
 from collections import defaultdict
 
@@ -45,7 +45,7 @@ def get_session(session, add_predix=True):
     return session
 
 
-def get_bids_id(sid: str, ses: str | None = None):
+def get_bids_id(sid: str, ses: Union[str, None] = None):
     sid = get_id(sid, add_prefix=True)
     ses = get_session(ses, add_predix=True)
     if ses is None:
@@ -53,7 +53,7 @@ def get_bids_id(sid: str, ses: str | None = None):
     return f'{sid}_{ses}'
 
 
-def get_subject_dir(root_pth: PathType, sid: str, ses: str | None = None):
+def get_subject_dir(root_pth: PathType, sid: str, ses: Union[str, None] = None):
     sid = get_id(sid, add_prefix=True)
     ses = get_session(ses, add_predix=True)
     p = f'{root_pth}/{sid}' if ses is None else f'{root_pth}/{sid}/{ses}'
@@ -61,7 +61,7 @@ def get_subject_dir(root_pth: PathType, sid: str, ses: str | None = None):
 
 
 # Mahalanobis -------------------------------------------------------------------------------------
-def get_deconfounder(*, covariates: list[str]) -> RegressOutModel | CombatModel:
+def get_deconfounder(*, covariates: list[str]) -> Union[RegressOutModel, CombatModel]:
     """ Build deconfounder based on covariates.
 
     If covariates include 'site', use ComBat. Otherwise, use RegressOutModel.
@@ -235,11 +235,11 @@ def get_analysis_path_from_template(struct: Structure, **kwargs) -> Path:
 
 
 def _load_one(pth_zbrains: PathType, *, sid: str, ses: str, struct: Structure,
-              feat: Feature, resolution: Resolution | None = None,
-              label: str | None = None, smooth: float | None = None,
+              feat: Feature, resolution: Union[Resolution, None] = None,
+              label: Union[str, None] = None, smooth: Union[float, None] = None,
               # analysis: Analysis,
               raise_error: bool = True) \
-        -> np.ndarray | pd.DataFrame | None:
+        -> Union[np.ndarray, pd.DataFrame, None]:
     """ Load subject data
 
     Parameters
@@ -325,12 +325,12 @@ def _load_one(pth_zbrains: PathType, *, sid: str, ses: str, struct: Structure,
 
 
 def _load_data(
-        pth_zbrains: str | list[str], *, struct: Structure, feat: Feature,
-        df_subjects: pd.DataFrame | list[pd.DataFrame],
+        pth_zbrains: Union[str, Optional[List[str]]], *, struct: Structure, feat: Feature,
+        df_subjects: Union[pd.DataFrame, Optional[List[pd.DataFrame]]],
         # analysis: Analysis,
-        resolution: Resolution | None = None, label: str | None = None,
-        smooth: float | None = None) \
-        -> tuple[pd.DataFrame | None | np.ndarray, pd.DataFrame | None]:
+        resolution: Union[Resolution, None] = None, label: Union[str, None] = None,
+        smooth: Union[float, None] = None) \
+        -> tuple[Union[pd.DataFrame, None, np.ndarray, pd.DataFrame, None]]:
     """ Load data form all subjects in 'df_subjects'.
 
     Parameters
@@ -412,10 +412,10 @@ def _load_data(
     return np.stack(data, axis=0), df_subjects
 
 
-def _save(pth_analysis: str, *, x: np.ndarray | pd.DataFrame, sid: str,
-          struct: Structure, feat: Feature | list[Feature], ses: str = None,
-          resolution: Resolution | None = None, label: str | None = None,
-          smooth: float | None = None, analysis: Analysis):
+def _save(pth_analysis: str, *, x: Union[np.ndarray, pd.DataFrame], sid: str,
+          struct: Structure, feat: Union[Feature, Optional[List[Feature]]], ses: str = None,
+          resolution: Union[Resolution, None] = None, label: Union[str, None] = None,
+          smooth: Union[float, None] = None, analysis: Analysis):
     """ Save results
 
     Parameters
@@ -477,9 +477,9 @@ def _save(pth_analysis: str, *, x: np.ndarray | pd.DataFrame, sid: str,
 
 
 def load_demo(
-        path: PathType | list[PathType], *,
-        rename: dict[str, str] | None = None,
-        dtypes: dict[str, type] | None = None
+        path: Union[PathType, Optional[List[PathType]]], *,
+        rename: Union[Optional[Dict[str, str]], None] = None,
+        dtypes: Union[Optional[Dict[str, type]], None] = None
 ):
     is_list = isinstance(path, list)
     if not is_list:
@@ -519,9 +519,9 @@ def load_demo(
 
 
 def load_px_demo(
-        *, sid: str, ses: str | None = None, demo_px: PathType,
+        *, sid: str, ses: Union[str, None] = None, demo_px: PathType,
         actual_to_expected: dict[str, str],
-        col_dtypes: dict[str, type] | None = None
+        col_dtypes: Union[Optional[Dict[str, type]], None] = None
 ):
 
     df_px = load_demo(demo_px, rename=actual_to_expected, dtypes=col_dtypes)
@@ -647,14 +647,14 @@ def _subject_mahalanobis(
 def run_analysis(
         *, px_sid: str, px_ses: str = None, cn_zbrains: list[PathType],
         cn_demo_paths: list[PathType], px_zbrains: PathType,
-        px_demo: pd.Series | None = None,
+        px_demo: Union[pd.Series, None] = None,
         structures: list[Structure], features: list[Feature],
-        cov_normative: list[str] | None = None,
-        cov_deconfound: list[str] | None = None, smooth_ctx: float,
+        cov_normative: Union[Optional[List[str]], None] = None,
+        cov_deconfound: Union[Optional[List[str]], None] = None, smooth_ctx: float,
         smooth_hip: float, resolutions: list[Resolution], labels_ctx: list[str],
         labels_hip: list[str], actual_to_expected: dict[str, str],
         analyses: list[Analysis], approach: Approach,
-        col_dtypes: dict[str, type] | None = None
+        col_dtypes: Union[Optional[Dict[str, type]], None] = None
 ):
     approach_folder = approach_to_folder[approach]
 
@@ -700,7 +700,7 @@ def run_analysis(
         for feat in features:
 
             # Load control data
-            kwds |= dict(feat=feat)
+            kwds.update(dict(feat=feat))
             data_cn, df_cn = _load_data(cn_zbrains, df_subjects=list_df_cn,
                                         **kwds)
             if data_cn is None:
@@ -775,7 +775,7 @@ def run_analysis(
         res = _subject_mahalanobis(data=data_mahalanobis, analyses=analyses)
 
         # Save results
-        kwds |= dict(feat=data_mahalanobis['feat'])
+        kwds.update({'feat': data_mahalanobis['feat']})
 
         n_available_cn = 0
         for analysis in analyses:
