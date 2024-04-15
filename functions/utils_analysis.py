@@ -481,7 +481,8 @@ def load_demo(
         rename: dict[str, str] | None = None,
         dtypes: dict[str, type] | None = None
 ):
-    if not (is_list := isinstance(path, list)):
+    is_list = isinstance(path, list)
+    if not is_list:
         path = [path]
     path = [Path(p) for p in path]
 
@@ -726,7 +727,8 @@ def run_analysis(
 
             # For subcortex, we have dataframes
             cols_df = index_df = None
-            if is_df := isinstance(data_px, pd.DataFrame):
+            is_df = isinstance(data_px, pd.DataFrame)
+            if is_df:
                 index_df, cols_df = data_px.index, data_px.columns
                 data_px = data_px.to_numpy().ravel()
 
