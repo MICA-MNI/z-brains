@@ -312,7 +312,7 @@ def main(zbrains_ref,demo_ref,column_map,subject_id,session,demo,zbrains,struct,
     if multi is not None and len(multi) > 0:
         feat_report.append(multi)
 
-    print(f'{feat_report=}')
+    print('feat_report={}'.format(feat_report))
 
     tmp = '/tmp' if tmp is None else tmp
     generate_clinical_report(
