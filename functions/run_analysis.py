@@ -335,15 +335,14 @@ def run(subject_id, zbrains, demo_ref, zbrains_ref, session=None, demo=None, str
     #     raise ValueError("Error: --zbrains_ref is required")
 
     # Logging settings
-    match verbose:
-        case 0:
-            logging_level = logging.ERROR
-        case 1:
-            logging_level = logging.WARNING
-        case 2:
-            logging_level = logging.INFO
-        case _:
-            logging_level = logging.DEBUG
+    if verbose == 0:
+        logging_level = logging.ERROR
+    elif verbose == 1:
+        logging_level = logging.WARNING
+    elif verbose == 2:
+        logging_level = logging.INFO
+    else:
+        logging_level = logging.DEBUG
 
     # Create a logger
     logger = logging.getLogger('analysis_logger')
