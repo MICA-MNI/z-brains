@@ -61,7 +61,7 @@ def get_subject_dir(root_pth: PathType, sid: str, ses: Union[str, None] = None):
 
 
 # Mahalanobis -------------------------------------------------------------------------------------
-def get_deconfounder(*, covariates: list[str]) -> Union[RegressOutModel, CombatModel]:
+def get_deconfounder(*, covariates: Optional[List[str]]) -> Union[RegressOutModel, CombatModel]:
     """ Build deconfounder based on covariates.
 
     If covariates include 'site', use ComBat. Otherwise, use RegressOutModel.
@@ -561,7 +561,7 @@ def load_px_demo(
 
 def _subject_zscore(
         *, data_cn: np.ndarray, data_px: np.ndarray, index_df=None,
-        cols_df=None, analyses: list[Analysis]
+        cols_df=None, analyses: Optional[List[Analysis]]
 ):
 
     res = dict()
@@ -594,7 +594,7 @@ def _subject_zscore(
 
 
 def _subject_mahalanobis(
-        *, data: defaultdict[str, list], analyses: list[Analysis]
+        *, data: defaultdict[str, list], analyses: Optional[List[Analysis]]
 ):
     list_df_cn = data['df_cn']
     list_data_cn = []
@@ -645,15 +645,15 @@ def _subject_mahalanobis(
 
 
 def run_analysis(
-        *, px_sid: str, px_ses: str = None, cn_zbrains: list[PathType],
-        cn_demo_paths: list[PathType], px_zbrains: PathType,
+        *, px_sid: str, px_ses: str = None, cn_zbrains: Optional[List[PathType]],
+        cn_demo_paths: Optional[List[PathType]], px_zbrains: PathType,
         px_demo: Union[pd.Series, None] = None,
-        structures: list[Structure], features: list[Feature],
+        structures: Optional[List[Structure]], features: Optional[List[Feature]],
         cov_normative: Union[Optional[List[str]], None] = None,
         cov_deconfound: Union[Optional[List[str]], None] = None, smooth_ctx: float,
-        smooth_hip: float, resolutions: list[Resolution], labels_ctx: list[str],
-        labels_hip: list[str], actual_to_expected: dict[str, str],
-        analyses: list[Analysis], approach: Approach,
+        smooth_hip: float, resolutions: Optional[List[Resolution]], labels_ctx: Optional[List[str]],
+        labels_hip: Optional[List[str]], actual_to_expected: dict[str, str],
+        analyses: Optional[List[Analysis]], approach: Approach,
         col_dtypes: Union[Optional[Dict[str, type]], None] = None
 ):
     approach_folder = approach_to_folder[approach]
