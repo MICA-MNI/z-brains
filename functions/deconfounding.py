@@ -3,7 +3,7 @@ Adapted from https://github.com/Warvito/neurocombat_sklearn
 """
 import numpy as np
 import pandas as pd
-from typing import List, Union, Optional
+from typing import List, Union, Optional, Tuple
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.compose import make_column_transformer
@@ -206,7 +206,7 @@ class CombatModel(BaseEstimator):
         return self
 
     def _standardize_across_features(self, data: np.ndarray, design: np.ndarray, fitting=False) \
-            -> tuple[np.ndarray, np.ndarray | None]:
+            -> Tuple[np.ndarray, Union[np.ndarray, None]]:
         """Standardization of the features
 
         The magnitude of the features could create bias in the empirical Bayes estimates of the prior distribution.
