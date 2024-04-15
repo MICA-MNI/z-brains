@@ -4,7 +4,7 @@ import sys
 import logging
 import itertools
 from pathlib import Path
-from typing import TypeAlias
+from typing import Union
 from functools import reduce
 from collections import defaultdict
 
@@ -21,7 +21,7 @@ from functions.constants import (Structure, Resolution, Feature, Analysis,
 
 COLUMN_DATASET = '__zbrains_dataset_identifier__'
 
-PathType: TypeAlias = str | os.PathLike[str]
+PathType = Union[str, os.PathLike[str]]
 
 logger = logging.getLogger('analysis_logger')
 
