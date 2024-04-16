@@ -552,8 +552,8 @@ def report_struct(
         '</p>'
     )
 
-    if (not (lh_exists := file_lh.exists()) or
-            file_rh is not None and not file_rh.exists()):
+    lh_exists = file_lh.exists()
+    if not lh_exists or file_rh is not None and not file_rh.exists():
 
         missing = file_rh if lh_exists else file_lh
 
