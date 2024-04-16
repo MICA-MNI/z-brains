@@ -4,7 +4,7 @@ import sys
 import logging
 import itertools
 from pathlib import Path
-from typing import Union, Optional, List, Dict, Tuple, Any
+from typing import Union, Optional, List, Dict, Tuple, Any,DefaultDict
 from functools import reduce
 from collections import defaultdict
 
@@ -591,7 +591,7 @@ def _subject_zscore(
 
 
 def _subject_mahalanobis(
-        *, data: defaultdict[str, list], analyses: Optional[List[str]]
+        *, data: DefaultDict[str, list], analyses: Optional[List[str]]
 ):
     list_df_cn = data['df_cn']
     list_data_cn = []
@@ -649,7 +649,7 @@ def run_analysis(
         cov_normative: Union[Optional[List[str]], None] = None,
         cov_deconfound: Union[Optional[List[str]], None] = None, smooth_ctx: float,
         smooth_hip: float, resolutions: Optional[List[str]], labels_ctx: Optional[List[str]],
-        labels_hip: Optional[List[str]], actual_to_expected: dict[str, str],
+        labels_hip: Optional[List[str]], actual_to_expected: Dict[str, str],
         analyses: Optional[List[str]], approach: str,
         col_dtypes: Union[Optional[Dict[str, type]], None] = None
 ):
