@@ -14,6 +14,7 @@ import nibabel as nib
 
 from functions.deconfounding import CombatModel, RegressOutModel
 from functions.constants import (
+    Structure,Analysis,Approach,Resolution,Feature,
                         struct_to_folder, approach_to_folder,
                        map_feature_to_file, HIGH_RESOLUTION_CTX,
                        LOW_RESOLUTION_CTX, HIGH_RESOLUTION_HIP,
@@ -190,7 +191,7 @@ def mahalanobis_distance(x_train: np.ndarray, x_test: np.ndarray) -> np.ndarray:
 
 
 # Read/write functions ----------------------------------------------------------------------------
-def map_resolution(struct: str, res: str):
+def map_resolution(struct: Structure, res: Resolution):
     if struct == 'cortex':
         return HIGH_RESOLUTION_CTX if res == 'high' else LOW_RESOLUTION_CTX
     if struct == 'hippocampus':
@@ -198,7 +199,7 @@ def map_resolution(struct: str, res: str):
     raise ValueError(f'Mapping resolution for unknown structure: {struct}')
 
 
-def get_feature_path_from_template(struct: str, **kwargs) -> Path:
+def get_feature_path_from_template(struct: Structure, **kwargs) -> Path:
     if struct == 'subcortex':
         ipth = '{root_path}/{bids_id}_feature-{feat}.csv'
 
@@ -216,7 +217,7 @@ def get_feature_path_from_template(struct: str, **kwargs) -> Path:
     return Path(ipth.format(**kwargs))
 
 
-def get_analysis_path_from_template(struct: str, **kwargs) -> Path:
+def get_analysis_path_from_template(struct: Structure, **kwargs) -> Path:
     if struct == 'subcortex':
         opth = '{root_path}/{bids_id}_feature-{feat}_analysis-{analysis}.csv'
 
@@ -233,7 +234,7 @@ def get_analysis_path_from_template(struct: str, **kwargs) -> Path:
     return Path(opth.format(**kwargs))
 
 
-def _load_one(pth_zbrains: PathType, *, sid: str, ses: str, struct: str,
+def _load_one(pth_zbrains: PathType, *, sid: str, ses: str, struct: Structure,
               feat: str, resolution: Union[str, None] = None,
               label: Union[str, None] = None, smooth: Union[float, None] = None,
               # analysis: Analysis,
@@ -324,10 +325,10 @@ def _load_one(pth_zbrains: PathType, *, sid: str, ses: str, struct: str,
 
 
 def _load_data(
-        pth_zbrains: Union[str, Optional[List[str]]], *, struct: str, feat: str,
+        pth_zbrains: Union[str, Optional[List[str]]], *, struct: Structure, feat: Feature,
         df_subjects: Union[pd.DataFrame, Optional[List[pd.DataFrame]]],
         # analysis: Analysis,
-        resolution: Union[str, None] = None, label: Union[str, None] = None,
+        resolution: Union[Resolution, None] = None, label: Union[str, None] = None,
         smooth: Union[float, None] = None) \
         -> Tuple[Union[pd.DataFrame, None, np.ndarray, pd.DataFrame, None]]:
     """ Load data form all subjects in 'df_subjects'.
@@ -412,9 +413,9 @@ def _load_data(
 
 
 def _save(pth_analysis: str, *, x: Union[np.ndarray, pd.DataFrame], sid: str,
-          struct: str, feat: Union[str, Optional[List[str]]], ses: str = None,
-          resolution: Union[str, None] = None, label: Union[str, None] = None,
-          smooth: Union[float, None] = None, analysis: str):
+          struct: Structure, feat: Union[Feature, Optional[List[Feature]]], ses: str = None,
+          resolution: Union[Resolution, None] = None, label: Union[str, None] = None,
+          smooth: Union[float, None] = None, analysis: Analysis):
     """ Save results
 
     Parameters
@@ -528,37 +529,9 @@ def load_px_demo(
     return df_px[mask_px]
 
 
-# def _subject_zscore(
-#         *, dir_px, px_sid, px_ses, data_cn: np.ndarray, feat: Feature,
-#         deconfounder: CombatModel | RegressOutModel | None,
-#         df_px: pd.Series | None, analyses: list[Analysis], **kwargs):
-#
-#     # Load patient data
-#     data_px = _load_one(dir_px, sid=px_sid, ses=px_ses, raise_error=True,
-#                         feat=feat, **kwargs)
-#
-#     # For subcortex, we have dataframes
-#     cols_df = index_df = None
-#     if is_df := isinstance(data_px, pd.DataFrame):
-#         index_df, cols_df = data_px.index, data_px.columns
-#         data_px = data_px.to_numpy().ravel()
-#
-#     # Deconfounding
-#     if deconfounder:
-#         df_px = df_px.to_frame().T
-#         data_px = deconfounder.transform(data_px.reshape(1, -1), df_px)[0]
-#
-#     # Analysis: z-scoring
-#     z = zscore(data_cn, data_px)
-#     if is_df:
-#         z = pd.DataFrame(z.reshape(1, -1), index=index_df, columns=cols_df)
-#
-#     # Store data for mahalanobis
-#     return dict(z=z, data_px=data_px, index_df=index_df, cols_df=cols_df)
-
 def _subject_zscore(
         *, data_cn: np.ndarray, data_px: np.ndarray, index_df=None,
-        cols_df=None, analyses: Optional[List[str]]
+        cols_df=None, analyses: Optional[List[Analysis]]
 ):
 
     res = {}
@@ -576,12 +549,6 @@ def _subject_zscore(
 
         xh_px = data_px.reshape(2, -1)
         data_px_asym = compute_asymmetry(xh_px[0], xh_px[1])
-        # za = zscore(data_cn_asym, data_px_asym)
-
-        # if index_df:
-        #     za = pd.DataFrame(za.reshape(1, -1), index=index_df,
-        #                       columns=cols_df[:za.size])
-        # res['asymmetry'] = za
         cols_df = None if cols_df is None else cols_df[:xh_px.shape[1]]
         res['asymmetry'] = _subject_zscore(
             data_cn=data_cn_asym, data_px=data_px_asym, index_df=index_df,
@@ -591,7 +558,7 @@ def _subject_zscore(
 
 
 def _subject_mahalanobis(
-        *, data: DefaultDict[str, list], analyses: Optional[List[str]]
+        *, data: DefaultDict[str, list], analyses: Optional[List[Analysis]]
 ):
     list_df_cn = data['df_cn']
     list_data_cn = []
@@ -645,15 +612,49 @@ def run_analysis(
         *, px_sid: str, px_ses: str = None, cn_zbrains: Optional[List[PathType]],
         cn_demo_paths: Optional[List[PathType]], px_zbrains: PathType,
         px_demo: Union[pd.Series, None] = None,
-        structures: Optional[List[str]], features: Optional[List[str]],
+        structures: Optional[List[Structure]], features: Optional[List[Feature]],
         cov_normative: Union[Optional[List[str]], None] = None,
         cov_deconfound: Union[Optional[List[str]], None] = None, smooth_ctx: float,
-        smooth_hip: float, resolutions: Optional[List[str]], labels_ctx: Optional[List[str]],
+        smooth_hip: float, resolutions: Optional[List[Resolution]], labels_ctx: Optional[List[str]],
         labels_hip: Optional[List[str]], actual_to_expected: Dict[str, str],
-        analyses: Optional[List[str]], approach: str,
+        analyses: Optional[List[Analysis]], approach: Approach,
         col_dtypes: Union[Optional[Dict[str, type]], None] = None
 ):
-    
+    """
+    Parameters
+    ----------
+    px_sid:
+        Patient ID
+    px_ses:
+        Patient Ses
+    cn_zbrains:
+        Names of zbrains folders in for the controls datasets (zbrains, abrains_v03)
+    cn_demo_paths:
+        CSVs with demographics
+    px_zbrains:
+        Name of zbrains folder for patient
+    px_demo:
+        CSV of patient
+    structures:
+        list of struct
+    features:
+        list of feat
+    cov_normative:
+        list de covariates
+    cov_deconfound
+        list de covariates
+    smooth_ctx
+    smooth_hip
+    resolutions
+    labels_ctx
+    labels_hip
+    actual_to_expected
+    analyses
+    approach
+    col_dtypes
+    Returns
+    -------
+    """
     approach_folder = approach_to_folder[approach]
 
     logger.debug(f'Logging call: {sys.argv[0]} {" ".join(sys.argv[1:])}')

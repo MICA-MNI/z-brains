@@ -5,12 +5,12 @@
 Multimodal lesion mapping in focal epilepsy with ``zbrains``
 --------------------------------------------
 
+.. image:: https://img.shields.io/badge/license-BSD-brightgreen
+   :target: https://opensource.org/licenses/BSD-3-Clause
+
 .. image:: https://img.shields.io/github/v/tag/MICA-MNI/z-brains
   :target: https://github.com/MICA-MNI/z-brains
   :alt: version
-
-.. image:: https://img.shields.io/badge/license-BSD-brightgreen
-   :target: https://opensource.org/licenses/BSD-3-Clause
 
 .. image:: https://readthedocs.org/projects/z-brains/badge/?version=latest&color=brightgreen
   :target: https://z-brains.readthedocs.io/en/latest/?badge=latest
@@ -54,6 +54,9 @@ You must be inside the ``zbrains`` repository to run the following commands.
 
    cd /path/to/zbrains/repository
 
+   ZBRAINS=$(dirname "$(realpath "$0")")
+   source "${ZBRAINS}/functions/init.sh"
+
 ``zbrains`` requires input and output directories:
 
 - ``pth_dataset`` points to the BIDS-format dataset path where micapipe, hippunfold, and zbrains directories will be stored
@@ -91,7 +94,7 @@ To process features for healthy controls as a batch, run the following. Note tha
          --zbrains ${zbrains_dir} \
          --micapipe ${micapipe_dir} \
          --hippunfold ${hippunfold_dir} \
-         --column_map participant-id=ID session_id=SES \
+         --column_map participant_id=ID session_id=SES \
          --verbose 2 \
          --scheduler_options "-n 20" #specify threads here
 

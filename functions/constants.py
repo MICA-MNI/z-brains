@@ -1,27 +1,27 @@
-from typing import List
+from typing import List, Literal
 
 VERSION = "v0.0.2 'reborn'"
 
-Feature = ['ADC', 'FA', 'flair', 'qT1', 'thickness']
+Feature = Literal['ADC', 'FA', 'flair', 'qT1', 'thickness', 'plugin-*']
 LIST_FEATURES: List[str] = Feature
 
 map_feature_to_file = dict(thickness='thickness', volume='volume',
                            flair='flair', ADC='ADC', FA='FA', qT1='T1map')
 
-Structure = ['cortex', 'subcortex', 'hippocampus']
+Structure = Literal['cortex', 'subcortex', 'hippocampus']
 LIST_STRUCTURES: List[str] = Structure
 
-Task = ['proc', 'analysis']
+Task = Literal['proc', 'analysis']
 LIST_TASKS: List[str] = Task
 
-Approach = ['zscore', 'norm']
+Approach = Literal['zscore', 'norm']
 LIST_APPROACHES: List[str] = Approach
 
-Analysis = ['regional', 'asymmetry']
+Analysis = Literal['regional', 'asymmetry']
 LIST_ANALYSES: List[str] = Analysis
 
-Resolution = ['low', 'high']
-Resolution = ['high']
+Resolution = Literal['low', 'high']
+# Resolution = Literal['high']
 LIST_RESOLUTIONS: List[str] = Resolution
 
 LIST_LABELS_CTX = ['white', 'midthickness', 'pial', 'swm[0-9]+']

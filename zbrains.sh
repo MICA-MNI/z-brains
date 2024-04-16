@@ -63,6 +63,12 @@ ${pcolor}OPTIONS:${nc}
 \t${gcolor}--hippunfold${nc} [dir]        : Name of the hippunfold derivative folder in the target BIDS dataset. Required
                                     only for post-processing. Example: '--hippunfold hipdir' for
                                     '/path/to/BIDSDataset/derivatives/hipdir'.
+\t${gcolor}--plugin${nc} [dir]            : Name of a plugin derivative folder in the target BIDS dataset. zbrains can accept
+                                    data outside of micapipe and hippunfold as a 'plugin' folder. However, these data MUST
+                                    be formatted as BIDS-derivatives exactly as in micapipe and hippunfold. If hippocampal
+                                    surface data are present then they will be used but otherwise volumetric data will be
+                                    mapped to hippocampal and subcortical surfaces. 
+                                    '/path/to/BIDSDataset/derivatives/plugindir'.
 \t${gcolor}--demo${nc} [path]             : CSV/TSV file with demographics for the target subject. Required only for
                                     analysis when provided by --normative or --deconfound. Additionally, the file is
                                     also used to extract the subject's age and sex, if available, to be included in the
@@ -103,6 +109,8 @@ ${pcolor}OPTIONS:${nc}
                                       - qT1           : quantitative T1
                                       - thickness     : cortical thickness (for subcortex, volume is used)
                                       - ${bcolor}all${nc}           : all features (default)
+                                      - plugin-*      : when pulling data from a plugin, feature names must be given the 
+                                                        'plugin-' prefix (but this is not needed in the actual file name)
 \t${gcolor}--normative${nc} [cov ...]     : Normative modeling based on provided covariates. Covariates must match
                                     columns in --demo and --demo_ref files. Note that --normative expects some
                                     covariates to have specific names (see --column_map).
@@ -242,6 +250,9 @@ while (( "${#args[@]}" )); do
   --hippunfold)
     PARSE_OPTION_SINGLE_VALUE hipunfold_dir args || exit $?
     ;;
+    --plugin)
+    PARSE_OPTION_SINGLE_VALUE plugin_dir args || exit $?
+    ;;
   --dataset_ref)
     PARSE_OPTION_MULTIPLE_VALUES ref_dataset_paths args || exit $?
     ;;
@@ -371,7 +382,7 @@ mapfile -t features < <(printf "%s\n" "${features[@]}" | sort -f)  # case-insens
 resolutions=("${resolutions[@]:-"all"}")
 [[ " ${resolutions[*]} " =~ " all " ]] && resolutions=("${LIST_RESOLUTIONS[@]}")
 
-labels_ctx=("${labels_ctx[@]:-"white"}")
+labels_ctx=("${labels_ctx[@]:-"midthickness"}")
 labels_hip=("${labels_hip[@]:-"midthickness"}")
 
 smooth_ctx=${smooth_ctx:-$DEFAULT_SMOOTH_CTX}
@@ -436,7 +447,10 @@ if [[ " ${tasks[*]} " =~ " proc " ]]; then
     echo $SUBJECT_HIPPUNFOLD_DIR
     ASSERT_EXISTS "${SUBJECT_HIPPUNFOLD_DIR}" "${BIDS_ID} hippunfold directory does not exist."
   fi
-
+    # Subject's plugin directory exists
+  export SUBJECT_PLUGIN_DIR=${dataset_path}/${plugin_dir}/${sid}${ses:+/${ses}}
+  ASSERT_EXISTS "${SUBJECT_PLUGIN_DIR}" "${BIDS_ID} plugin directory does not exist."
+  
   # Check if subject's freesurfer/fastsurfer directory exists - only needed for subcortex
   if [[ " ${structures[*]} " =~ " subcortex " ]]; then
     # Set surface directory and check if subject has a surface directory

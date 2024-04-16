@@ -8,7 +8,7 @@ import numpy as np
 from functions.new_constants import (
     LIST_FEATURES, LIST_STRUCTURES, LIST_APPROACHES, LIST_RESOLUTIONS,
     DEFAULT_SMOOTH_CTX, DEFAULT_SMOOTH_HIP, DEFAULT_THRESHOLD, LIST_ANALYSES,
-    Resolution
+    Resolution,
 )
 
 from functions.utils_analysis import (

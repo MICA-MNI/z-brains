@@ -52,7 +52,7 @@ from scipy.spatial.transform import Rotation
 from pyvirtualdisplay import Display
 
 from functions.constants import (
-    LIST_ANALYSES,
+    LIST_ANALYSES, Analysis,Approach,Resolution,Structure,Feature,
     struct_to_folder, approach_to_folder)
 from functions.utils_analysis import (
     get_bids_id, map_resolution, get_analysis_path_from_template,
@@ -69,7 +69,7 @@ logger = logging.getLogger('analysis_logger')
 
 
 # -----------------------------------------------------------------------------
-def adjectivize_struct(struct: str):
+def adjectivize_struct(struct: Structure):
     if struct == 'cortex':
         return 'Cortical'
     elif struct == 'subcortex':
@@ -127,7 +127,7 @@ def convert_html_to_pdf(source_html, output_filename: PathType):
 
 def report_header_template(
         *, sid: str, ses: Union[str, None] = None, age: Union[float, None] = None,
-        sex: Union[str, None] = None, analysis: str
+        sex: Union[str, None] = None, analysis: Analysis
 ):
 
     # if ses is None:
@@ -165,7 +165,7 @@ def report_header_template(
     return report_header
 
 
-def report_colors(analysis: str = 'regional'):
+def report_colors(analysis: Analysis = 'regional'):
     report = '<hr>'
 
     style = (
@@ -194,7 +194,7 @@ def report_colors(analysis: str = 'regional'):
     return report
 
 
-def feature_header_template(feature: Union[str, List[str]], extra=''):
+def feature_header_template(feature: Union[Feature, List[Feature]], extra=''):
     style = (
         'border:0px solid #666;padding-top:10px;padding-left:5px;'
         'background-color:#eee;font-family:Helvetica,sans-serif;font-size:14px;'
@@ -273,7 +273,7 @@ def map_subcortical_vertices(x: np.ndarray) -> np.ndarray:
 
 
 # Load surfaces ----------------------------------------------------------------
-def _load_surfaces_ctx(resolution: str = 'high'):
+def _load_surfaces_ctx(resolution: Resolution = 'high'):
     res_ctx = map_resolution('cortex', resolution)
     inf_lh = read_surface(f'{DATA_PATH}/fsLR-{res_ctx}.L.inflated.surf.gii')
     inf_rh = read_surface(f'{DATA_PATH}/fsLR-{res_ctx}.R.inflated.surf.gii')
@@ -282,7 +282,7 @@ def _load_surfaces_ctx(resolution: str = 'high'):
     return inf_lh, inf_rh, mask
 
 
-def _load_surfaces_hip(res: str = 'high'):
+def _load_surfaces_hip(res: Resolution = 'high'):
     res_hip = map_resolution('hippocampus', res)
     label = 'midthickness'
 
@@ -332,7 +332,7 @@ def _load_surfaces_hip(res: str = 'high'):
 
 # Load data --------------------------------------------------------------------
 def _load_data_sctx(
-        sctx_file: PathType, analysis: str, threshold: Union[float, None] = None,
+        sctx_file: PathType, analysis: Analysis, threshold: Union[float, None] = None,
         threshold_alpha: float = 0.5
 ):
 
@@ -363,8 +363,8 @@ def _load_data_sctx(
 
 
 def load_data_struct(
-        struct: str, *, file_lh: PathType,
-        file_rh: Union[PathType, None] = None, analysis: str,
+        struct: Structure, *, file_lh: PathType,
+        file_rh: Union[PathType, None] = None, analysis: Analysis,
         threshold: Union[float, None] = None, threshold_alpha: float = 0.5):
 
     if struct == 'subcortex':
@@ -390,7 +390,7 @@ def load_data_struct(
 # Generate figures -------------------------------------------------------------
 def _make_png_ctx(
         *, data_lh: np.ndarray, data_rh: np.ndarray, out_png: PathType,
-        res: str = 'high', cmap='cmo.balance', color_range=(-2, 2),
+        res: Resolution = 'high', cmap='cmo.balance', color_range=(-2, 2),
         color_bar='bottom'
 ):
 
@@ -455,7 +455,7 @@ def _make_png_sctx(
 
 def _make_png_hip(
         *, data_lh: np.ndarray, data_rh: np.ndarray, out_png: PathType,
-        res: str = 'high', cmap='cmo.balance', color_range=(-2, 2),
+        res: Resolution = 'high', cmap='cmo.balance', color_range=(-2, 2),
         color_bar='bottom'
 ):
 
@@ -478,9 +478,9 @@ def _make_png_hip(
 
 
 def make_png(
-        struct: str, *, feat_lh: np.ndarray,
+        struct: Structure, *, feat_lh: np.ndarray,
         feat_rh: Union[np.ndarray, None] = None, out_png: PathType,
-        res: Union[str, None] = None, cmap='cmo.balance', color_range=(-2, 2),
+        res: Union[Resolution, None] = None, cmap='cmo.balance', color_range=(-2, 2),
         color_bar='bottom',
 ):
 
@@ -499,7 +499,7 @@ def make_png(
         color_range=color_range)
 
 
-def make_png_missing(struct: str):
+def make_png_missing(struct: Structure):
     st = adjectivize_struct(struct)
     return (f'<p style="margin-bottom:0;margin-top:0;font-family:gill sans,'
             f'sans-serif;text-align:center;font-size:14px;color:#ffb311"> '
@@ -507,10 +507,10 @@ def make_png_missing(struct: str):
 
 
 def report_struct(
-        *, struct: str, path_analysis: PathType, sid: str,
-        ses: Union[str, None] = None, analysis: str, approach: str,
-        feat: Union[str, List[str]], thr: Union[float, None] = None, thr_alpha=0.5,
-        smooth: Union[float, None] = None, res: Union[str, None] = None,
+        *, struct: Structure, path_analysis: PathType, sid: str,
+        ses: Union[str, None] = None, analysis: Analysis, approach: Approach,
+        feat: Union[Feature, List[Feature]], thr: Union[float, None] = None, thr_alpha=0.5,
+        smooth: Union[float, None] = None, res: Union[Resolution, None] = None,
         label: Union[str, None] = None, cmap='cmo.balance', color_range=(-2, 2),
         color_bar='bottom', tmp_dir: PathType = '/tmp'):
 
@@ -584,11 +584,11 @@ def report_struct(
 def generate_clinical_report(
         *, zbrains_path: PathType, sid: str, ses: Union[str, None] = None,
         age: Union[float, None] = None, sex: Union[str, None] = None,
-        analyses: Union[List[str], None] = None,
-        features: Union[List[str], None] = None, approach: str = 'zscore',
+        analyses: Union[List[Analysis], None] = None,
+        features: Union[List[Feature], None] = None, approach: Approach = 'zscore',
         threshold=1.96, threshold_alpha=0.3, smooth_ctx: float = 5,
-        smooth_hip: float = 2, res_ctx: str = 'high',
-        res_hip: str = 'high', label_ctx='white',
+        smooth_hip: float = 2, res_ctx: Resolution = 'high',
+        res_hip: Resolution = 'high', label_ctx='white',
         label_hip='midthickness', color_bar='bottom', cmap='cmo.balance',
         color_range=(-2, 2), cmap_asymmetry='PRGn', tmp_dir: PathType = '/tmp'
 ):

@@ -80,7 +80,7 @@ def main(args):
     if "all" in resolutions:
         resolutions = LIST_RESOLUTIONS
 
-    labels_ctx = args.label_ctx or ["white"]
+    labels_ctx = args.label_ctx or ["midthickness"]
     labels_hip = args.label_hip or ["midthickness"]
 
     smooth_ctx = args.smooth_ctx or DEFAULT_SMOOTH_CTX
@@ -123,7 +123,10 @@ def main(args):
         if "hippocampus" in structures:
             SUBJECT_HIPPUNFOLD_DIR = os.path.join(dataset_path, args.hippunfold, "hippunfold", sid, ses) if ses else os.path.join(dataset_path, args.hippunfold, "hippunfold", sid)
             assert_exists(SUBJECT_HIPPUNFOLD_DIR, f"{BIDS_ID} hippunfold directory does not exist.")
-
+        if args.plugin:
+            SUBJECT_PLUGIN_DIR = os.path.join(dataset_path, args.plugin, sid, ses or "")
+            if not os.path.exists(SUBJECT_PLUGIN_DIR):
+                sys.exit(f"{BIDS_ID} plugin directory does not exist.")
         # Check if subject's freesurfer/fastsurfer directory exists - only needed for subcortex
         if "subcortex" in structures:
             # Set surface directory and check if subject has a surface directory
@@ -315,6 +318,12 @@ if __name__ == '__main__':
     \t{gcolor}--hippunfold{nc} [dir]        : Name of the hippunfold derivative folder in the target BIDS dataset. Required
                                         only for post-processing. Example: '--hippunfold hipdir' for
                                         '/path/to/BIDSDataset/derivatives/hipdir'.
+    \t${gcolor}--plugin${nc} [dir]            : Name of a plugin derivative folder in the target BIDS dataset. zbrains can accept
+                                    data outside of micapipe and hippunfold as a 'plugin' folder. However, these data MUST
+                                    be formatted as BIDS-derivatives exactly as in micapipe and hippunfold. If hippocampal
+                                    surface data are present then they will be used but otherwise volumetric data will be
+                                    mapped to hippocampal and subcortical surfaces. 
+                                    '/path/to/BIDSDataset/derivatives/plugindir'.
     \t{gcolor}--demo{nc} [path]             : CSV/TSV file with demographics for the target subject. Required only for
                                         analysis when provided by --normative or --deconfound. Additionally, the file is
                                         also used to extract the subject's age and sex, if available, to be included in the
@@ -355,6 +364,8 @@ if __name__ == '__main__':
                                         - qT1           : quantitative T1
                                         - thickness     : cortical thickness (for subcortex, volume is used)
                                         - {bcolor}all{nc}           : all features (default)
+                                        - plugin-*      : when pulling data from a plugin, feature names must be given the 
+                                                        'plugin-' prefix (but this is not needed in the actual file name)
     \t{gcolor}--normative{nc} [cov ...]     : Normative modeling based on provided covariates. Covariates must match
                                         columns in --demo and --demo_ref files. Note that --normative expects some
                                         covariates to have specific names (see --column_map).
@@ -482,6 +493,7 @@ if __name__ == '__main__':
     parser.add_argument('--ses', type=str, default=None)
     parser.add_argument('--micapipe', type=str, default=None)
     parser.add_argument('--hippunfold', type=str, default=None)
+    parser.add_argument('--plugin', type=str, default=None)
     parser.add_argument('--dataset_ref', nargs='*', default=None)
     parser.add_argument('--zbrains_ref', nargs='*', default=None)
     parser.add_argument('--run', nargs='*', default='all')
