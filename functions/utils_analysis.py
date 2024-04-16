@@ -13,8 +13,8 @@ import pandas as pd
 import nibabel as nib
 
 from functions.deconfounding import CombatModel, RegressOutModel
-from functions.constants import (Structure, Resolution, Feature, Analysis,
-                       Approach, struct_to_folder, approach_to_folder,
+from functions.constants import (
+                        struct_to_folder, approach_to_folder,
                        map_feature_to_file, HIGH_RESOLUTION_CTX,
                        LOW_RESOLUTION_CTX, HIGH_RESOLUTION_HIP,
                        LOW_RESOLUTION_HIP, FOLDER_MAPS)
@@ -111,8 +111,7 @@ def compute_asymmetry(x_lh: np.ndarray, x_rh: np.ndarray) -> np.ndarray:
 
     den = x_lh + x_rh
     den *= .5
-    x = np.divide(x_lh - x_rh, den, out=den, where=den > 0)
-    return x
+    return np.divide(x_lh - x_rh, den, out=den, where=den > 0)
 
 
 def zscore(x_train: np.ndarray, x_test: np.ndarray) -> np.ndarray:
@@ -191,7 +190,7 @@ def mahalanobis_distance(x_train: np.ndarray, x_test: np.ndarray) -> np.ndarray:
 
 
 # Read/write functions ----------------------------------------------------------------------------
-def map_resolution(struct: Structure, res: Resolution):
+def map_resolution(struct: str, res: str):
     if struct == 'cortex':
         return HIGH_RESOLUTION_CTX if res == 'high' else LOW_RESOLUTION_CTX
     if struct == 'hippocampus':
@@ -199,7 +198,7 @@ def map_resolution(struct: Structure, res: Resolution):
     raise ValueError(f'Mapping resolution for unknown structure: {struct}')
 
 
-def get_feature_path_from_template(struct: Structure, **kwargs) -> Path:
+def get_feature_path_from_template(struct: str, **kwargs) -> Path:
     if struct == 'subcortex':
         ipth = '{root_path}/{bids_id}_feature-{feat}.csv'
 
@@ -217,7 +216,7 @@ def get_feature_path_from_template(struct: Structure, **kwargs) -> Path:
     return Path(ipth.format(**kwargs))
 
 
-def get_analysis_path_from_template(struct: Structure, **kwargs) -> Path:
+def get_analysis_path_from_template(struct: str, **kwargs) -> Path:
     if struct == 'subcortex':
         opth = '{root_path}/{bids_id}_feature-{feat}_analysis-{analysis}.csv'
 
@@ -234,8 +233,8 @@ def get_analysis_path_from_template(struct: Structure, **kwargs) -> Path:
     return Path(opth.format(**kwargs))
 
 
-def _load_one(pth_zbrains: PathType, *, sid: str, ses: str, struct: Structure,
-              feat: Feature, resolution: Union[Resolution, None] = None,
+def _load_one(pth_zbrains: PathType, *, sid: str, ses: str, struct: str,
+              feat: str, resolution: Union[str, None] = None,
               label: Union[str, None] = None, smooth: Union[float, None] = None,
               # analysis: Analysis,
               raise_error: bool = True) \
@@ -325,10 +324,10 @@ def _load_one(pth_zbrains: PathType, *, sid: str, ses: str, struct: Structure,
 
 
 def _load_data(
-        pth_zbrains: Union[str, Optional[List[str]]], *, struct: Structure, feat: Feature,
+        pth_zbrains: Union[str, Optional[List[str]]], *, struct: str, feat: str,
         df_subjects: Union[pd.DataFrame, Optional[List[pd.DataFrame]]],
         # analysis: Analysis,
-        resolution: Union[Resolution, None] = None, label: Union[str, None] = None,
+        resolution: Union[str, None] = None, label: Union[str, None] = None,
         smooth: Union[float, None] = None) \
         -> tuple[Union[pd.DataFrame, None, np.ndarray, pd.DataFrame, None]]:
     """ Load data form all subjects in 'df_subjects'.
@@ -413,9 +412,9 @@ def _load_data(
 
 
 def _save(pth_analysis: str, *, x: Union[np.ndarray, pd.DataFrame], sid: str,
-          struct: Structure, feat: Union[Feature, Optional[List[Feature]]], ses: str = None,
-          resolution: Union[Resolution, None] = None, label: Union[str, None] = None,
-          smooth: Union[float, None] = None, analysis: Analysis):
+          struct: str, feat: Union[str, Optional[List[str]]], ses: str = None,
+          resolution: Union[str, None] = None, label: Union[str, None] = None,
+          smooth: Union[float, None] = None, analysis: str):
     """ Save results
 
     Parameters
@@ -513,9 +512,7 @@ def load_demo(
 
         list_df.append(df)
 
-    if not is_list:
-        return list_df[0]
-    return list_df
+    return list_df[0] if not is_list else list_df
 
 
 def load_px_demo(
@@ -561,10 +558,10 @@ def load_px_demo(
 
 def _subject_zscore(
         *, data_cn: np.ndarray, data_px: np.ndarray, index_df=None,
-        cols_df=None, analyses: Optional[List[Analysis]]
+        cols_df=None, analyses: Optional[List[str]]
 ):
 
-    res = dict()
+    res = {}
 
     if 'regional' in analyses:
         z = zscore(data_cn, data_px)
@@ -594,7 +591,7 @@ def _subject_zscore(
 
 
 def _subject_mahalanobis(
-        *, data: defaultdict[str, list], analyses: Optional[List[Analysis]]
+        *, data: defaultdict[str, list], analyses: Optional[List[str]]
 ):
     list_df_cn = data['df_cn']
     list_data_cn = []
@@ -607,7 +604,7 @@ def _subject_mahalanobis(
     cols_df = data['cols_df'][0]
     index_df = data['index_df'][0]
 
-    res = dict()
+    res = {}
     if 'regional' in analyses:
         data_cn = np.stack(list_data_cn, axis=-1)
         data_px = np.stack(data['data_px'], axis=-1)
@@ -648,14 +645,15 @@ def run_analysis(
         *, px_sid: str, px_ses: str = None, cn_zbrains: Optional[List[PathType]],
         cn_demo_paths: Optional[List[PathType]], px_zbrains: PathType,
         px_demo: Union[pd.Series, None] = None,
-        structures: Optional[List[Structure]], features: Optional[List[Feature]],
+        structures: Optional[List[str]], features: Optional[List[str]],
         cov_normative: Union[Optional[List[str]], None] = None,
         cov_deconfound: Union[Optional[List[str]], None] = None, smooth_ctx: float,
-        smooth_hip: float, resolutions: Optional[List[Resolution]], labels_ctx: Optional[List[str]],
+        smooth_hip: float, resolutions: Optional[List[str]], labels_ctx: Optional[List[str]],
         labels_hip: Optional[List[str]], actual_to_expected: dict[str, str],
-        analyses: Optional[List[Analysis]], approach: Approach,
+        analyses: Optional[List[str]], approach: str,
         col_dtypes: Union[Optional[Dict[str, type]], None] = None
 ):
+    
     approach_folder = approach_to_folder[approach]
 
     logger.debug(f'Logging call: {sys.argv[0]} {" ".join(sys.argv[1:])}')
