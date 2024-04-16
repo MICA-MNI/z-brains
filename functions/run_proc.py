@@ -193,7 +193,7 @@ def map_hippocampus(bids_id, feat, resol, label="midthickness", workbench_path=N
     else:
         show_warning(f"{bids_id}: could not map '{feat}' [label={label}, resolution={resol}] to hippocampus.")
 
-def run(structure, features, tmp_dir, WORKBENCH_PATH, subject_micapipe_dir, subject_output_dir, folder_maps, folder_ctx, folder_sctx, folder_hip, subject_surf_dir, subject_hippunfold_dir, script_dir, BIDS_ID, VERBOSE, fwhm=None, resolutions=None, labels=None):
+def run(structure, features, tmp_dir, WORKBENCH_PATH, subject_micapipe_dir, subject_output_dir, folder_maps, folder_ctx, folder_sctx, folder_hip, subject_surf_dir, subject_hippunfold_dir, script_dir, BIDS_ID, VERBOSE, fwhm=None, resolutions=None, labels=None,SUBJECT_PLUGIN_DIR=None):
     if structure != "subcortex":
         if fwhm is None:
             raise ValueError("Error: --fwhm is required when --struct is not 'subcortex'")
