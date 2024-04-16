@@ -236,7 +236,7 @@ def main(args):
                     list_resolutions = None
                     temp_labels = None
                     fwhm = None
-                run_proc.run(structure=struct, features=features, tmp_dir=tmp_dir, WORKBENCH_PATH=os.environ['WORKBENCH_PATH'], subject_micapipe_dir=SUBJECT_MICAPIPE_DIR, subject_output_dir=SUBJECT_OUTPUT_DIR, folder_maps=FOLDER_MAPS, folder_ctx=FOLDER_CTX, folder_sctx=FOLDER_SCTX, folder_hip=FOLDER_HIP, subject_surf_dir=SUBJECT_SURF_DIR, subject_hippunfold_dir=SUBJECT_HIPPUNFOLD_DIR, script_dir=script_dir, BIDS_ID=BIDS_ID, VERBOSE=VERBOSE, fwhm=fwhm, resolutions=list_resolutions, labels=temp_labels,SUBJECT_PLUGIN_DIR=SUBJECT_PLUGIN_DIR)
+                run_proc.run(structure=struct, features=features, tmp_dir=tmp_dir, WORKBENCH_PATH=os.environ['WORKBENCH_PATH'], subject_micapipe_dir=SUBJECT_MICAPIPE_DIR, subject_output_dir=SUBJECT_OUTPUT_DIR, folder_maps=FOLDER_MAPS, folder_ctx=FOLDER_CTX, folder_sctx=FOLDER_SCTX, folder_hip=FOLDER_HIP, subject_surf_dir=SUBJECT_SURF_DIR, subject_hippunfold_dir=SUBJECT_HIPPUNFOLD_DIR, script_dir=script_dir, BIDS_ID=BIDS_ID, VERBOSE=VERBOSE, fwhm=fwhm, resolutions=list_resolutions, labels=temp_labels,subject_plugin_dir=SUBJECT_PLUGIN_DIR)
                 # do_cmd(cmd)
 
         # ----------------------------------------------------- Analysis ---------------------------------------------------- #
