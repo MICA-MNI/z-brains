@@ -517,7 +517,7 @@ def load_demo(
 
 def load_px_demo(
         *, sid: str, ses: Union[str, None] = None, demo_px: PathType,
-        actual_to_expected: dict[str, str],
+        actual_to_expected: Dict[str, str],
         col_dtypes: Optional[Dict[str, Any]] = None
 ):
 
