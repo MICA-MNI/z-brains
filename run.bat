@@ -33,6 +33,7 @@ call python zbrains.py --run proc ^
                    --dataset_ref %pth_dataset% ^
                    --zbrains_ref %zbrains_dir% ^
                    --n_jobs 1 ^
+                   --wb_path "C:/Users/Ian/Downloads/workbench-windows64-v1.5.0/workbench/bin_windows64" ^
                    --column_map participant_id=ID session_id=SES ^
                    --verbose 2
     )
