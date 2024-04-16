@@ -41,9 +41,11 @@ def main(args):
 
     # Check options required for processing
     if "proc" in tasks:
-        assert_required("--micapipe", args.micapipe, "--micapipe option is required for post-processing.")
+        assert_required("--micapipe", args.micapipe, "--micapipe option is required for post-processing.",continue_on_error=args.continue_on_error)
         if "hippocampus" in args.struct:
-            assert_required("--hippunfold", args.hippunfold, "--hippunfold option is required for post-processing.")
+            exists = assert_required("--hippunfold", args.hippunfold, "--hippunfold option is required for post-processing.",continue_on_error=args.continue_on_error)
+            if not exists:
+                return
 
     # Check options required for regional/asymmetry analysis
     if "analysis" in tasks:
@@ -514,6 +516,7 @@ if __name__ == '__main__':
     parser.add_argument('--column_map', nargs='*', default=None)
     parser.add_argument('--init', type=str, default=None)
     parser.add_argument('--n_jobs', type=int, default=1)
+    parser.add_argument('--continue_on_error', type=bool, default=False)
     parser.add_argument('--wb_path', type=str, default="/data/mica1/01_programs/workbench-1.4.2/bin_linux64")
     parser.add_argument('--verbose', type=int, default=-1)
     parser.add_argument('--version', action='version', version='1.0.0')

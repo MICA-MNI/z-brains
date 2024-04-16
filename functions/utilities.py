@@ -63,12 +63,19 @@ def parse_option_multiple_values(output_variable, args, allowed_values=None, all
         output_variable = args[1:]
     return output_variable, args[len(output_variable)+1:]
 
-def assert_required(option, value, error_message=None):
+def assert_required(option, value, error_message=None,continue_on_error=False):
     if value is None:
         if error_message is None:
             error_message = f"{option} is required"
         show_error(error_message)
-        sys.exit(1)
+        if not continue_on_error:
+            sys.exit(1)
+        else:
+            return False
+    return True
+
+
+
 
 def assert_same_size(option1, list1, option2, list2):
     if len(list1) != len(list2):
