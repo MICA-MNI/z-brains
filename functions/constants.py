@@ -3,26 +3,26 @@ from typing import List, Literal
 VERSION = "v0.0.2 'reborn'"
 
 Feature = Literal['ADC', 'FA', 'flair', 'qT1', 'thickness', 'plugin-*']
-LIST_FEATURES: List[str] = Feature
+LIST_FEATURES: List[str] = list(Feature.__args__)
 
 map_feature_to_file = dict(thickness='thickness', volume='volume',
                            flair='flair', ADC='ADC', FA='FA', qT1='T1map')
 
 Structure = Literal['cortex', 'subcortex', 'hippocampus']
-LIST_STRUCTURES: List[str] = Structure
+LIST_STRUCTURES: List[str] = list(Structure.__args__)
 
 Task = Literal['proc', 'analysis']
-LIST_TASKS: List[str] = Task
+LIST_TASKS: List[str] = list(Task.__args__)
 
 Approach = Literal['zscore', 'norm']
-LIST_APPROACHES: List[str] = Approach
+LIST_APPROACHES: List[str] = list(Approach.__args__)
 
 Analysis = Literal['regional', 'asymmetry']
-LIST_ANALYSES: List[str] = Analysis
+LIST_ANALYSES: List[str] = list(Analysis.__args__)
 
 Resolution = Literal['low', 'high']
 # Resolution = Literal['high']
-LIST_RESOLUTIONS: List[str] = Resolution
+LIST_RESOLUTIONS: List[str] = list(Resolution.__args__)
 
 LIST_LABELS_CTX = ['white', 'midthickness', 'pial', 'swm[0-9]+']
 LIST_LABELS_HIP = ['midthickness']
