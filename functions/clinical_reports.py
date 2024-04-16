@@ -36,7 +36,7 @@ import logging
 import itertools
 from pathlib import Path
 import os
-
+from typing import List, Union, Tuple, Dict
 import cmocean
 import numpy as np
 import pandas as pd
@@ -52,7 +52,7 @@ from scipy.spatial.transform import Rotation
 from pyvirtualdisplay import Display
 
 from functions.constants import (
-    Structure, Resolution, Feature, Analysis, Approach, LIST_ANALYSES,
+    LIST_ANALYSES,
     struct_to_folder, approach_to_folder)
 from functions.utils_analysis import (
     get_bids_id, map_resolution, get_analysis_path_from_template,
@@ -69,24 +69,23 @@ logger = logging.getLogger('analysis_logger')
 
 
 # -----------------------------------------------------------------------------
-def adjectivize_struct(struct: Structure):
-    match struct:
-        case 'cortex':
-            return 'Cortical'
-        case 'subcortex':
-            return 'Subcortical'
-        case 'hippocampus':
-            return 'Hippocampal'
-        case _:
-            raise ValueError(f'Unknown structure {struct}')
+def adjectivize_struct(struct: str):
+    if struct == 'cortex':
+        return 'Cortical'
+    elif struct == 'subcortex':
+        return 'Subcortical'
+    elif struct == 'hippocampus':
+        return 'Hippocampal'
+    else:
+        raise ValueError(f'Unknown structure {struct}')
 
 
 # -----------------------------------------------------------------------------
 # Functions for plotting
 def plot_surfs(
-        surfaces, values: list[np.ndarray], views: list[str] | None = None,
-        size: int | tuple[int, int] | None = None,
-        zoom: float | list[float] = 1.75, color_bar='bottom', share='both',
+        surfaces, values: List[np.ndarray], views: Union[List[str], None] = None,
+        size: Union[int, Tuple[int, int], None] = None,
+        zoom: Union[float, List[float]] = 1.75, color_bar='bottom', share='both',
         color_range=(-2, 2), cmap='cmo.balance', transparent_bg=False, **kwargs
 ):
     """
@@ -127,8 +126,8 @@ def convert_html_to_pdf(source_html, output_filename: PathType):
 
 
 def report_header_template(
-        *, sid: str, ses: str | None = None, age: float | None = None,
-        sex: str | None = None, analysis: Analysis
+        *, sid: str, ses: Union[str, None] = None, age: Union[float, None] = None,
+        sex: Union[str, None] = None, analysis: str
 ):
 
     # if ses is None:
@@ -166,7 +165,7 @@ def report_header_template(
     return report_header
 
 
-def report_colors(analysis: Analysis = 'regional'):
+def report_colors(analysis: str = 'regional'):
     report = '<hr>'
 
     style = (
@@ -195,7 +194,7 @@ def report_colors(analysis: Analysis = 'regional'):
     return report
 
 
-def feature_header_template(feature: str | list[str], extra=''):
+def feature_header_template(feature: Union[str, List[str]], extra=''):
     style = (
         'border:0px solid #666;padding-top:10px;padding-left:5px;'
         'background-color:#eee;font-family:Helvetica,sans-serif;font-size:14px;'
@@ -274,7 +273,7 @@ def map_subcortical_vertices(x: np.ndarray) -> np.ndarray:
 
 
 # Load surfaces ----------------------------------------------------------------
-def _load_surfaces_ctx(resolution: Resolution = 'high'):
+def _load_surfaces_ctx(resolution: str = 'high'):
     res_ctx = map_resolution('cortex', resolution)
     inf_lh = read_surface(f'{DATA_PATH}/fsLR-{res_ctx}.L.inflated.surf.gii')
     inf_rh = read_surface(f'{DATA_PATH}/fsLR-{res_ctx}.R.inflated.surf.gii')
@@ -283,7 +282,7 @@ def _load_surfaces_ctx(resolution: Resolution = 'high'):
     return inf_lh, inf_rh, mask
 
 
-def _load_surfaces_hip(res: Resolution = 'high'):
+def _load_surfaces_hip(res: str = 'high'):
     res_hip = map_resolution('hippocampus', res)
     label = 'midthickness'
 
@@ -333,7 +332,7 @@ def _load_surfaces_hip(res: Resolution = 'high'):
 
 # Load data --------------------------------------------------------------------
 def _load_data_sctx(
-        sctx_file: PathType, analysis: Analysis, threshold: float | None = None,
+        sctx_file: PathType, analysis: str, threshold: Union[float, None] = None,
         threshold_alpha: float = 0.5
 ):
 
@@ -364,9 +363,9 @@ def _load_data_sctx(
 
 
 def load_data_struct(
-        struct: Structure, *, file_lh: PathType,
-        file_rh: PathType | None = None, analysis: Analysis,
-        threshold: float | None = None, threshold_alpha: float = 0.5):
+        struct: str, *, file_lh: PathType,
+        file_rh: Union[PathType, None] = None, analysis: str,
+        threshold: Union[float, None] = None, threshold_alpha: float = 0.5):
 
     if struct == 'subcortex':
         return _load_data_sctx(file_lh, analysis, threshold=threshold,
@@ -391,7 +390,7 @@ def load_data_struct(
 # Generate figures -------------------------------------------------------------
 def _make_png_ctx(
         *, data_lh: np.ndarray, data_rh: np.ndarray, out_png: PathType,
-        res: Resolution = 'high', cmap='cmo.balance', color_range=(-2, 2),
+        res: str = 'high', cmap='cmo.balance', color_range=(-2, 2),
         color_bar='bottom'
 ):
 
@@ -456,7 +455,7 @@ def _make_png_sctx(
 
 def _make_png_hip(
         *, data_lh: np.ndarray, data_rh: np.ndarray, out_png: PathType,
-        res: Resolution = 'high', cmap='cmo.balance', color_range=(-2, 2),
+        res: str = 'high', cmap='cmo.balance', color_range=(-2, 2),
         color_bar='bottom'
 ):
 
@@ -479,9 +478,9 @@ def _make_png_hip(
 
 
 def make_png(
-        struct: Structure, *, feat_lh: np.ndarray,
-        feat_rh: np.ndarray | None = None, out_png: PathType,
-        res: Resolution | None = None, cmap='cmo.balance', color_range=(-2, 2),
+        struct: str, *, feat_lh: np.ndarray,
+        feat_rh: Union[np.ndarray, None] = None, out_png: PathType,
+        res: Union[str, None] = None, cmap='cmo.balance', color_range=(-2, 2),
         color_bar='bottom',
 ):
 
@@ -500,7 +499,7 @@ def make_png(
         color_range=color_range)
 
 
-def make_png_missing(struct: Structure):
+def make_png_missing(struct: str):
     st = adjectivize_struct(struct)
     return (f'<p style="margin-bottom:0;margin-top:0;font-family:gill sans,'
             f'sans-serif;text-align:center;font-size:14px;color:#ffb311"> '
@@ -508,11 +507,11 @@ def make_png_missing(struct: Structure):
 
 
 def report_struct(
-        *, struct: Structure, path_analysis: PathType, sid: str,
-        ses: str | None = None, analysis: Analysis, approach: Approach,
-        feat: str | list[str], thr: float | None = None, thr_alpha=0.5,
-        smooth: float | None = None, res: Resolution | None = None,
-        label: str | None = None, cmap='cmo.balance', color_range=(-2, 2),
+        *, struct: str, path_analysis: PathType, sid: str,
+        ses: Union[str, None] = None, analysis: str, approach: str,
+        feat: Union[str, List[str]], thr: Union[float, None] = None, thr_alpha=0.5,
+        smooth: Union[float, None] = None, res: Union[str, None] = None,
+        label: Union[str, None] = None, cmap='cmo.balance', color_range=(-2, 2),
         color_bar='bottom', tmp_dir: PathType = '/tmp'):
 
     bids_id = get_bids_id(sid, ses)
@@ -583,13 +582,13 @@ def report_struct(
 
 
 def generate_clinical_report(
-        *, zbrains_path: PathType, sid: str, ses: str | None = None,
-        age: float | None = None, sex: str | None = None,
-        analyses: list[Analysis] | None = None,
-        features: list[Feature] | None = None, approach: Approach = 'zscore',
+        *, zbrains_path: PathType, sid: str, ses: Union[str, None] = None,
+        age: Union[float, None] = None, sex: Union[str, None] = None,
+        analyses: Union[List[str], None] = None,
+        features: Union[List[str], None] = None, approach: str = 'zscore',
         threshold=1.96, threshold_alpha=0.3, smooth_ctx: float = 5,
-        smooth_hip: float = 2, res_ctx: Resolution = 'high',
-        res_hip: Resolution = 'high', label_ctx='white',
+        smooth_hip: float = 2, res_ctx: str = 'high',
+        res_hip: str = 'high', label_ctx='white',
         label_hip='midthickness', color_bar='bottom', cmap='cmo.balance',
         color_range=(-2, 2), cmap_asymmetry='PRGn', tmp_dir: PathType = '/tmp'
 ):
@@ -676,7 +675,7 @@ def generate_clinical_report(
     if analyses is None:
         available_analyses = sorted(list(
             set([file.split('.')[0].split('analysis-')[1].split('_')[0] for file in subses_files])))
-        analyses: list[Analysis] = [a for a in LIST_ANALYSES if a in available_analyses]
+        analyses: list[str] = [a for a in LIST_ANALYSES if a in available_analyses]
 
     # If FEATURES is empty run all available features
     if features is None:
