@@ -4,7 +4,7 @@ import sys
 import logging
 import itertools
 from pathlib import Path
-from typing import Union, Optional, List, Dict
+from typing import Union, Optional, List, Dict, Tuple
 from functools import reduce
 from collections import defaultdict
 
@@ -329,7 +329,7 @@ def _load_data(
         # analysis: Analysis,
         resolution: Union[str, None] = None, label: Union[str, None] = None,
         smooth: Union[float, None] = None) \
-        -> tuple[Union[pd.DataFrame, None, np.ndarray, pd.DataFrame, None]]:
+        -> Tuple[Union[pd.DataFrame, None, np.ndarray, pd.DataFrame, None]]:
     """ Load data form all subjects in 'df_subjects'.
 
     Parameters
