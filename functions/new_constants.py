@@ -1,3 +1,5 @@
+from typing import Literal
+
 LIST_TASKS = ['proc', 'analysis']
 LIST_STRUCTURES = ['cortex', 'subcortex', 'hippocampus']
 LIST_FEATURES = ['ADC', 'FA', 'flair', 'qT1', 'thickness']
@@ -18,7 +20,7 @@ LOW_RESOLUTION_HIP = '0p5mm'
 HIGH_RESOLUTION_HIP = '2mm'
 LIST_APPROACHES = ['zscore', 'norm']
 LIST_ANALYSES = ['regional', 'asymmetry']
-Resolution = ['low', 'high']
-Resolution = ['high']
+Resolution = Literal['low', 'high']
+Resolution = Literal['high']
 map_resolution_ctx = {'low': LOW_RESOLUTION_CTX, 'high': HIGH_RESOLUTION_CTX}
 map_resolution_hip = {'low': LOW_RESOLUTION_HIP, 'high': HIGH_RESOLUTION_HIP}
