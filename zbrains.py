@@ -617,7 +617,8 @@ if __name__ == '__main__':
                     if check_sub(args,args.sub,ses):
                         analysisjobs.append(job)
 
-
+    for job in procjobs:
+        print(job.sub, job.ses)
     Parallel(n_jobs=args.n_jobs)(delayed(main)(job) for job in procjobs)
     Parallel(n_jobs=args.n_jobs)(delayed(main)(job) for job in analysisjobs)
 
