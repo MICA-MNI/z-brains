@@ -18,10 +18,31 @@
   :target: https://z-brains.readthedocs.io/en/latest/?badge=latest
   :alt: Documentation Status
 
-**Welcome to z-brains's documentation!**
+**Welcome to zbrains's documentation!**
 ========================================================
 
-`z-brains` identifies patient-specific signal alterations in brain morphology and microstructure,
+\
+
+.. image:: https://img.shields.io/badge/license-BSD-brightgreen
+   :target: https://opensource.org/licenses/BSD-3-Clause
+
+.. image:: https://img.shields.io/github/v/tag/MICA-MNI/z-brains
+  :target: https://github.com/MICA-MNI/z-brains
+  :alt: version
+
+.. image:: https://readthedocs.org/projects/z-brains/badge/?version=latest&color=brightgreen
+  :target: https://z-brains.readthedocs.io/en/latest/?badge=latest
+  :alt: Documentation Status
+
+.. image:: https://img.shields.io/github/issues/MICA-MNI/z-brains?color=brightgreen
+  :target: https://github.com/MICA-MNI/z-brains/issues
+  :alt: GitHub issues
+
+.. image:: https://img.shields.io/github/stars/MICA-MNI/z-brains.svg?style=flat&label=%E2%9C%A8%EF%B8%8F%20be%20a%20stargazer&color=brightgreen
+    :target: https://github.com/MICA-MNI/z-brains/stargazers
+    :alt: GitHub stars
+
+`zbrains` identifies patient-specific signal alterations in brain morphology and microstructure,
 using features with previously demonstrated potential for localization and lateralization of epileptogenic lesions.
 
 .. raw:: html
@@ -31,12 +52,12 @@ using features with previously demonstrated potential for localization and later
 
 Breaking news ️‍📰
 --------------------------------------------------------
-`z-brains version 0.0.2 "Reborn"` is up and running!
+``zbrains`` version v1.0 "lido" is up and running!
 
 
 About 👁️‍🗨️
 --------------------------------------------------------
-`z-brains` is an open toolbox promoting standardized procedures to map and normalize structural imaging features in epilepsy research.
+``zbrains`` is an open toolbox promoting standardized procedures to map and normalize structural imaging features in epilepsy research.
 This pipeline integrates processing streams to map and normalize T1-weighted (cortical thickness, subcortical volume), diffusion-weighted (mean diffusivity, fractional anisotropy),
 FLAIR (intensity), and quantitative T1 (intensity) imaging data to standard neocortical, subcortical, and hippocampal spaces.
 
@@ -81,6 +102,14 @@ FLAIR (intensity), and quantitative T1 (intensity) imaging data to standard neoc
 
    pages/11.features/index
    pages/12.reports/index
+
+.. toctree::
+   :maxdepth: 1
+   :hidden:
+   :caption: Adding plugin features
+
+   pages/13.plugins/index
+
 
 
 ___________________________________________________________________________________________________

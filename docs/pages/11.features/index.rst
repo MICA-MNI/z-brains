@@ -1,17 +1,17 @@
 .. _outputs:
 
-.. title:: ``z-brains`` outputs
+.. title:: zbrains outputs
 
-Exploring ``z-brains`` outputs
+Exploring ``zbrains`` outputs
 ============================================================
 
-What can you expect to find in your z-brains output directory? Let's investigate...
+What can you expect to find in your zbrains output directory? Let's investigate...
 
 
 Raw features: maps
 --------------------------------------------------------
 
-Raw features sampled from neocortical and hippocampal surfaces, as well as subcortical structure volumes, can be found under the patients ``maps`` directory: ``<outputDirectory>/z-brains/<sub>/<ses>/maps``.
+Raw features sampled from neocortical and hippocampal surfaces, as well as subcortical structure volumes, can be found under the patients ``maps`` directory: ``<outputDirectory>/zbrains/<sub>/<ses>/maps``.
 The ``maps`` directory thus contains three subdirectories:
 
 .. parsed-literal::
@@ -26,10 +26,10 @@ The outputs can be broadly categorized according to the region and modality they
 
     - **Cortical outputs:**
         - <mapsdir>/cortex>/<BIDS_ID>_hemi-<X>_surf-fsLR-<X>k_feature-<X>_smooth-<X>mm.func.gii
-        
+
     - **Hippocampal outputs:**
         - <mapsdir>/hippocampus>/<BIDS_ID>_hemi-<X>_den-<X>mm_feature-<X>_smooth-<X>mm.func.gii
-        
+
     - **Subcortical outputs:**
         - <mapsdir>/subcortex>/<BIDS_ID>_feature-<X>.csv
 
@@ -37,7 +37,7 @@ The outputs can be broadly categorized according to the region and modality they
 Normalized features: Z-scored
 --------------------------------------------------------
 
-Z-scored features sampled from neocortical and hippocampal surfaces, as well as subcortical structure volumes, can be found under the patients ``norm-z`` directory: ``<outputDirectory>/z-brains/<sub>/<ses>/norm-z``.
+Z-scored features sampled from neocortical and hippocampal surfaces, as well as subcortical structure volumes, can be found under the patients ``norm-z`` directory: ``<outputDirectory>/zbrains/<sub>/<ses>/norm-z``.
 The ``norm-z`` directory thus contains three subdirectories:
 
 .. parsed-literal::
@@ -52,10 +52,10 @@ The outputs can be broadly categorized according to the region and modality they
 
     - **Cortical outputs:**
         - <norm-z>/cortex>/<BIDS_ID>_hemi-<X>_surf-fsLR-<X>k_feature-<X>_smooth-<X>mm_<analysis>_<threshold>.func.gii
-        
+
     - **Hippocampal outputs:**
         - <norm-z>/hippocampus>/<BIDS_ID>_hemi-<X>_den-<X>mm_feature-<X>_smooth-<X>mm_<analysis>_<threshold>.func.gii
-        
+
     - **Subcortical outputs:**
         - <norm-z>/subcortex>/<BIDS_ID>_feature-<X>_<analysis>_<threshold>.csv
 
@@ -64,4 +64,3 @@ Normalized features: Normative model
 --------------------------------------------------------
 
 🚧 🚧 🚧 Under construction 🚧 🚧 🚧
-

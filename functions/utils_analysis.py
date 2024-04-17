@@ -549,6 +549,7 @@ def _subject_zscore(
 
         xh_px = data_px.reshape(2, -1)
         data_px_asym = compute_asymmetry(xh_px[0], xh_px[1])
+
         cols_df = None if cols_df is None else cols_df[:xh_px.shape[1]]
         res['asymmetry'] = _subject_zscore(
             data_cn=data_cn_asym, data_px=data_px_asym, index_df=index_df,
@@ -621,6 +622,7 @@ def run_analysis(
         col_dtypes: Union[Optional[Dict[str, type]], None] = None
 ):
     """
+
     Parameters
     ----------
     px_sid:
@@ -652,9 +654,13 @@ def run_analysis(
     analyses
     approach
     col_dtypes
+
     Returns
     -------
+
     """
+
+
     approach_folder = approach_to_folder[approach]
 
     logger.debug(f'Logging call: {sys.argv[0]} {" ".join(sys.argv[1:])}')

@@ -262,7 +262,6 @@ def main(zbrains_ref,demo_ref,column_map,subject_id,session,demo,zbrains,struct,
                 px_demo = None  # Dont use
 
     # Run analyses -------------------------------------------------------------
-
     logger.info('\n\nStarting analysis')
     available_features = run_analysis(
         px_sid=px_id, px_ses=px_ses, cn_zbrains=zbrains_ref,

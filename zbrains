@@ -250,7 +250,11 @@ while (( "${#args[@]}" )); do
   --hippunfold)
     PARSE_OPTION_SINGLE_VALUE hipunfold_dir args || exit $?
     ;;
+<<<<<<< HEAD:zbrains.sh
     --plugin)
+=======
+  --plugin)
+>>>>>>> upstream/main:zbrains
     PARSE_OPTION_SINGLE_VALUE plugin_dir args || exit $?
     ;;
   --dataset_ref)
@@ -447,10 +451,19 @@ if [[ " ${tasks[*]} " =~ " proc " ]]; then
     echo $SUBJECT_HIPPUNFOLD_DIR
     ASSERT_EXISTS "${SUBJECT_HIPPUNFOLD_DIR}" "${BIDS_ID} hippunfold directory does not exist."
   fi
+<<<<<<< HEAD:zbrains.sh
     # Subject's plugin directory exists
   export SUBJECT_PLUGIN_DIR=${dataset_path}/${plugin_dir}/${sid}${ses:+/${ses}}
   ASSERT_EXISTS "${SUBJECT_PLUGIN_DIR}" "${BIDS_ID} plugin directory does not exist."
   
+=======
+
+  # Subject's plugin directory exists
+  export SUBJECT_PLUGIN_DIR=${dataset_path}/${plugin_dir}/${sid}${ses:+/${ses}}
+  ASSERT_EXISTS "${SUBJECT_PLUGIN_DIR}" "${BIDS_ID} plugin directory does not exist."
+
+
+>>>>>>> upstream/main:zbrains
   # Check if subject's freesurfer/fastsurfer directory exists - only needed for subcortex
   if [[ " ${structures[*]} " =~ " subcortex " ]]; then
     # Set surface directory and check if subject has a surface directory

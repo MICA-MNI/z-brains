@@ -3,7 +3,7 @@ from typing import List, Literal
 VERSION = "v0.0.2 'reborn'"
 
 Feature = Literal['ADC', 'FA', 'flair', 'qT1', 'thickness', 'plugin-*']
-LIST_FEATURES: List[str] = list(Feature.__args__)
+LIST_FEATURES: List[Feature] = list(Feature.__args__)
 
 map_feature_to_file = dict(thickness='thickness', volume='volume',
                            flair='flair', ADC='ADC', FA='FA', qT1='T1map')
