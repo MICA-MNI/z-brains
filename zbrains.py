@@ -139,13 +139,19 @@ def main(args):
             Nrecon = len(glob.glob(f"{subject_micapipe_qc}/{BIDS_ID}_module-proc_surf-*.json"))
             if Nrecon < 1:
                 show_error(f"{BIDS_ID} doesn't have a module-proc_surf: run -proc_surf")
-                sys.exit(1)
+                if args.continue_on_error:
+                    return
+                else:
+                    sys.exit(1)
             elif Nrecon == 1:
                 module_qc = glob.glob(f"{subject_micapipe_qc}/{BIDS_ID}_module-proc_surf-*.json")[0]
                 recon = os.path.splitext(module_qc)[0].split('proc_surf-')[1]
             elif Nrecon > 1:
                 show_error(f"{BIDS_ID} has been processed with freesurfer and fastsurfer. Not supported yet")
-                sys.exit(1)
+                if args.continue_on_error:
+                    return
+                else:
+                    sys.exit(1)
 
             # recon is 'freesurfer' or 'fastsurfer'
             SUBJECT_SURF_DIR = os.path.join(dataset_path, recon, BIDS_ID)
