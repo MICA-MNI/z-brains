@@ -569,7 +569,7 @@ if len(args.sub.split(' ')) > 1:
 
         if 'proc' in runs: 
             for sub in subs:
-                
+
                 for ses in os.listdir(os.path.join(args.dataset, 'derivatives', args.micapipe, sub)):
                     job = copy.copy(args)
                     job.sub, job.ses, job.run = sub, ses, 'proc'
@@ -589,7 +589,7 @@ else:
             job = copy.copy(args)
             job.ses, job.run = args.ses, 'proc'
             procjobs.append(job)
-            
+
         if 'analysis' in runs:  
             job = copy.copy(args)
             job.ses, job.run = args.ses, 'analysis'
@@ -603,14 +603,14 @@ else:
                 job.ses, job.run = ses, 'proc'
                 procjobs.append(job)
         if 'analysis' in runs: 
-            
+
             for ses in os.listdir(os.path.join(args.dataset, 'derivatives', args.micapipe, args.sub)):
                 job = copy.copy(args)
                 job.ses, job.run = ses, 'analysis'
                 # job = {'sub': sub, 'ses': ses, 'run': 'analysis'}
                 analysisjobs.append(job)
     # procjobs.append(args)
-
+print(iter(procjobs))
 Parallel(n_jobs=args.n_jobs)(delayed(main)(job) for job in procjobs)
 Parallel(n_jobs=args.n_jobs)(delayed(main)(job) for job in analysisjobs)
 
