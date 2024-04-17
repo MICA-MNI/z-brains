@@ -24,7 +24,7 @@ COLUMN_DATASET = '__zbrains_dataset_identifier__'
 
 PathType = Union[str, os.PathLike]
 
-logger = logging.getLogger('analysis_logger')
+# logger = logging.getLogger('analysis_logger')
 
 
 # Helpers -----------------------------------------------------------------------------------------
@@ -238,7 +238,8 @@ def _load_one(pth_zbrains: PathType, *, sid: str, ses: str, struct: Structure,
               feat: str, resolution: Union[str, None] = None,
               label: Union[str, None] = None, smooth: Union[float, None] = None,
               # analysis: Analysis,
-              raise_error: bool = True) \
+              raise_error: bool = True,
+              tmp: str = True) \
         -> Union[np.ndarray, pd.DataFrame, None]:
     """ Load subject data
 
@@ -273,6 +274,7 @@ def _load_one(pth_zbrains: PathType, *, sid: str, ses: str, struct: Structure,
         shape (1, 2 * n_subcortical_structures_per_hemisphere).
         None if no data available for at least one hemisphere.
     """
+    logger = logging.getLogger(tmp)
     if feat == 'qT1':
         feat = "T1map"
     bids_id = get_bids_id(sid, ses)
@@ -329,7 +331,8 @@ def _load_data(
         df_subjects: Union[pd.DataFrame, Optional[List[pd.DataFrame]]],
         # analysis: Analysis,
         resolution: Union[Resolution, None] = None, label: Union[str, None] = None,
-        smooth: Union[float, None] = None) \
+        smooth: Union[float, None] = None,
+        tmp: str) \
         -> Tuple[Union[pd.DataFrame, None, np.ndarray, pd.DataFrame, None]]:
     """ Load data form all subjects in 'df_subjects'.
 
@@ -362,13 +365,14 @@ def _load_data(
         Dataframe of shape (n_available_subjects, n_cols), only including those
         rows in 'df_controls' with available data.
     """
-
+    
     if isinstance(pth_zbrains, list):
         list_data, list_dfs = [], []
         for i, (pth, df) in enumerate(zip(pth_zbrains, df_subjects)):
             x, df = _load_data(
                 pth, df_subjects=df, struct=struct, feat=feat,
                 resolution=resolution, label=label, smooth=smooth,
+                tmp=tmp
                 # analysis=analysis
             )
 
@@ -398,7 +402,8 @@ def _load_data(
         x = _load_one(pth_zbrains, sid=sid, ses=ses, struct=struct, feat=feat,
                       resolution=resolution, label=label, smooth=smooth,
                       # analysis=analysis,
-                      raise_error=False)
+                      raise_error=False,
+                      tmp=tmp)
         if x is not None:
             data.append(x)
             missing_subjects[i] = False
@@ -479,8 +484,10 @@ def _save(pth_analysis: str, *, x: Union[np.ndarray, pd.DataFrame], sid: str,
 def load_demo(
         path: Union[PathType, Optional[List[PathType]]], *,
         rename: Union[Optional[Dict[str, str]], None] = None,
-        dtypes: Union[Optional[Dict[str, type]], None] = None
+        dtypes: Union[Optional[Dict[str, type]], None] = None,
+        tmp: str
 ):
+    logger = logging.getLogger(tmp)
     is_list = isinstance(path, list)
     if not is_list:
         path = [path]
@@ -519,10 +526,11 @@ def load_demo(
 def load_px_demo(
         *, sid: str, ses: Union[str, None] = None, demo_px: PathType,
         actual_to_expected: Dict[str, str],
-        col_dtypes: Optional[Dict[str, Any]] = None
+        col_dtypes: Optional[Dict[str, Any]] = None,
+        tmp: str
 ):
 
-    df_px = load_demo(demo_px, rename=actual_to_expected, dtypes=col_dtypes)
+    df_px = load_demo(demo_px, rename=actual_to_expected, dtypes=col_dtypes, tmp=tmp)
     mask_px = df_px['participant_id'] == sid
     if ses is not None:
         mask_px &= df_px['session_id'] == ses
@@ -619,7 +627,8 @@ def run_analysis(
         smooth_hip: float, resolutions: Optional[List[Resolution]], labels_ctx: Optional[List[str]],
         labels_hip: Optional[List[str]], actual_to_expected: Dict[str, str],
         analyses: Optional[List[Analysis]], approach: Approach,
-        col_dtypes: Union[Optional[Dict[str, type]], None] = None
+        col_dtypes: Union[Optional[Dict[str, type]], None] = None,
+        tmp: str
 ):
     """
 
@@ -659,7 +668,7 @@ def run_analysis(
     -------
 
     """
-
+    logger = logging.getLogger(tmp)
 
     approach_folder = approach_to_folder[approach]
 
@@ -671,7 +680,7 @@ def run_analysis(
 
     # Load dataframes ----------------------------------------------------------
     list_df_cn = load_demo(cn_demo_paths, rename=actual_to_expected,
-                           dtypes=col_dtypes)
+                           dtypes=col_dtypes,tmp=tmp)
     n_cn = sum(len(df) for df in list_df_cn)
 
     # Iterables ----------------------------------------------------------------
@@ -706,7 +715,7 @@ def run_analysis(
 
             # Load control data
             kwds.update(dict(feat=feat))
-            data_cn, df_cn = _load_data(cn_zbrains, df_subjects=list_df_cn,
+            data_cn, df_cn = _load_data(cn_zbrains, df_subjects=list_df_cn, tmp=tmp,
                                         **kwds)
             if data_cn is None:
                 logger.warning(f'\t{feat:<15}: \tNo data available for '
@@ -724,7 +733,7 @@ def run_analysis(
 
             # Load patient data
             data_px = _load_one(px_zbrains, sid=px_sid, ses=px_ses,
-                                raise_error=False, **kwds)
+                                raise_error=False, tmp=tmp, **kwds)
             if data_px is None:
                 logger.warning(f'\t{feat:<15}: \tNo data available for target '
                                f'subject.')

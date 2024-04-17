@@ -21,7 +21,7 @@ def jobloop(args):
         main(args)
     except Exception as e:
         print(e)
-    return
+    
 
 
 def main(args):

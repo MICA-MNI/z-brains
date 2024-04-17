@@ -65,7 +65,7 @@ cmaps = cmocean.cm.cmap_d
 DATA_PATH = Path(__file__).resolve().parent.parent / 'data'
 
 
-logger = logging.getLogger('analysis_logger')
+# logger = logging.getLogger('analysis_logger')
 
 
 # -----------------------------------------------------------------------------
@@ -513,7 +513,7 @@ def report_struct(
         smooth: Union[float, None] = None, res: Union[Resolution, None] = None,
         label: Union[str, None] = None, cmap='cmo.balance', color_range=(-2, 2),
         color_bar='bottom', tmp_dir: PathType = '/tmp'):
-
+    logger = logging.getLogger(tmp_dir)
     bids_id = get_bids_id(sid, ses)
     root_path = f'{path_analysis}/{struct_to_folder[struct]}'
 
@@ -661,7 +661,7 @@ def generate_clinical_report(
       https://github.com/MICA-MNI/micapipe
       https://mica-mni.github.io/
     """
-
+    logger = logging.getLogger(tmp_dir)
     approach_folder = approach_to_folder[approach]
 
     bids_id = get_bids_id(sid, ses)

@@ -193,6 +193,7 @@ from functions.clinical_reports import generate_clinical_report
 ################################################################################
 def main(zbrains_ref,demo_ref,column_map,subject_id,session,demo,zbrains,struct,feat,normative,deconfound,smooth_ctx,smooth_hip,threshold,approach,resolution,labels_ctx,labels_hip,tmp,logger):
     # Some checks
+    # logger = logging.getLogger(tmp)
     if len(zbrains_ref) != len(demo_ref):
         raise ValueError('The number of values provided with --zbrains_ref '
                          'and --demo_ref must be the same.')
@@ -244,7 +245,7 @@ def main(zbrains_ref,demo_ref,column_map,subject_id,session,demo,zbrains,struct,
     px_demo = None
     if demo is not None:
         px_demo = load_demo(demo, rename=actual_to_expected,
-                            dtypes=col_dtypes)
+                            dtypes=col_dtypes,tmp=tmp)
         if px_demo.shape[0] != 1:
 
             msg = (f'Provided {bids_id} is not unique in demographics file.'
@@ -271,7 +272,7 @@ def main(zbrains_ref,demo_ref,column_map,subject_id,session,demo,zbrains,struct,
         smooth_hip=smooth_hip, resolutions=resolution,
         labels_ctx=labels_ctx, labels_hip=labels_hip,
         actual_to_expected=actual_to_expected, analyses=LIST_ANALYSES,
-        approach=approach, col_dtypes=col_dtypes
+        approach=approach, col_dtypes=col_dtypes,tmp=tmp
         )
 
     # Generate report ----------------------------------------------------------
@@ -344,7 +345,7 @@ def run(subject_id, zbrains, demo_ref, zbrains_ref, session=None, demo=None, str
         logging_level = logging.DEBUG
 
     # Create a logger
-    logger = logging.getLogger('analysis_logger')
+    logger = logging.getLogger(tmp)
     logger.setLevel(logging.DEBUG)  # Default level
 
     # Create a console handler
