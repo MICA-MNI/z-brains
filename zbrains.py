@@ -14,7 +14,15 @@ from functions import run_proc, run_analysis
 import colorama
 from functions.environment import setenv
 from joblib import Parallel, delayed
+
 import copy
+def jobloop(args):
+    try:
+        main(args)
+    except ProcessingException as e:
+        print(e)
+
+
 def main(args):
 
     # Define the ZBRAINS and script_dir variables
@@ -29,8 +37,8 @@ def main(args):
         if arg.startswith('--'):
             arg = arg[2:]
             if arg not in unknown_args:
-                print(f"Unknown option '--{arg}'")
-                sys.exit(1)
+                # print(f"Unknown option '--{arg}'")
+                raise ProcessingException(f"Unknown option '--{arg}'")
 
 
     # ------------------------------------------------- Check arguments ------------------------------------------------- #
@@ -99,7 +107,7 @@ def main(args):
             binary = shutil.which('wb_command')
         if binary is None:
             show_error("Workbench not found. Please set the WORKBENCH_PATH environment variable to the location of Workbench binaries.")
-            sys.exit(1)
+            raise ProcessingException("Workbench not found. Please set the WORKBENCH_PATH environment variable to the location of Workbench binaries.")
         os.environ['WORKBENCH_PATH'] = os.path.dirname(binary)
 
 
@@ -136,13 +144,13 @@ def main(args):
             Nrecon = len(glob.glob(f"{subject_micapipe_qc}/{BIDS_ID}_module-proc_surf-*.json"))
             if Nrecon < 1:
                 show_error(f"{BIDS_ID} doesn't have a module-proc_surf: run -proc_surf")
-                sys.exit(1)
+                raise ProcessingException(f"{BIDS_ID} doesn't have a module-proc_surf: run -proc_surf")
             elif Nrecon == 1:
                 module_qc = glob.glob(f"{subject_micapipe_qc}/{BIDS_ID}_module-proc_surf-*.json")[0]
                 recon = os.path.splitext(module_qc)[0].split('proc_surf-')[1]
             elif Nrecon > 1:
                 show_error(f"{BIDS_ID} has been processed with freesurfer and fastsurfer. Not supported yet")
-                sys.exit(1)
+                raise ProcessingException(f"{BIDS_ID} has been processed with freesurfer and fastsurfer. Not supported yet")
 
             # recon is 'freesurfer' or 'fastsurfer'
             SUBJECT_SURF_DIR = os.path.join(dataset_path, recon, BIDS_ID)
@@ -632,7 +640,7 @@ if __name__ == '__main__':
 
     for job in procjobs:
         print(job.sub, job.ses)
-    Parallel(n_jobs=args.n_jobs)(delayed(main)(job) for job in procjobs)
-    Parallel(n_jobs=args.n_jobs)(delayed(main)(job) for job in analysisjobs)
+    Parallel(n_jobs=args.n_jobs)(delayed(jobloop)(job) for job in procjobs)
+    Parallel(n_jobs=args.n_jobs)(delayed(jobloop)(job) for job in analysisjobs)
 
 

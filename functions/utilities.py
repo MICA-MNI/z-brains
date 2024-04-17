@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+from new_constants import ProcessingException
 
 def do_cmd(*args):
     
@@ -47,7 +48,7 @@ def parse_option_single_value(output_variable, args, allowed_values=None):
     if allowed_values is not None:
         if args[1] not in allowed_values:
             show_error(f"Invalid value for {args[0]}: {args[1]}")
-            sys.exit(1)
+            raise ProcessingException(f"Invalid value for {args[0]}: {args[1]}")
     output_variable = args[1]
     return output_variable, args[2:]
 
@@ -56,7 +57,7 @@ def parse_option_multiple_values(output_variable, args, allowed_values=None, all
         for value in args[1:]:
             if value not in allowed_values:
                 show_error(f"Invalid value for {args[0]}: {value}")
-                sys.exit(1)
+                raise ProcessingException(f"Invalid value for {args[0]}: {value}")
     if all is not None and "all" in args[1:]:
         output_variable = all
     else:
@@ -68,19 +69,19 @@ def assert_required(option, value, error_message=None):
         if error_message is None:
             error_message = f"{option} is required"
         show_error(error_message)
-        sys.exit(1)
+        raise ProcessingException(error_message)
 
 def assert_same_size(option1, list1, option2, list2):
     if len(list1) != len(list2):
         show_error(f"{option1} and {option2} must have the same number of elements")
-        sys.exit(1)
+        raise ProcessingException(f"{option1} and {option2} must have the same number of elements")
 
 def assert_exists(path, error_message=None):
     if not os.path.exists(path):
         if error_message is None:
             error_message = f"{path} does not exist"
         show_error(error_message)
-        sys.exit(1)
+        raise ProcessingException(error_message)
 
 def assert_columns_in_csv(csv, required_columns):
     with open(csv, 'r') as f:
@@ -88,7 +89,7 @@ def assert_columns_in_csv(csv, required_columns):
     for column in required_columns:
         if column not in header:
             show_error(f"{csv} is missing column {column}")
-            sys.exit(1)
+            raise ProcessingException(f"{csv} is missing column {column}")
 
 def submit_job(scheduler, *args):
     if scheduler == "qsub":
@@ -97,7 +98,7 @@ def submit_job(scheduler, *args):
         do_cmd("sbatch", *args)
     else:
         show_error(f"Unknown scheduler: {scheduler}")
-        sys.exit(1)
+        raise ProcessingException(f"Unknown scheduler: {scheduler}")
 
 def print_version():
     print("Version 1.0")

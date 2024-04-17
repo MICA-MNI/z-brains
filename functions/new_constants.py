@@ -22,3 +22,6 @@ Resolution = ['low', 'high']
 Resolution = ['high']
 map_resolution_ctx = {'low': LOW_RESOLUTION_CTX, 'high': HIGH_RESOLUTION_CTX}
 map_resolution_hip = {'low': LOW_RESOLUTION_HIP, 'high': HIGH_RESOLUTION_HIP}
+
+class ProcessingException(Exception):
+    pass
