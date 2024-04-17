@@ -43,9 +43,8 @@ def main(args):
     if "proc" in tasks:
         assert_required("--micapipe", args.micapipe, "--micapipe option is required for post-processing.",continue_on_error=args.continue_on_error)
         if "hippocampus" in args.struct:
-            exists = assert_required("--hippunfold", args.hippunfold, "--hippunfold option is required for post-processing.",continue_on_error=args.continue_on_error)
-            if not exists:
-                return
+            assert_required("--hippunfold", args.hippunfold, "--hippunfold option is required for post-processing.",continue_on_error=args.continue_on_error)
+
 
     # Check options required for regional/asymmetry analysis
     if "analysis" in tasks:
@@ -124,7 +123,9 @@ def main(args):
         # Subject's hippunfold directory exists
         if "hippocampus" in structures:
             SUBJECT_HIPPUNFOLD_DIR = os.path.join(dataset_path, args.hippunfold, "hippunfold", sid, ses) if ses else os.path.join(dataset_path, args.hippunfold, "hippunfold", sid)
-            assert_exists(SUBJECT_HIPPUNFOLD_DIR, f"{BIDS_ID} hippunfold directory does not exist.")
+            exists = assert_exists(SUBJECT_HIPPUNFOLD_DIR, f"{BIDS_ID} hippunfold directory does not exist.")
+            if not exists:
+                return
         if args.plugin:
             SUBJECT_PLUGIN_DIR = os.path.join(dataset_path, args.plugin, sid, ses or "")
             if not os.path.exists(SUBJECT_PLUGIN_DIR):

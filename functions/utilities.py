@@ -82,12 +82,16 @@ def assert_same_size(option1, list1, option2, list2):
         show_error(f"{option1} and {option2} must have the same number of elements")
         sys.exit(1)
 
-def assert_exists(path, error_message=None):
+def assert_exists(path, error_message=None,continue_on_error=False):
     if not os.path.exists(path):
         if error_message is None:
             error_message = f"{path} does not exist"
         show_error(error_message)
-        sys.exit(1)
+        if not continue_on_error:
+            sys.exit(1)
+        else:
+            return False
+    return True
 
 def assert_columns_in_csv(csv, required_columns):
     with open(csv, 'r') as f:
