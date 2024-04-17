@@ -541,10 +541,16 @@ if __name__ == '__main__':
             if os.path.exists(hippunfold_path):
                 return True
             else:
-                print(f'No hippunfold for {sub}, skipping')
+                if ses is not None:
+                    print(f'No hippunfold for {sub}-{ses}, skipping')
+                else:
+                    print(f'No hippunfold for {sub}, skipping')
                 return False
         else:
-            print(f'No micapipe for {sub}, skipping')
+            if ses is not None:
+                print(f'No micapipe for {sub}-{ses}, skipping')
+            else:
+                print(f'No micapipe for {sub}, skipping')
             return False
         
     if args.sub == 'all':
