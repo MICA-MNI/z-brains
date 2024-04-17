@@ -19,8 +19,9 @@ import copy
 def jobloop(args):
     try:
         main(args)
-    except ProcessingException as e:
+    except Exception as e:
         print(e)
+    return
 
 
 def main(args):

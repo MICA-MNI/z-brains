@@ -7,7 +7,7 @@ set "hippunfold_dir=hippunfold_v1.3.0"
 set "zbrains_dir=zbrains_Ian_testing"
 
 set "demo_controls=E:\HC_participants.csv"
-set "demo_patients=E:\PD_participants.csv"
+set "demo_patients=E:\PX_participants.csv"
 
 @REM set "sids="
 @REM for /D %%d in ("%pth_dataset%\derivatives\%micapipe_dir%\*") do (
@@ -22,7 +22,7 @@ set "demo_patients=E:\PD_participants.csv"
 @REM set "sids=sub-PX070 sub-PX003 sub-PX002 sub-PX001"
 @REM echo "here"
 call conda activate zbrains
-call python zbrains.py --run proc ^
+call python zbrains.py --run analysis ^
                    --sub "all" ^
                    --micapipe %micapipe_dir% ^
                    --hippunfold %hippunfold_dir% ^
