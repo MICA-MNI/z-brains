@@ -209,7 +209,7 @@ def main(zbrains_ref,demo_ref,column_map,subject_id,session,demo,zbrains,struct,
             f'Unknown column names: {unknown_cols}. Allowed options '
             f'are: {list(expected_to_actual.keys())}')
 
-    expected_to_actual |= column_map
+    expected_to_actual.update(column_map)
     actual_to_expected = {v: k for k, v in expected_to_actual.items()}
 
     # Column types
