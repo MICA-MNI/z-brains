@@ -562,7 +562,7 @@ if __name__ == '__main__':
 
 
     if len(args.sub.split(' ')) > 1:
-        subs = args.sub.split(' ')
+        subs = args.sub.strip().split(' ')
         if args.ses:
             print(f'Will run selected subs using only session {args.ses}')
 
