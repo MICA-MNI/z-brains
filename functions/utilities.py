@@ -63,35 +63,24 @@ def parse_option_multiple_values(output_variable, args, allowed_values=None, all
         output_variable = args[1:]
     return output_variable, args[len(output_variable)+1:]
 
-def assert_required(option, value, error_message=None,continue_on_error=False):
+def assert_required(option, value, error_message=None):
     if value is None:
         if error_message is None:
             error_message = f"{option} is required"
         show_error(error_message)
-        if not continue_on_error:
-            sys.exit(1)
-        else:
-            return False
-    return True
-
-
-
+        sys.exit(1)
 
 def assert_same_size(option1, list1, option2, list2):
     if len(list1) != len(list2):
         show_error(f"{option1} and {option2} must have the same number of elements")
         sys.exit(1)
 
-def assert_exists(path, error_message=None,continue_on_error=False):
+def assert_exists(path, error_message=None):
     if not os.path.exists(path):
         if error_message is None:
             error_message = f"{path} does not exist"
         show_error(error_message)
-        if not continue_on_error:
-            sys.exit(1)
-        else:
-            return False
-    return True
+        sys.exit(1)
 
 def assert_columns_in_csv(csv, required_columns):
     with open(csv, 'r') as f:

@@ -41,10 +41,9 @@ def main(args):
 
     # Check options required for processing
     if "proc" in tasks:
-        assert_required("--micapipe", args.micapipe, "--micapipe option is required for post-processing.",continue_on_error=args.continue_on_error)
+        assert_required("--micapipe", args.micapipe, "--micapipe option is required for post-processing.")
         if "hippocampus" in args.struct:
-            assert_required("--hippunfold", args.hippunfold, "--hippunfold option is required for post-processing.",continue_on_error=args.continue_on_error)
-
+            assert_required("--hippunfold", args.hippunfold, "--hippunfold option is required for post-processing.")
 
     # Check options required for regional/asymmetry analysis
     if "analysis" in tasks:
@@ -123,9 +122,7 @@ def main(args):
         # Subject's hippunfold directory exists
         if "hippocampus" in structures:
             SUBJECT_HIPPUNFOLD_DIR = os.path.join(dataset_path, args.hippunfold, "hippunfold", sid, ses) if ses else os.path.join(dataset_path, args.hippunfold, "hippunfold", sid)
-            exists = assert_exists(SUBJECT_HIPPUNFOLD_DIR, f"{BIDS_ID} hippunfold directory does not exist.",continue_on_error=args.continue_on_error)
-            if not exists:
-                return
+            assert_exists(SUBJECT_HIPPUNFOLD_DIR, f"{BIDS_ID} hippunfold directory does not exist.")
         if args.plugin:
             SUBJECT_PLUGIN_DIR = os.path.join(dataset_path, args.plugin, sid, ses or "")
             if not os.path.exists(SUBJECT_PLUGIN_DIR):
@@ -139,19 +136,13 @@ def main(args):
             Nrecon = len(glob.glob(f"{subject_micapipe_qc}/{BIDS_ID}_module-proc_surf-*.json"))
             if Nrecon < 1:
                 show_error(f"{BIDS_ID} doesn't have a module-proc_surf: run -proc_surf")
-                if args.continue_on_error:
-                    return
-                else:
-                    sys.exit(1)
+                sys.exit(1)
             elif Nrecon == 1:
                 module_qc = glob.glob(f"{subject_micapipe_qc}/{BIDS_ID}_module-proc_surf-*.json")[0]
                 recon = os.path.splitext(module_qc)[0].split('proc_surf-')[1]
             elif Nrecon > 1:
                 show_error(f"{BIDS_ID} has been processed with freesurfer and fastsurfer. Not supported yet")
-                if args.continue_on_error:
-                    return
-                else:
-                    sys.exit(1)
+                sys.exit(1)
 
             # recon is 'freesurfer' or 'fastsurfer'
             SUBJECT_SURF_DIR = os.path.join(dataset_path, recon, BIDS_ID)
@@ -523,7 +514,6 @@ if __name__ == '__main__':
     parser.add_argument('--column_map', nargs='*', default=None)
     parser.add_argument('--init', type=str, default=None)
     parser.add_argument('--n_jobs', type=int, default=1)
-    parser.add_argument('--continue_on_error', type=bool, default=False)
     parser.add_argument('--wb_path', type=str, default="/data/mica1/01_programs/workbench-1.4.2/bin_linux64")
     parser.add_argument('--verbose', type=int, default=-1)
     parser.add_argument('--version', action='version', version='1.0.0')
@@ -538,82 +528,97 @@ if __name__ == '__main__':
     
     procjobs = []
     analysisjobs = []
-if args.sub == 'all':
-    subs = ''.join(
-        f'{sub} '
-        for sub in os.listdir(
-            os.path.join(args.dataset, 'derivatives', args.micapipe)
-        ) if os.path.isdir(os.path.join(args.dataset, 'derivatives', args.micapipe, sub))
-    )
-    args.sub = subs
+    
+    def check_sub(args, sub,ses=None):
+        if os.path.exists(os.path.join(args.dataset, 'derivatives', args.micapipe, sub, ses)):
+            if os.path.exists(os.path.join(args.dataset, 'derivatives', args.hippunfold, sub, ses)):
+                return True
+            else:
+                print(f'No hippunfold for {sub}, skipping')
+                return False
+        else:
+            print(f'No micapipe for {sub}, skipping')
+            return False
+        
+    if args.sub == 'all':
+        subs = ''
+        for sub in os.listdir(os.path.join(args.dataset, 'derivatives', args.micapipe)):
+            if check_sub(args,sub):
+                subs += f'{sub} '
+        args.sub = subs
 
 
-if len(args.sub.split(' ')) > 1:
-    subs = args.sub.split(' ')
-    if args.ses:
-        print(f'Will run selected subs using only session {args.ses}')
+    if len(args.sub.split(' ')) > 1:
+        subs = args.sub.split(' ')
+        if args.ses:
+            print(f'Will run selected subs using only session {args.ses}')
 
-        if 'proc' in runs:
-            for sub in subs:
-                job = copy.copy(args)
-                job.sub, job.ses, job.run = sub, args.ses, 'proc'
-
-                procjobs.append(job)
-        if 'analysis' in runs:  
-            for sub in subs:
-                job = copy.copy(args)
-                job.sub, job.ses, job.run = sub, args.ses, 'analysis'
-                analysisjobs.append(job)
-    else:
-        print('Will run selected subs and all sessions')
-
-        if 'proc' in runs: 
-            for sub in subs:
-                
-                for ses in os.listdir(os.path.join(args.dataset, 'derivatives', args.micapipe, sub)):
+            if 'proc' in runs:
+                for sub in subs:
                     job = copy.copy(args)
-                    job.sub, job.ses, job.run = sub, ses, 'proc'
+                    job.sub, job.ses, job.run = sub, args.ses, 'proc'
+                    if check_sub(args,sub,args.ses):
+                        procjobs.append(job)
+
+            if 'analysis' in runs:  
+                for sub in subs:
+                    job = copy.copy(args)
+                    job.sub, job.ses, job.run = sub, args.ses, 'analysis'
+                    if check_sub(args,sub,args.ses):
+                        analysisjobs.append(job)
+        else:
+            print('Will run selected subs and all sessions')
+
+            if 'proc' in runs: 
+                for sub in subs:
+                    
+                    for ses in os.listdir(os.path.join(args.dataset, 'derivatives', args.micapipe, sub)):
+                        job = copy.copy(args)
+                        job.sub, job.ses, job.run = sub, ses, 'proc'
+                        if check_sub(args,sub,ses):
+                            procjobs.append(job)
+
+            if 'analysis' in runs: 
+                for sub in subs:
+                    for ses in os.listdir(os.path.join(args.dataset, 'derivatives', args.micapipe, sub)):
+                        job = copy.copy(args)
+                        job.sub, job.ses, job.run = sub, ses, 'analysis'
+                        if check_sub(args,sub,ses):
+                            analysisjobs.append(job)
+    else:
+        if args.ses:
+            print(f'Will run selected subs using only session {args.ses}')
+
+            if 'proc' in runs:
+                job = copy.copy(args)
+                job.ses, job.run = args.ses, 'proc'
+                if check_sub(args,args.sub,args.ses):
                     procjobs.append(job)
-        if 'analysis' in runs: 
-            for sub in subs:
-                for ses in os.listdir(os.path.join(args.dataset, 'derivatives', args.micapipe, sub)):
-                    job = copy.copy(args)
-                    job.sub, job.ses, job.run = sub, ses, 'analysis'
-                    # job = {'sub': sub, 'ses': ses, 'run': 'analysis'}
+                
+            if 'analysis' in runs:  
+                job = copy.copy(args)
+                job.ses, job.run = args.ses, 'analysis'
+                if check_sub(args,args.sub,args.ses):
                     analysisjobs.append(job)
-else:
-    if args.ses:
-        print(f'Will run selected subs using only session {args.ses}')
+        else:
+            print('Will run selected subs and all sessions')
 
-        if 'proc' in runs:
-            job = copy.copy(args)
-            job.ses, job.run = args.ses, 'proc'
-            procjobs.append(job)
-            
-        if 'analysis' in runs:  
-            job = copy.copy(args)
-            job.ses, job.run = args.ses, 'analysis'
-            analysisjobs.append(job)
-    else:
-        print('Will run selected subs and all sessions')
+            if 'proc' in runs: 
+                for ses in os.listdir(os.path.join(args.dataset, 'derivatives', args.micapipe, args.sub)):
+                    job = copy.copy(args)
+                    job.ses, job.run = ses, 'proc'
+                    if check_sub(args,args.sub,ses):
+                        procjobs.append(job)
+            if 'analysis' in runs: 
+                
+                for ses in os.listdir(os.path.join(args.dataset, 'derivatives', args.micapipe, args.sub)):
+                    job = copy.copy(args)
+                    job.ses, job.run = ses, 'analysis'
+                    if check_sub(args,args.sub,ses):
+                        analysisjobs.append(job)
 
-        if 'proc' in runs: 
-            for ses in os.listdir(os.path.join(args.dataset, 'derivatives', args.micapipe, args.sub)):
-                job = copy.copy(args)
-                job.ses, job.run = ses, 'proc'
-                procjobs.append(job)
-        if 'analysis' in runs: 
-            
-            for ses in os.listdir(os.path.join(args.dataset, 'derivatives', args.micapipe, args.sub)):
-                job = copy.copy(args)
-                job.ses, job.run = ses, 'analysis'
-                # job = {'sub': sub, 'ses': ses, 'run': 'analysis'}
-                analysisjobs.append(job)
-    # procjobs.append(args)
-for job in procjobs:
-    print(job.sub, job.ses)
-# print(job.bids_ for job in procjobs)
-Parallel(n_jobs=args.n_jobs)(delayed(main)(job) for job in procjobs)
-Parallel(n_jobs=args.n_jobs)(delayed(main)(job) for job in analysisjobs)
+
+    Parallel(n_jobs=args.n_jobs)(delayed(main)(job) for job in procjobs)
+    Parallel(n_jobs=args.n_jobs)(delayed(main)(job) for job in analysisjobs)
 
 
