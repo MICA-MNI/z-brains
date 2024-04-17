@@ -529,9 +529,16 @@ if __name__ == '__main__':
     procjobs = []
     analysisjobs = []
     
-    def check_sub(args, sub,ses=None):
-        if os.path.exists(os.path.join(args.dataset, 'derivatives', args.micapipe, sub, ses)):
-            if os.path.exists(os.path.join(args.dataset, 'derivatives', args.hippunfold, sub, ses)):
+    def check_sub(args, sub, ses=None):
+        micapipe_path = os.path.join(args.dataset, 'derivatives', args.micapipe, sub)
+        hippunfold_path = os.path.join(args.dataset, 'derivatives', args.hippunfold, sub)
+
+        if ses is not None:
+            micapipe_path = os.path.join(micapipe_path, ses)
+            hippunfold_path = os.path.join(hippunfold_path, ses)
+
+        if os.path.exists(micapipe_path):
+            if os.path.exists(hippunfold_path):
                 return True
             else:
                 print(f'No hippunfold for {sub}, skipping')
