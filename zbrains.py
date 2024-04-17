@@ -123,7 +123,7 @@ def main(args):
         # Subject's hippunfold directory exists
         if "hippocampus" in structures:
             SUBJECT_HIPPUNFOLD_DIR = os.path.join(dataset_path, args.hippunfold, "hippunfold", sid, ses) if ses else os.path.join(dataset_path, args.hippunfold, "hippunfold", sid)
-            exists = assert_exists(SUBJECT_HIPPUNFOLD_DIR, f"{BIDS_ID} hippunfold directory does not exist.")
+            exists = assert_exists(SUBJECT_HIPPUNFOLD_DIR, f"{BIDS_ID} hippunfold directory does not exist.",continue_on_error=args.continue_on_error)
             if not exists:
                 return
         if args.plugin:
