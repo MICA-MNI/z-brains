@@ -14,7 +14,7 @@ from functions import run_proc, run_analysis
 import colorama
 from functions.environment import setenv
 from joblib import Parallel, delayed
-
+import pandas as pd
 import copy
 def jobloop(args):
     try:
@@ -60,7 +60,23 @@ def main(args):
         assert_required("--zbrains_ref", args.zbrains_ref, "--zbrains_ref option is required for analysis.")
         assert_required("--demo_ref", args.demo_ref, "--demo_ref option is required for analysis.")
         assert_same_size("--dataset_ref", args.dataset_ref, "--demo_ref", args.demo_ref)
+        
+        # found = False
+        # for csv_file in args.demo_ref:
+        #     df = pd.read_csv(csv_file)
+        #     # Check if 'participant_id' and 'session_id' columns exist in the DataFrame
+        #     if 'participant_id' not in df.columns or 'session_id' not in df.columns:
+        #         continue
 
+        #     # Check if args.sub and args.ses are in the same row
+        #     if ((df['participant_id'] == args.sub) & (df['session_id'] == args.ses)).any():
+        #         found = True
+        #         break
+
+        # if not found:
+        #     raise ValueError(f"The participant ID '{args.sub}' and session ID '{args.ses}' are not in the same row of any CSV file.")
+        
+        
         n_datasets = len(args.dataset_ref)
         if n_datasets != len(args.zbrains_ref):
             if len(args.zbrains_ref) > 1:
@@ -522,8 +538,11 @@ if __name__ == '__main__':
     parser.add_argument('--threshold', type=str, default=None)
     parser.add_argument('--column_map', nargs='*', default=None)
     parser.add_argument('--init', type=str, default=None)
+    
     parser.add_argument('--n_jobs', type=int, default=1)
     parser.add_argument('--wb_path', type=str, default="/data/mica1/01_programs/workbench-1.4.2/bin_linux64")
+    parser.add_argument('--patient_prefix', type=str, default="PX")
+    
     parser.add_argument('--verbose', type=int, default=-1)
     parser.add_argument('--version', action='version', version='1.0.0')
   
@@ -561,32 +580,49 @@ if __name__ == '__main__':
             else:
                 print(f'No micapipe for {sub}, skipping')
             return False
+    
+    if args.ses:
+        sess = ''
+        for ses in args.ses.split(' '):
+            sess += f'{ses} '
+        args.ses = sess.strip().split(' ')
+        if args.sub == 'all':
+            print('Session ID provided but no subject ID provided. Exiting...')
+            sys.exit()
+            
         
     if args.sub == 'all':
+        print(f'Will run all subjects using {args.patient_prefix} as a prefix for patients')
         subs = ''
         for sub in os.listdir(os.path.join(args.dataset, 'derivatives', args.micapipe)):
             if check_sub(args,sub):
                 subs += f'{sub} '
         args.sub = subs
+    
 
+    if args.ses and len(args.ses)  != len(args.sub.strip().split(' ')):
+        print('Number of subs and sessions do not match')
+        sys.exit()
 
-    if len(args.sub.split(' ')) > 1:
+    if len(args.sub.strip().split(' ')) > 1:
         subs = args.sub.strip().split(' ')
         if args.ses:
-            print(f'Will run selected subs using only session {args.ses}')
-
+            
+            print(f'Will run selected subs using only defined sessions')
+            
+            
             if 'proc' in runs:
-                for sub in subs:
+                for e,sub in enumerate(subs):
                     job = copy.copy(args)
-                    job.sub, job.ses, job.run = sub, args.ses, 'proc'
-                    if check_sub(args,sub,args.ses):
+                    job.sub, job.ses, job.run = sub, args.ses[e], 'proc'
+                    if check_sub(args,sub,args.ses[e]):
                         procjobs.append(job)
 
             if 'analysis' in runs:  
-                for sub in subs:
+                for e,sub in enumerate(subs):
                     job = copy.copy(args)
-                    job.sub, job.ses, job.run = sub, args.ses, 'analysis'
-                    if check_sub(args,sub,args.ses):
+                    job.sub, job.ses, job.run = sub, args.ses[e], 'analysis'
+                    if check_sub(args,sub,args.ses[e]) and args.patient_prefix in job.sub:
                         analysisjobs.append(job)
         else:
             print('Will run selected subs and all sessions')
@@ -605,7 +641,7 @@ if __name__ == '__main__':
                     for ses in os.listdir(os.path.join(args.dataset, 'derivatives', args.micapipe, sub)):
                         job = copy.copy(args)
                         job.sub, job.ses, job.run = sub, ses, 'analysis'
-                        if check_sub(args,sub,ses):
+                        if check_sub(args,sub,ses) and args.patient_prefix in job.sub:
                             analysisjobs.append(job)
     else:
         if args.ses:
@@ -620,7 +656,7 @@ if __name__ == '__main__':
             if 'analysis' in runs:  
                 job = copy.copy(args)
                 job.ses, job.run = args.ses, 'analysis'
-                if check_sub(args,args.sub,args.ses):
+                if check_sub(args,args.sub,args.ses) and args.patient_prefix in job.sub:
                     analysisjobs.append(job)
         else:
             print('Will run selected subs and all sessions')
@@ -636,7 +672,7 @@ if __name__ == '__main__':
                 for ses in os.listdir(os.path.join(args.dataset, 'derivatives', args.micapipe, args.sub)):
                     job = copy.copy(args)
                     job.ses, job.run = ses, 'analysis'
-                    if check_sub(args,args.sub,ses):
+                    if check_sub(args,args.sub,ses) and args.patient_prefix in job.sub:
                         analysisjobs.append(job)
 
     for job in procjobs:

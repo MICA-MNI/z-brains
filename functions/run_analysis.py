@@ -240,27 +240,27 @@ def main(zbrains_ref,demo_ref,column_map,subject_id,session,demo,zbrains,struct,
 
     # subject_dir = get_subject_dir(zbrains_path, sid, ses)
     # path_analysis = f'{subject_dir}/{approach_folder}'
-
+    
     # Load px dataframe --------------------------------------------------------
     px_demo = None
     if demo is not None:
-        px_demo = load_demo(demo, rename=actual_to_expected,
-                            dtypes=col_dtypes,tmp=tmp)
-        if px_demo.shape[0] != 1:
+        px_demo = load_demo(demo, rename=actual_to_expected, dtypes=col_dtypes, tmp=tmp)
+        px_demo = px_demo.loc[(px_demo['participant_id'] == px_id) & (px_demo['session_id'] == px_ses)]
 
-            msg = (f'Provided {bids_id} is not unique in demographics file.'
-                   f'\nFile: {demo}\n')
-            if px_demo.shape[0] == 0:
-                msg = (f'Cannot find {bids_id} in demographics file.\nFile: '
-                       f'{demo}\n')
+        # If no such row exists, create an empty DataFrame with the same columns
+        if px_demo.empty:
+            px_demo = None
+            msg = f'Cannot find {bids_id} in demographics file.\nFile: {demo}\n'
+        elif px_demo.shape[0] != 1:
+            msg = f'Provided {bids_id} is not unique in demographics file.\nFile: {demo}\n'
+        else:
+            msg = None
 
-            if cov_normative is not None or cov_deconfound is not None:
-                raise ValueError(msg)
-                # logger.error(msg)
-                # exit(1)
-            else:  # For report
-                logger.warning(msg)
-                px_demo = None  # Dont use
+        if msg and (cov_normative is not None or cov_deconfound is not None):
+            raise ValueError(msg)
+        elif msg:
+            logger.warning(msg)
+            px_demo = None  # Don't use
 
     # Run analyses -------------------------------------------------------------
     logger.info('\n\nStarting analysis')

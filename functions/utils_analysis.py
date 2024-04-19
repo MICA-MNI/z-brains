@@ -414,6 +414,9 @@ def _load_data(
     df_subjects = df_subjects[~missing_subjects].copy()
     if struct == 'subcortex':
         return pd.concat(data, axis=0, ignore_index=True), df_subjects
+    
+    # data = [np.where(x == 0, 0.0000000001, x) for x in data]
+    # zeros = np.where(data_mahalanobis['data_cn'][3][1] == 0)[0]
     return np.stack(data, axis=0), df_subjects
 
 
@@ -776,6 +779,8 @@ def run_analysis(
                 data_mahalanobis[k].append(v)
 
         # store available features
+        zeros = np.where(data_mahalanobis['data_cn'][3][1] == 0)[0]
+        print(zeros)
         if struct == 'subcortex':
             available_features[struct] = data_mahalanobis['feat']
         else:

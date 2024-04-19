@@ -21,9 +21,12 @@ set "demo_patients=E:\PX_participants.csv"
 
 @REM set "sids=sub-PX070 sub-PX003 sub-PX002 sub-PX001"
 @REM echo "here"
+set "sids=sub-PX002 sub-PX001"
+set "sess=ses-01 ses-01"
 call conda activate zbrains
 call python zbrains.py --run analysis ^
-                   --sub "all" ^
+                   --sub "%sids%" ^
+                   --ses "%sess%" ^
                    --micapipe %micapipe_dir% ^
                    --hippunfold %hippunfold_dir% ^
                    --dataset %pth_dataset% ^
