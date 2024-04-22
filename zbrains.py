@@ -309,11 +309,11 @@ def check_sub(args, sub, ses=None):
         hippunfold_path = os.path.join(hippunfold_path, ses)
 
     if not os.path.exists(micapipe_path):
-        print(f'No micapipe for {sub}-{f"-{ses}" if ses else ""}, skipping')
+        print(f'No micapipe at {micapipe_path} for {sub}-{f"-{ses}" if ses else ""}, skipping')
         return False
 
     if not os.path.exists(hippunfold_path):
-        print(f'No hippunfold for {sub}{f"-{ses}" if ses else ""}, skipping')
+        print(f'No hippunfold at {hippunfold_path} for {sub}{f"-{ses}" if ses else ""}, skipping')
         return False
 
     return True
