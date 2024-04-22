@@ -126,9 +126,9 @@ def check_files_and_directories(args, tasks, structures, sid, ses):
     BIDS_ID = f"{sid}_{ses}" if ses else sid
     SUBJECT_OUTPUT_DIR = os.path.join(px_zbrains_path, sid, ses) if ses else os.path.join(px_zbrains_path, sid)
 
-    if "proc" in tasks:
+    if "proc" or "analysis" in tasks:
         SUBJECT_MICAPIPE_DIR = os.path.join(dataset_path, args.micapipe, sid, ses) if ses else os.path.join(dataset_path, args.micapipe, sid)
-        print(SUBJECT_MICAPIPE_DIR)
+        # print(SUBJECT_MICAPIPE_DIR)
         assert_exists(SUBJECT_MICAPIPE_DIR, f"{BIDS_ID} micapipe directory does not exist.")
 
         if "hippocampus" in structures:
