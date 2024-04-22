@@ -35,11 +35,8 @@ def jobloop(args):
         main_func(args)
     except Exception as e:
         print(e)
-    
 
-
-def main_func(args):
-
+def parse_args(args):
     # Define the ZBRAINS and script_dir variables
     ZBRAINS = Path(os.path.realpath(__file__)).parent
     script_dir = ZBRAINS / 'functions'
@@ -55,8 +52,6 @@ def main_func(args):
                 # print(f"Unknown option '--{arg}'")
                 raise ProcessingException(f"Unknown option '--{arg}'")
 
-
-    # ------------------------------------------------- Check arguments ------------------------------------------------- #
     VERBOSE=args.verbose
     tasks = args.run
     if "all" in tasks:
@@ -110,12 +105,10 @@ def main_func(args):
     smooth_hip = args.smooth_hip or DEFAULT_SMOOTH_HIP
     threshold = args.threshold or DEFAULT_THRESHOLD
 
+    return args, ZBRAINS, script_dir, VERBOSE, tasks, sid, ses, structures, features, resolutions, labels_ctx, labels_hip, smooth_ctx, smooth_hip, threshold
 
-
-    # ------------------------------------------------ Check dependencies ----------------------------------------------- #
+def check_workbench_dependency(tasks):
     if "proc" in tasks:
-        
-        
         if os.environ['WORKBENCH_PATH'] is not None:
             binary = os.path.join(os.environ['WORKBENCH_PATH'], 'wb_command')
         else:
@@ -125,36 +118,27 @@ def main_func(args):
             raise ProcessingException("Workbench not found. Please set the WORKBENCH_PATH environment variable to the location of Workbench binaries.")
         os.environ['WORKBENCH_PATH'] = os.path.dirname(binary)
 
-
-
-    # -------------------------------------------- Check files & directories -------------------------------------------- #
+def check_files_and_directories(args, tasks, structures, sid, ses):
     dataset_path = os.path.realpath(os.path.join(args.dataset, "derivatives"))
     assert_exists(dataset_path)
     px_zbrains_path = os.path.join(dataset_path, args.zbrains)
 
-    # Export BIDS_ID, SUBJECT_OUTPUT_DIR
     BIDS_ID = f"{sid}_{ses}" if ses else sid
     SUBJECT_OUTPUT_DIR = os.path.join(px_zbrains_path, sid, ses) if ses else os.path.join(px_zbrains_path, sid)
-    # Sanity checks required for processing
-    if "proc" in tasks:
 
-        # Subject's micapipe directory exists
+    if "proc" in tasks:
         SUBJECT_MICAPIPE_DIR = os.path.join(dataset_path, args.micapipe, sid, ses) if ses else os.path.join(dataset_path, args.micapipe, sid)
         assert_exists(SUBJECT_MICAPIPE_DIR, f"{BIDS_ID} micapipe directory does not exist.")
-        
-        # Subject's hippunfold directory exists
+
         if "hippocampus" in structures:
             SUBJECT_HIPPUNFOLD_DIR = os.path.join(dataset_path, args.hippunfold, "hippunfold", sid, ses) if ses else os.path.join(dataset_path, args.hippunfold, "hippunfold", sid)
             assert_exists(SUBJECT_HIPPUNFOLD_DIR, f"{BIDS_ID} hippunfold directory does not exist.")
-        if args.plugin:
-            SUBJECT_PLUGIN_DIR = os.path.join(dataset_path, args.plugin, sid, ses or "")
-            if not os.path.exists(SUBJECT_PLUGIN_DIR):
-                sys.exit(f"{BIDS_ID} plugin directory does not exist.")
-        else:
-            SUBJECT_PLUGIN_DIR = None
-        # Check if subject's freesurfer/fastsurfer directory exists - only needed for subcortex
+
+        SUBJECT_PLUGIN_DIR = os.path.join(dataset_path, args.plugin, sid, ses or "") if args.plugin else None
+        if SUBJECT_PLUGIN_DIR and not os.path.exists(SUBJECT_PLUGIN_DIR):
+            sys.exit(f"{BIDS_ID} plugin directory does not exist.")
+
         if "subcortex" in structures:
-            # Set surface directory and check if subject has a surface directory
             subject_micapipe_qc = os.path.join(SUBJECT_MICAPIPE_DIR, "QC")
             Nrecon = len(glob.glob(f"{subject_micapipe_qc}/{BIDS_ID}_module-proc_surf-*.json"))
             if Nrecon < 1:
@@ -167,9 +151,45 @@ def main_func(args):
                 show_error(f"{BIDS_ID} has been processed with freesurfer and fastsurfer. Not supported yet")
                 raise ProcessingException(f"{BIDS_ID} has been processed with freesurfer and fastsurfer. Not supported yet")
 
-            # recon is 'freesurfer' or 'fastsurfer'
             SUBJECT_SURF_DIR = os.path.join(dataset_path, recon, BIDS_ID)
             assert_exists(SUBJECT_SURF_DIR, f"{BIDS_ID} {recon} directory does not exist.")
+
+    return BIDS_ID, SUBJECT_OUTPUT_DIR, SUBJECT_MICAPIPE_DIR, SUBJECT_HIPPUNFOLD_DIR, SUBJECT_PLUGIN_DIR, SUBJECT_SURF_DIR, px_zbrains_path
+
+def create_directories(BIDS_ID, SUBJECT_OUTPUT_DIR, FOLDER_LOGS, FOLDER_MAPS, FOLDER_NORM_Z, FOLDER_NORM_MODEL, tasks):
+    # Create subject output directory structure
+    if not os.path.isdir(SUBJECT_OUTPUT_DIR):
+        show_info(f"Subject {BIDS_ID} directory doesn't exist, creating...")
+
+    # Folder for logs
+    logs_dir = os.path.join(SUBJECT_OUTPUT_DIR, FOLDER_LOGS)
+    os.makedirs(logs_dir, exist_ok=True)
+
+    if "proc" in tasks:
+        dirs = [FOLDER_SCTX, FOLDER_CTX, FOLDER_HIP]
+        for dir in dirs:
+            path = os.path.join(SUBJECT_OUTPUT_DIR, FOLDER_MAPS, dir)
+            os.makedirs(path, exist_ok=True)
+
+    # Folders for regional/asymmetry analysis
+    if "analysis" in tasks:
+        dirs = [FOLDER_SCTX, FOLDER_CTX, FOLDER_HIP]
+        for dir in dirs:
+            path = os.path.join(SUBJECT_OUTPUT_DIR, FOLDER_NORM_Z, dir)
+            os.makedirs(path, exist_ok=True)
+            path = os.path.join(SUBJECT_OUTPUT_DIR, FOLDER_NORM_MODEL, dir)
+            os.makedirs(path, exist_ok=True)
+    
+    return logs_dir
+            
+def main_func(args):
+    
+    args, ZBRAINS, script_dir, VERBOSE, tasks, sid, ses, structures, features, resolutions, labels_ctx, labels_hip, smooth_ctx, smooth_hip, threshold = parse_args(args)
+
+    check_workbench_dependency(tasks)
+
+    BIDS_ID, SUBJECT_OUTPUT_DIR, SUBJECT_MICAPIPE_DIR, SUBJECT_HIPPUNFOLD_DIR, SUBJECT_PLUGIN_DIR, SUBJECT_SURF_DIR, px_zbrains_path = check_files_and_directories(args, tasks, structures, sid, ses)
+
 
 
 
@@ -177,74 +197,25 @@ def main_func(args):
     # -------------------------------------------- Start processing/analysis -------------------------------------------- #
     # ------------------------------------------------------------------------------------------------------------------- #
 
-    show_info("zbrains is running with:")
-    if "proc" in tasks:
-
-        # Get WorkBench version
-        workbench_version = subprocess.check_output([os.path.join(os.environ['WORKBENCH_PATH'], 'wb_command'), '-version']).decode().split()[1]
-        show_note("WorkBench...", workbench_version)
-        show_note("            ", os.path.join(os.environ['WORKBENCH_PATH'], 'wb_command'))
-
-    if "analysis" in tasks or "subcortex" in structures:
-        # Get Python version
-        python_version = subprocess.check_output(['python', '--version']).decode().split()[1]
-        show_note("python......", python_version)
-        show_note("            ", shutil.which('python'))
-
-    show_note("", "")
-
     # -------------------------------------------------- Initiate timer ------------------------------------------------- #
     start_time = time.time()
 
     # -------------------------------------------- Create zbrains directory --------------------------------------------- #
-    # Create subject output directory structure
-    if not os.path.isdir(SUBJECT_OUTPUT_DIR):
-        show_info(f"Subject {BIDS_ID} directory doesn't exist, creating...")
+    
+    logs_dir = create_directories(BIDS_ID, SUBJECT_OUTPUT_DIR, FOLDER_LOGS, FOLDER_MAPS, FOLDER_NORM_Z, FOLDER_NORM_MODEL, tasks)
 
-    # Folder for logs
-    logs_dir = os.path.join(SUBJECT_OUTPUT_DIR, FOLDER_LOGS)
-    if not os.path.isdir(logs_dir):
-        os.makedirs(logs_dir,exist_ok=True)
-    # do_cmd(['mkdir', '-m', '770', '-p', logs_dir])
-
-    if "proc" in tasks:
-        dirs = [FOLDER_SCTX, FOLDER_CTX, FOLDER_HIP]
-        for dir in dirs:
-            path = os.path.join(SUBJECT_OUTPUT_DIR, FOLDER_MAPS, dir)
-            if not os.path.exists(path):
-                os.makedirs(path, exist_ok=True)
-
-    # Folders for regional/asymmetry analysis
-    if "analysis" in tasks:
-        dirs = [FOLDER_SCTX, FOLDER_CTX, FOLDER_HIP]
-        for dir in dirs:
-            path = os.path.join(SUBJECT_OUTPUT_DIR, FOLDER_NORM_Z, dir)
-            if not os.path.exists(path):
-                os.makedirs(path, exist_ok=True)
-            path = os.path.join(SUBJECT_OUTPUT_DIR, FOLDER_NORM_MODEL, dir)
-            if not os.path.exists(path):
-                os.makedirs(path, exist_ok=True)
 
     # Temporary folder
     with tempdir(SUBJECT_OUTPUT_DIR, prefix="z_brains_temp.") as tmp_dir:
         try:
             os.chmod(SUBJECT_OUTPUT_DIR, 0o770)
 
-            # ----------------------------------------------------- Cleanup ----------------------------------------------------- #
-            def cleanup(tmp_dir):
-                shutil.rmtree(tmp_dir, ignore_errors=True)
-
-            atexit.register(cleanup, tmp_dir)
-
             # -------------------------------------------------- Postprocessing ------------------------------------------------- #
             if "proc" in tasks:
                 logfile = os.path.join(logs_dir, f"proc_{datetime.datetime.now().strftime('%d-%m-%Y')}.txt")
                 with open(logfile, 'w') as f:
                     f.write("\n")
-                
                 for struct in structures:
-                    # cmd = [os.path.join(script_dir, 'run_proc.sh'), '--struct', struct, '--feat', ' '.join(features), '--tmp', tmp_dir]
-
                     if struct == "hippocampus":
                         list_resolutions = [map_resolution_hip[k] for k in resolutions]
                         temp_labels = labels_hip
@@ -253,21 +224,16 @@ def main_func(args):
                         list_resolutions = [map_resolution_ctx[k] for k in resolutions]
                         temp_labels = labels_ctx
                         fwhm = smooth_ctx
-                        # list_resolutions = [map_resolution_ctx[k] for k in resolutions]
-                        # cmd.extend(['--fwhm', smooth_ctx, '--resolution', ' '.join(list_resolutions), '--labels', ' '.join(labels_ctx)])
                     else:
                         list_resolutions = None
                         temp_labels = None
                         fwhm = None
                     run_proc.run(structure=struct, features=features, tmp_dir=tmp_dir, WORKBENCH_PATH=os.environ['WORKBENCH_PATH'], subject_micapipe_dir=SUBJECT_MICAPIPE_DIR, subject_output_dir=SUBJECT_OUTPUT_DIR, folder_maps=FOLDER_MAPS, folder_ctx=FOLDER_CTX, folder_sctx=FOLDER_SCTX, folder_hip=FOLDER_HIP, subject_surf_dir=SUBJECT_SURF_DIR, subject_hippunfold_dir=SUBJECT_HIPPUNFOLD_DIR, script_dir=script_dir, BIDS_ID=BIDS_ID, VERBOSE=VERBOSE, fwhm=fwhm, resolutions=list_resolutions, labels=temp_labels,subject_plugin_dir=SUBJECT_PLUGIN_DIR)
-                    # do_cmd(cmd)
 
             # ----------------------------------------------------- Analysis ---------------------------------------------------- #
             if "analysis" in tasks:
                 logfile = os.path.join(logs_dir, f"analysis_{datetime.datetime.now().strftime('%d-%m-%Y')}.txt")
-
                 ref_zbrains_paths = [os.path.join(args.dataset_ref[idx], 'derivatives', args.zbrains_ref[idx]) for idx in range(len(args.dataset_ref))]
-                
                 run_analysis.run(
                 subject_id=sid,
                 session=ses,
@@ -291,10 +257,6 @@ def main_func(args):
                 deconfound=args.deconfound, 
                 column_map=args.column_map ,
             )
-                # print(' '.join(cmd))
-                # do_cmd(cmd)
-
-            # Total running time
             elapsed = (time.time() - start_time) / 60
             show_title(f"Total elapsed time for {BIDS_ID}: {elapsed:.2f} minutes")
         except Exception as e:
@@ -337,12 +299,12 @@ def main(args):
     if args.ses and len(args.ses) != len(args.sub):
         print('Number of subs and sessions do not match')
         sys.exit()
-
-    procjobs = create_jobs(args, args.sub, args.ses, 'proc')
-    analysisjobs = create_jobs(args, args.sub, args.ses, 'analysis')
-
-    Parallel(n_jobs=args.n_jobs)(delayed(jobloop)(job) for job in procjobs)
-    Parallel(n_jobs=args.n_jobs)(delayed(jobloop)(job) for job in analysisjobs)
+    if 'proc' in args.run:
+        procjobs = create_jobs(args, args.sub, args.ses, 'proc')
+        Parallel(n_jobs=args.n_jobs)(delayed(jobloop)(job) for job in procjobs)
+    if 'analysis' in args.run:
+        analysisjobs = create_jobs(args, args.sub, args.ses, 'analysis')
+        Parallel(n_jobs=args.n_jobs)(delayed(jobloop)(job) for job in analysisjobs)
 
 class Parser(argparse.ArgumentParser):
 
@@ -398,6 +360,20 @@ if __name__ == '__main__':
     os.environ['WORKBENCH_PATH'] = WORKBENCH_PATH
     runs = args.run
     os.environ['OMP_NUM_THREADS'] = str(args.n_jobs_wb)
+    
+    show_info("zbrains is running with:")
+    if "proc" in args.run:
+        # Get WorkBench version
+        workbench_version = subprocess.check_output([os.path.join(os.environ['WORKBENCH_PATH'], 'wb_command'), '-version']).decode().split()[1]
+        show_note("WorkBench...", workbench_version)
+        show_note("            ", os.path.join(os.environ['WORKBENCH_PATH'], 'wb_command'))
+        
+    # Get Python version
+    python_version = subprocess.check_output(['python', '--version']).decode().split()[1]
+    show_note("python......", python_version)
+    show_note("            ", shutil.which('python'))
+
+    show_note("", "")
     
     main(args)
     

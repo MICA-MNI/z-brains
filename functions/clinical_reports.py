@@ -525,11 +525,11 @@ def report_struct(
 
     file_rh = None
     if struct != 'subcortex':
-        kwds |= dict(feat=feat, smooth=smooth, res=res, label=label, hemi='L')
+        kwds.update(dict(feat=feat, smooth=smooth, res=res, label=label, hemi='L'))
         file_lh = get_analysis_path_from_template(struct, **kwds)
 
         if analysis != 'asymmetry':
-            kwds |= dict(hemi='R')
+            kwds.update(dict(hemi='R'))
             file_rh = get_analysis_path_from_template(struct, **kwds)
     else:
         file_lh = get_analysis_path_from_template(struct, **kwds)
