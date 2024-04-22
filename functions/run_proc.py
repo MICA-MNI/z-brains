@@ -6,7 +6,7 @@ import subprocess
 from functions.new_constants import *
 import time
 import glob
-
+from functions.subcortical_mapping_function import subcortical_mapping
 # # Parse arguments
 # parser = argparse.ArgumentParser()
 # parser.add_argument('--struct', required=True, choices=LIST_STRUCTURES)
@@ -52,15 +52,15 @@ def map_subcortex(bids_id, feat, subject_surf_dir, subject_micapipe_dir, subject
             if not os.path.isfile(file):
                 show_warning(f"{bids_id}: cannot map '{feat}' to subcortical structures. Missing file: {file}")
                 return
-
-        subprocess.run(["python", os.path.join(script_dir, "subcortical_mapping.py"), "-id", bids_id, "-i", input_file, "-s", seg_file, "-o", output_file])
+        subcortical_mapping(bids_id, image=input_file, seg=seg_file, output=output_file)
+        # subprocess.run(["python", os.path.join(script_dir, "subcortical_mapping.py"), "-id", bids_id, "-i", input_file, "-s", seg_file, "-o", output_file])
 
     else:
         if not os.path.isfile(aseg_stats_file):
             show_warning(f"{bids_id}: cannot map '{feat}' to subcortical structures. Missing file {aseg_stats_file}")
             return
-
-        subprocess.run(["python", os.path.join(script_dir, "subcortical_mapping.py"), "-id", bids_id, "-v", aseg_stats_file, "-o", output_file])
+        subcortical_mapping(bids_id, vol=aseg_stats_file, output=output_file)
+        # subprocess.run(["python", os.path.join(script_dir, "subcortical_mapping.py"), "-id", bids_id, "-v", aseg_stats_file, "-o", output_file])
 
     if os.path.isfile(output_file):
         show_note(f"{bids_id}: '{feat}' successfully mapped.")

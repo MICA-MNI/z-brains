@@ -14,11 +14,11 @@ from functions import run_proc, run_analysis
 import colorama
 from functions.environment import setenv
 from joblib import Parallel, delayed
-import pandas as pd
 import copy
 from contextlib import contextmanager
-
-
+import argparse
+import sys
+from functions.help import help
 @contextmanager
 def tempdir(SUBJECT_OUTPUT_DIR, prefix):
     path = tempfile.mkdtemp(dir=SUBJECT_OUTPUT_DIR, prefix=prefix)
@@ -32,13 +32,13 @@ def tempdir(SUBJECT_OUTPUT_DIR, prefix):
             
 def jobloop(args):
     try:
-        main(args)
+        main_func(args)
     except Exception as e:
         print(e)
     
 
 
-def main(args):
+def main_func(args):
 
     # Define the ZBRAINS and script_dir variables
     ZBRAINS = Path(os.path.realpath(__file__)).parent
@@ -74,22 +74,6 @@ def main(args):
         assert_required("--zbrains_ref", args.zbrains_ref, "--zbrains_ref option is required for analysis.")
         assert_required("--demo_ref", args.demo_ref, "--demo_ref option is required for analysis.")
         assert_same_size("--dataset_ref", args.dataset_ref, "--demo_ref", args.demo_ref)
-        
-        # found = False
-        # for csv_file in args.demo_ref:
-        #     df = pd.read_csv(csv_file)
-        #     # Check if 'participant_id' and 'session_id' columns exist in the DataFrame
-        #     if 'participant_id' not in df.columns or 'session_id' not in df.columns:
-        #         continue
-
-        #     # Check if args.sub and args.ses are in the same row
-        #     if ((df['participant_id'] == args.sub) & (df['session_id'] == args.ses)).any():
-        #         found = True
-        #         break
-
-        # if not found:
-        #     raise ValueError(f"The participant ID '{args.sub}' and session ID '{args.ses}' are not in the same row of any CSV file.")
-        
         
         n_datasets = len(args.dataset_ref)
         if n_datasets != len(args.zbrains_ref):
@@ -243,7 +227,6 @@ def main(args):
 
     # Temporary folder
     with tempdir(SUBJECT_OUTPUT_DIR, prefix="z_brains_temp.") as tmp_dir:
-    # tmp_dir = tempfile.mkdtemp(dir=SUBJECT_OUTPUT_DIR, prefix="z_brains_temp.")
         try:
             os.chmod(SUBJECT_OUTPUT_DIR, 0o770)
 
@@ -314,217 +297,62 @@ def main(args):
             # Total running time
             elapsed = (time.time() - start_time) / 60
             show_title(f"Total elapsed time for {BIDS_ID}: {elapsed:.2f} minutes")
-            # try:
-            #     cleanup(tmp_dir)
-            # except:
-            #     pass
         except Exception as e:
             print(e)
-            # try:
-            #     cleanup(tmp_dir)
-            # except:
-            #     pass
-if __name__ == '__main__':
-    pcolor = colorama.Fore.MAGENTA  # Purple
-    rcolor = colorama.Fore.RED  # Red
-    gcolor = colorama.Fore.GREEN  # Green
-    bcolor = colorama.Fore.BLUE  # Blue
-    gray = colorama.Fore.LIGHTBLACK_EX  # Gray
-    nc = colorama.Style.RESET_ALL  # No color
-    help = f"""
-    {pcolor}COMMAND:{nc}
-    zbrains.py
 
+def check_sub(args, sub, ses=None):
+    micapipe_path = os.path.join(args.dataset, 'derivatives', args.micapipe, sub)
+    hippunfold_path = os.path.join(args.dataset, 'derivatives', args.hippunfold, 'hippunfold', sub)
 
-    {pcolor}OPTIONS:{nc}
-    \t{rcolor}--sub{nc} ID                  : Subject ID. This is the target subject. Example: 'sub-PX001'.
-    \t{rcolor}--dataset{nc} path            : Path to the BIDS dataset containing the target subject's data.
-                                        Example: '/path/to/BIDSDataset'.
-    \t{rcolor}--zbrains{nc} dir             : Name of the zbrains derivative folder in the target BIDS dataset. The
-                                        folder will be created if it does not exist. Example: '--zbrains zbrainsdir' for
-                                        '/path/to/BIDSDataset/derivatives/zbrainsdir'.
-    \t{gcolor}--run{nc} task                : Tasks to perform. Options:
-                                        - {bcolor}proc{nc}          : perform post-processing of target subject (default).
-                                        - analysis      : perform analysis (regional & asymmetry) and generate clinical
-                                                            report for target subject. The analysis is performed wrt the
-                                                            reference subjects (those provided with --demo_ref).
-                                                            Post-processing of both target and reference subjects must be
-                                                            performed beforehand.
-                                        - all           : perform all tasks
+    if ses is not None:
+        micapipe_path = os.path.join(micapipe_path, ses)
+        hippunfold_path = os.path.join(hippunfold_path, ses)
 
-    \t{gcolor}--ses{nc} [ses]               : Identifier for a session in the target subject data. If omitted, data will
-                                        be managed as a single session. Example: 'ses-001'.
-    \t{gcolor}--micapipe{nc} [dir]          : Name of the micapipe derivative folder in the target BIDS dataset. Required
-                                        only for post-processing. Example: '--micapipe micapipedir' for
-                                        '/path/to/BIDSDataset/derivatives/micapipedir'.
-    \t{gcolor}--hippunfold{nc} [dir]        : Name of the hippunfold derivative folder in the target BIDS dataset. Required
-                                        only for post-processing. Example: '--hippunfold hipdir' for
-                                        '/path/to/BIDSDataset/derivatives/hipdir'.
-    \t${gcolor}--plugin${nc} [dir]            : Name of a plugin derivative folder in the target BIDS dataset. zbrains can accept
-                                    data outside of micapipe and hippunfold as a 'plugin' folder. However, these data MUST
-                                    be formatted as BIDS-derivatives exactly as in micapipe and hippunfold. If hippocampal
-                                    surface data are present then they will be used but otherwise volumetric data will be
-                                    mapped to hippocampal and subcortical surfaces. 
-                                    '/path/to/BIDSDataset/derivatives/plugindir'.
-    \t{gcolor}--demo{nc} [path]             : CSV/TSV file with demographics for the target subject. Required only for
-                                        analysis when provided by --normative or --deconfound. Additionally, the file is
-                                        also used to extract the subject's age and sex, if available, to be included in the
-                                        clinical report. The file must include one row with target subject ID and session.
-                                        Expected column names:
-                                        - participant_id: Subject ID. Required.
-                                        - session_id    : Session ID. Use 'n/a' if no session available.
-                                        - age           : Subject age. Required only when used by --normative or
-                                                            --deconfound. If provided, it will also be included in the
-                                                            clinical report.
-                                        - sex           : Subject sex. Possible values: 'F' or 'M'. Required only when
-                                                            used by --normative or --deconfound. If provided, it will
-                                                            also be included in the clinical report.
-                                        - site          : Acquisition site. Required only when used by --normative or
-                                                            --deconfound.
-                                        - Other         : Any other columns used by --normative or --deconfound.
-                                        Use the --column_map option to indicate if these variables are under different
-                                        column names in your file.
+    if not os.path.exists(micapipe_path):
+        print(f'No micapipe for {sub}-{f"-{ses}" if ses else ""}, skipping')
+        return False
 
-    \t{gcolor}--dataset_ref{nc} [path ...]  : Paths to the BIDS datasets containing the reference subjects data. Required
-                                        only for analysis. Each dataset must correspond to one file in --demo_ref.
-    \t{gcolor}--zbrains_ref{nc} [dir ...]   : Names of the zbrains derivative folder in each of the reference datasets.
-                                        Required only for analysis. If only one folder name is provided but there are
-                                        multiple datasets, we assume the same name in all datasets.
-    \t{gcolor}--demo_ref{nc} [path ...]     : CSV/TSV files with demographics for reference subjects. Required only for
-                                        analysis. There must be one file for each reference dataset (--dataset_ref).
-                                        Required only for analysis. See --demo for expected column names.
+    if not os.path.exists(hippunfold_path):
+        print(f'No hippunfold for {sub}{f"-{ses}" if ses else ""}, skipping')
+        return False
 
-    \t{gcolor}--struct{nc} [structure ...]  : Structures to use in processing and/or analysis. Options:
-                                        - cortex        : cortical data
-                                        - subcortex     : subcortical data
-                                        - hippocampus   : hippocampal data
-                                        - {bcolor}all{nc}           : all structures (default)
-    \t{gcolor}--feat{nc} [feature ...]      : Features to use in processing and/or analysis. Options:
-                                        - ADC           : apparent diffusion coefficient
-                                        - FA            : fractional anisotropy
-                                        - flair         : FLAIR
-                                        - qT1           : quantitative T1
-                                        - thickness     : cortical thickness (for subcortex, volume is used)
-                                        - {bcolor}all{nc}           : all features (default)
-                                        - plugin-*      : when pulling data from a plugin, feature names must be given the 
-                                                        'plugin-' prefix (but this is not needed in the actual file name)
-    \t{gcolor}--normative{nc} [cov ...]     : Normative modeling based on provided covariates. Covariates must match
-                                        columns in --demo and --demo_ref files. Note that --normative expects some
-                                        covariates to have specific names (see --column_map).
-                                        Example: '--normative site age sex'.
-    \t{gcolor}--deconfound{nc} [[-]cov ...] : Deconfounding based on provided covariates. Covariates must match columns in
-                                        --demo and --demo_ref CSV files. If the covariates include 'site', deconfounding is
-                                        performed using ComBat. Otherwise, linear regression is used to regress out the
-                                        effects of the covariates from the data. By default, ComBat preserves additional
-                                        covariates. To remove the effects of a covariate, prepend with '-' (ignored when not
-                                        using ComBat). Note that --deconfound expects some covariates to have specific names
-                                        (see --column_map). Example: '--deconfound site -age -sex group' to harmonize data
-                                        while preserving the effects of group and removing those of age and sex.
-    \t{gcolor}--resolution{nc} [res ...]    : Surface resolutions to use for cortex and hippocampus. Options:
-                                        - low           : 5k cortical & 2mm hippocampal surfaces
-                                        - high          : 32k cortical surfaces & 0p5mm hippocampal surfaces
-                                        - {bcolor}all{nc}           : all resolutions (default)
-    \t{gcolor}--label_ctx{nc} [label]       : Cortical surfaces used in the volume to surface mapping. Options:
-                                        - {bcolor}white{nc}         : WM surface (default)
-                                        - midthickness  : Midthickness surface
-                                        - pial          : Pial surface
-                                        - swmD          : Superficial white matter, where D indicates the distance in
-                                                            millimeters. Example: --label_ctx swm2
-    \t{gcolor}--label_hip{nc} [label]       : Hippocampal surface used in the volume to surface mapping. Options:
-                                        - {bcolor}midthickness{nc}  : Midthickness surface (default)
-    \t{gcolor}--smooth_ctx{nc} [size]       : Size of gaussian smoothing kernel in mm used for cortical features.
-                                        Default is {bcolor}5{nc}.
-    \t{gcolor}--smooth_hip{nc} [size]       : Size of gaussian smoothing kernel in mm used for hippocampal features.
-                                        Default is {bcolor}2{nc}.
-    \t{gcolor}--threshold{nc} [th]          : Threshold for statistical maps used for clinical reports.
-                                        Default is {bcolor}1.96{nc}.
-    \t{gcolor}--column_map{nc} [VAR=col ...]: Map expected to actual column names in the CSV/TSV files:
-                                        - participant_id: Subject ID is assumed to be provided by the 'participant_id'
-                                                            column, unless indicated otherwise. For example, if subject ID
-                                                            is under the column ‘SubID’, you can indicate this with
-                                                            --column_map participant_id=SubID.
-                                        - session_id    : Session ID is assumed to be provided by the ‘session_id’ column,
-                                                            unless indicated otherwise (e.g., --column_map session_id=ses)
-                                        - age           : Age is assumed to be provided by the ‘age’ column, unless
-                                                            indicated otherwise (e.g., --column_map age=\"Subject age\")
-                                        - sex           : Sex is assumed to be provided by the 'sex' column, unless
-                                                            indicated otherwise (e.g., --column_map ses=\"Subject sex\")
-                                        - site          : Acquisition site is assumed to be provided by the ‘site’ column,
-                                                            unless indicated otherwise (e.g., --column_map site=center)
-    \t{gcolor}--init{nc} [path]             : Initialization script that will be sourced before executing the main script.
-                                        Useful for setting up environment variables, activating virtual environments, or any
-                                        other setup tasks needed before running your script (see DEPENDENCIES below).
-    \t{gcolor}--verbose{nc} [level]         : Verbosity level (default is {bcolor}-1{nc}). Levels:
-                                        - 0             : Only errors
-                                        - 1             : Warning messages and previous levels
-                                        - 2             : Information messages and previous levels
-                                        - 3             : Command logs and previous levels
-                                        - >3 or <0      : All messages
-    \t{gcolor}--help{nc}                    : Print help
-    \t{gcolor}--version{nc}                 : Print software version
+    return True
 
+def create_jobs(args, subs, ses, run_type):
+    jobs = []
+    for sub in subs:
+        for s in ses or os.listdir(os.path.join(args.dataset, 'derivatives', args.micapipe, sub)):
+            if check_sub(args, sub, s):
+                job = copy.copy(args)
+                job.sub, job.ses, job.run = sub, s, run_type
+                if args.patient_prefix in job.sub or run_type == 'proc':
+                    jobs.append(job)
+    return jobs
 
+def main(args):
+    # Assume args is parsed from command line arguments
+    args.ses = args.ses.split(' ') if args.ses else None
+    args.sub = args.sub.split(' ') if args.sub != 'all' else [sub for sub in os.listdir(os.path.join(args.dataset, 'derivatives', args.micapipe)) if check_sub(args, sub)]
 
-    {pcolor}USAGE:{nc}
-        {gray}# Post-processing{nc}
-        {pcolor}zbrains.py{nc} {gcolor}--run{nc} proc
-                {rcolor}--sub{nc} <participant_id>
-                {gcolor}--ses{nc} <session_id>
-                {rcolor}--dataset{nc} <path_bids_dataset>
-                {rcolor}--zbrains{nc} <zbrains_directory>
-                {gcolor}--micapipe{nc} <micapipe_directory>
-                {gcolor}--hippunfold{nc} <hipunfold_directory>
+    if args.ses and len(args.ses) != len(args.sub):
+        print('Number of subs and sessions do not match')
+        sys.exit()
 
-        {gray}# Analysis{nc}
-        {pcolor}zbrains.py{nc} {gcolor}--run{nc} analysis
-                {rcolor}--sub{nc} <participant_id>
-                {gcolor}--ses{nc} <session_id>
-                {rcolor}--dataset{nc} <participant_dataset>
-                {rcolor}--zbrains{nc} <participant_zbrains_dir>
-                {gcolor}--demo_ref{nc} <reference_subjects1.csv> <reference_subjects2.csv>
-                {gcolor}--dataset_ref{nc} <reference_dataset1> <reference_dataset2>
-                {gcolor}--zbrains_ref{nc} <reference_zbrains_dir1> <reference_zbrains_dir2>
+    procjobs = create_jobs(args, args.sub, args.ses, 'proc')
+    analysisjobs = create_jobs(args, args.sub, args.ses, 'analysis')
 
+    Parallel(n_jobs=args.n_jobs)(delayed(jobloop)(job) for job in procjobs)
+    Parallel(n_jobs=args.n_jobs)(delayed(jobloop)(job) for job in analysisjobs)
 
-
-    {pcolor}DEPENDENCIES:{nc}
-        > workbench   1.4.2   (https://www.humanconnectome.org/software/workbench-command)
-        > ANTs        2.3.4   (https://github.com/ANTsX/ANTs)
-        > python      3.10    (https://www.python.org)
-
-        To customize binary locations, use the following environment variables:
-        - Set ANTSPATH for ANTs
-        - Set WORKBENCH_PATH for Workbench
-
-        Control the number of threads:
-        - Set ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS for ANTs
-        - Set OMP_NUM_THREADS for Workbench
-
-        Example:
-        {gray}# Set threads for ANTs{nc}
-        $ export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=4
-
-        {gray}# Set threads for Workbench{nc}
-        $ export OMP_NUM_THREADS=4
-
-        Use the --init option to specify an initialization script for environment variables, Python activation, etc.
-
-
-
-    McGill University, MNI, MICA lab, April 2023
-    https://github.com/MICA-MNI/micapipe
-    https://github.com/MICA-MNI/z-brains
-    http://mica-mni.github.io/
-    """
-
-    import argparse
-    import sys
-
-    # Define the argument parser
-    class Parser(argparse.ArgumentParser):
+class Parser(argparse.ArgumentParser):
 
         def print_help(self):
             print(help)
+
+if __name__ == '__main__':
+    
+
+    # Define the argument parser
             
     parser = Parser(description='Handle all arguments and create variables')
 
@@ -555,6 +383,7 @@ if __name__ == '__main__':
     parser.add_argument('--init', type=str, default=None)
     
     parser.add_argument('--n_jobs', type=int, default=1)
+    parser.add_argument('--n_jobs_wb', type=int, default=8)
     parser.add_argument('--wb_path', type=str, default="/data/mica1/01_programs/workbench-1.4.2/bin_linux64")
     parser.add_argument('--patient_prefix', type=str, default="PX")
     
@@ -568,131 +397,9 @@ if __name__ == '__main__':
     WORKBENCH_PATH = setenv(args.wb_path)
     os.environ['WORKBENCH_PATH'] = WORKBENCH_PATH
     runs = args.run
+    os.environ['OMP_NUM_THREADS'] = str(args.n_jobs_wb)
     
-    procjobs = []
-    analysisjobs = []
+    main(args)
     
-    def check_sub(args, sub, ses=None):
-        micapipe_path = os.path.join(args.dataset, 'derivatives', args.micapipe, sub)
-        hippunfold_path = os.path.join(args.dataset, 'derivatives', args.hippunfold, 'hippunfold', sub)
-
-        if ses is not None:
-            micapipe_path = os.path.join(micapipe_path, ses)
-            hippunfold_path = os.path.join(hippunfold_path, ses)
-
-        if os.path.exists(micapipe_path):
-            if os.path.exists(hippunfold_path):
-                return True
-            else:
-                if ses is not None:
-                    print(f'No hippunfold for {sub}-{ses}, skipping')
-                else:
-                    print(f'No hippunfold for {sub}, skipping')
-                return False
-        else:
-            if ses is not None:
-                print(f'No micapipe for {sub}-{ses}, skipping')
-            else:
-                print(f'No micapipe for {sub}, skipping')
-            return False
-    
-    if args.ses:
-        sess = ''
-        for ses in args.ses.split(' '):
-            sess += f'{ses} '
-        args.ses = sess.strip().split(' ')
-        if args.sub == 'all':
-            print('Session ID provided but no subject ID provided. Exiting...')
-            sys.exit()
-            
-        
-    if args.sub == 'all':
-        print(f'Will run all subjects using {args.patient_prefix} as a prefix for patients')
-        subs = ''
-        for sub in os.listdir(os.path.join(args.dataset, 'derivatives', args.micapipe)):
-            if check_sub(args,sub):
-                subs += f'{sub} '
-        args.sub = subs
-    
-
-    if args.ses and len(args.ses)  != len(args.sub.strip().split(' ')):
-        print('Number of subs and sessions do not match')
-        sys.exit()
-
-    if len(args.sub.strip().split(' ')) > 1:
-        subs = args.sub.strip().split(' ')
-        if args.ses:
-            
-            print(f'Will run selected subs using only defined sessions')
-            
-            
-            if 'proc' in runs:
-                for e,sub in enumerate(subs):
-                    job = copy.copy(args)
-                    job.sub, job.ses, job.run = sub, args.ses[e], 'proc'
-                    if check_sub(args,sub,args.ses[e]):
-                        procjobs.append(job)
-
-            if 'analysis' in runs:  
-                for e,sub in enumerate(subs):
-                    job = copy.copy(args)
-                    job.sub, job.ses, job.run = sub, args.ses[e], 'analysis'
-                    if check_sub(args,sub,args.ses[e]) and args.patient_prefix in job.sub:
-                        analysisjobs.append(job)
-        else:
-            print('Will run selected subs and all sessions')
-
-            if 'proc' in runs: 
-                for sub in subs:
-                    
-                    for ses in os.listdir(os.path.join(args.dataset, 'derivatives', args.micapipe, sub)):
-                        job = copy.copy(args)
-                        job.sub, job.ses, job.run = sub, ses, 'proc'
-                        if check_sub(args,sub,ses):
-                            procjobs.append(job)
-
-            if 'analysis' in runs: 
-                for sub in subs:
-                    for ses in os.listdir(os.path.join(args.dataset, 'derivatives', args.micapipe, sub)):
-                        job = copy.copy(args)
-                        job.sub, job.ses, job.run = sub, ses, 'analysis'
-                        if check_sub(args,sub,ses) and args.patient_prefix in job.sub:
-                            analysisjobs.append(job)
-    else:
-        if args.ses:
-            print(f'Will run selected subs using only session {args.ses}')
-
-            if 'proc' in runs:
-                job = copy.copy(args)
-                job.ses, job.run = args.ses, 'proc'
-                if check_sub(args,args.sub,args.ses):
-                    procjobs.append(job)
-                
-            if 'analysis' in runs:  
-                job = copy.copy(args)
-                job.ses, job.run = args.ses, 'analysis'
-                if check_sub(args,args.sub,args.ses) and args.patient_prefix in job.sub:
-                    analysisjobs.append(job)
-        else:
-            print('Will run selected subs and all sessions')
-
-            if 'proc' in runs: 
-                for ses in os.listdir(os.path.join(args.dataset, 'derivatives', args.micapipe, args.sub)):
-                    job = copy.copy(args)
-                    job.ses, job.run = ses, 'proc'
-                    if check_sub(args,args.sub,ses):
-                        procjobs.append(job)
-            if 'analysis' in runs: 
-                
-                for ses in os.listdir(os.path.join(args.dataset, 'derivatives', args.micapipe, args.sub)):
-                    job = copy.copy(args)
-                    job.ses, job.run = ses, 'analysis'
-                    if check_sub(args,args.sub,ses) and args.patient_prefix in job.sub:
-                        analysisjobs.append(job)
-
-    for job in procjobs:
-        print(job.sub, job.ses)
-    Parallel(n_jobs=args.n_jobs)(delayed(jobloop)(job) for job in procjobs)
-    Parallel(n_jobs=args.n_jobs)(delayed(jobloop)(job) for job in analysisjobs)
 
 

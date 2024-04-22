@@ -156,7 +156,13 @@ ${pcolor}OPTIONS:${nc}
                                                         unless indicated otherwise (e.g., --column_map site=center)
 \t${gcolor}--init${nc} [path]             : Initialization script that will be sourced before executing the main script.
                                     Useful for setting up environment variables, activating virtual environments, or any
-                                    other setup tasks needed before running your script (see DEPENDENCIES below).
+                                    other setup tasks needed before running your script (see DEPENDENCIES below). Unused when backend
+                                    is 'python'                 
+\t${gcolor}--n_jobs${nc} [number]         : Number of jobs to run in parallel. Default is ${bcolor}1${nc}.
+\t${gcolor}--wb_path${nc} [path]          : Path to the Connectome Workbench binaries. Default is ${bcolor}/data/mica1/01_programs/workbench-1.4.2/bin_linux64${nc}.
+\t${gcolor}--patient_prefix${nc} [prefix] : Prefix to use when determining patients versus controls. Default is ${bcolor}PX${nc}.
+\t${gcolor}--backend${nc} [backend]        : Backend to use for processing. Default is ${bcolor}shell${nc}, retaining old functionality. Can be set to ${bcolor}python${nc} to test the new branch.
+                                          Has no effect when calling the Python script directly.
 \t${gcolor}--verbose${nc} [level]         : Verbosity level (default is ${bcolor}-1${nc}). Levels:
                                       - 0             : Only errors
                                       - 1             : Warning messages and previous levels
@@ -232,6 +238,18 @@ args=("$@")
 while (( "${#args[@]}" )); do
   option="${args[0]}"
   case "${option}" in
+  --backend)
+    PARSE_OPTION_SINGLE_VALUE backend args || exit $?
+    if [ "$backend" == "python" ]; then
+      backend_python=true
+    fi
+    ;;
+  *)
+    # If --backend python was given, add the argument to the Python script arguments
+    if [ "$backend_python" = true ]; then
+      python_args+=("$option")
+    fi
+  case "${option}" in
   --sub)
     PARSE_OPTION_SINGLE_VALUE sid args || exit $?
     ;;
@@ -250,11 +268,7 @@ while (( "${#args[@]}" )); do
   --hippunfold)
     PARSE_OPTION_SINGLE_VALUE hipunfold_dir args || exit $?
     ;;
-<<<<<<< HEAD:zbrains.sh
-    --plugin)
-=======
   --plugin)
->>>>>>> upstream/main:zbrains
     PARSE_OPTION_SINGLE_VALUE plugin_dir args || exit $?
     ;;
   --dataset_ref)
@@ -333,6 +347,10 @@ while (( "${#args[@]}" )); do
 
 done
 
+# If --backend python was given, run the Python script with the collected arguments
+if [ "$backend_python" = true ]; then
+  python zbrains.py "${python_args[@]}"
+fi
 
 # ------------------------------------------------- Check arguments ------------------------------------------------- #
 ASSERT_REQUIRED "--sub" "$sid"
@@ -451,19 +469,12 @@ if [[ " ${tasks[*]} " =~ " proc " ]]; then
     echo $SUBJECT_HIPPUNFOLD_DIR
     ASSERT_EXISTS "${SUBJECT_HIPPUNFOLD_DIR}" "${BIDS_ID} hippunfold directory does not exist."
   fi
-<<<<<<< HEAD:zbrains.sh
-    # Subject's plugin directory exists
-  export SUBJECT_PLUGIN_DIR=${dataset_path}/${plugin_dir}/${sid}${ses:+/${ses}}
-  ASSERT_EXISTS "${SUBJECT_PLUGIN_DIR}" "${BIDS_ID} plugin directory does not exist."
-  
-=======
 
   # Subject's plugin directory exists
   export SUBJECT_PLUGIN_DIR=${dataset_path}/${plugin_dir}/${sid}${ses:+/${ses}}
   ASSERT_EXISTS "${SUBJECT_PLUGIN_DIR}" "${BIDS_ID} plugin directory does not exist."
 
 
->>>>>>> upstream/main:zbrains
   # Check if subject's freesurfer/fastsurfer directory exists - only needed for subcortex
   if [[ " ${structures[*]} " =~ " subcortex " ]]; then
     # Set surface directory and check if subject has a surface directory
