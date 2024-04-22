@@ -128,6 +128,7 @@ def check_files_and_directories(args, tasks, structures, sid, ses):
 
     if "proc" in tasks:
         SUBJECT_MICAPIPE_DIR = os.path.join(dataset_path, args.micapipe, sid, ses) if ses else os.path.join(dataset_path, args.micapipe, sid)
+        print(SUBJECT_MICAPIPE_DIR)
         assert_exists(SUBJECT_MICAPIPE_DIR, f"{BIDS_ID} micapipe directory does not exist.")
 
         if "hippocampus" in structures:
