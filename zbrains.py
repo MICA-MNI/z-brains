@@ -16,6 +16,20 @@ from functions.environment import setenv
 from joblib import Parallel, delayed
 import pandas as pd
 import copy
+from contextlib import contextmanager
+
+
+@contextmanager
+def tempdir(SUBJECT_OUTPUT_DIR, prefix):
+    path = tempfile.mkdtemp(dir=SUBJECT_OUTPUT_DIR, prefix=prefix)
+    try:
+        yield path
+    finally:
+        try:
+            shutil.rmtree(path)
+        except IOError:
+            sys.stderr.write('Failed to clean up temp dir {}'.format(path))
+            
 def jobloop(args):
     try:
         main(args)
@@ -228,87 +242,88 @@ def main(args):
                 os.makedirs(path, exist_ok=True)
 
     # Temporary folder
-    tmp_dir = tempfile.mkdtemp(dir=SUBJECT_OUTPUT_DIR, prefix="z_brains_temp.")
-    try:
-        os.chmod(SUBJECT_OUTPUT_DIR, 0o770)
+    with tempdir(SUBJECT_OUTPUT_DIR, prefix="z_brains_temp.") as tmp_dir:
+    # tmp_dir = tempfile.mkdtemp(dir=SUBJECT_OUTPUT_DIR, prefix="z_brains_temp.")
+        try:
+            os.chmod(SUBJECT_OUTPUT_DIR, 0o770)
 
-        # ----------------------------------------------------- Cleanup ----------------------------------------------------- #
-        def cleanup(tmp_dir):
-            shutil.rmtree(tmp_dir, ignore_errors=True)
+            # ----------------------------------------------------- Cleanup ----------------------------------------------------- #
+            def cleanup(tmp_dir):
+                shutil.rmtree(tmp_dir, ignore_errors=True)
 
-        atexit.register(cleanup, tmp_dir)
+            atexit.register(cleanup, tmp_dir)
 
-        # -------------------------------------------------- Postprocessing ------------------------------------------------- #
-        if "proc" in tasks:
-            logfile = os.path.join(logs_dir, f"proc_{datetime.datetime.now().strftime('%d-%m-%Y')}.txt")
-            with open(logfile, 'w') as f:
-                f.write("\n")
-            
-            for struct in structures:
-                # cmd = [os.path.join(script_dir, 'run_proc.sh'), '--struct', struct, '--feat', ' '.join(features), '--tmp', tmp_dir]
+            # -------------------------------------------------- Postprocessing ------------------------------------------------- #
+            if "proc" in tasks:
+                logfile = os.path.join(logs_dir, f"proc_{datetime.datetime.now().strftime('%d-%m-%Y')}.txt")
+                with open(logfile, 'w') as f:
+                    f.write("\n")
+                
+                for struct in structures:
+                    # cmd = [os.path.join(script_dir, 'run_proc.sh'), '--struct', struct, '--feat', ' '.join(features), '--tmp', tmp_dir]
 
-                if struct == "hippocampus":
-                    list_resolutions = [map_resolution_hip[k] for k in resolutions]
-                    temp_labels = labels_hip
-                    fwhm = smooth_hip
-                elif struct == "cortex":
-                    list_resolutions = [map_resolution_ctx[k] for k in resolutions]
-                    temp_labels = labels_ctx
-                    fwhm = smooth_ctx
-                    # list_resolutions = [map_resolution_ctx[k] for k in resolutions]
-                    # cmd.extend(['--fwhm', smooth_ctx, '--resolution', ' '.join(list_resolutions), '--labels', ' '.join(labels_ctx)])
-                else:
-                    list_resolutions = None
-                    temp_labels = None
-                    fwhm = None
-                run_proc.run(structure=struct, features=features, tmp_dir=tmp_dir, WORKBENCH_PATH=os.environ['WORKBENCH_PATH'], subject_micapipe_dir=SUBJECT_MICAPIPE_DIR, subject_output_dir=SUBJECT_OUTPUT_DIR, folder_maps=FOLDER_MAPS, folder_ctx=FOLDER_CTX, folder_sctx=FOLDER_SCTX, folder_hip=FOLDER_HIP, subject_surf_dir=SUBJECT_SURF_DIR, subject_hippunfold_dir=SUBJECT_HIPPUNFOLD_DIR, script_dir=script_dir, BIDS_ID=BIDS_ID, VERBOSE=VERBOSE, fwhm=fwhm, resolutions=list_resolutions, labels=temp_labels,subject_plugin_dir=SUBJECT_PLUGIN_DIR)
+                    if struct == "hippocampus":
+                        list_resolutions = [map_resolution_hip[k] for k in resolutions]
+                        temp_labels = labels_hip
+                        fwhm = smooth_hip
+                    elif struct == "cortex":
+                        list_resolutions = [map_resolution_ctx[k] for k in resolutions]
+                        temp_labels = labels_ctx
+                        fwhm = smooth_ctx
+                        # list_resolutions = [map_resolution_ctx[k] for k in resolutions]
+                        # cmd.extend(['--fwhm', smooth_ctx, '--resolution', ' '.join(list_resolutions), '--labels', ' '.join(labels_ctx)])
+                    else:
+                        list_resolutions = None
+                        temp_labels = None
+                        fwhm = None
+                    run_proc.run(structure=struct, features=features, tmp_dir=tmp_dir, WORKBENCH_PATH=os.environ['WORKBENCH_PATH'], subject_micapipe_dir=SUBJECT_MICAPIPE_DIR, subject_output_dir=SUBJECT_OUTPUT_DIR, folder_maps=FOLDER_MAPS, folder_ctx=FOLDER_CTX, folder_sctx=FOLDER_SCTX, folder_hip=FOLDER_HIP, subject_surf_dir=SUBJECT_SURF_DIR, subject_hippunfold_dir=SUBJECT_HIPPUNFOLD_DIR, script_dir=script_dir, BIDS_ID=BIDS_ID, VERBOSE=VERBOSE, fwhm=fwhm, resolutions=list_resolutions, labels=temp_labels,subject_plugin_dir=SUBJECT_PLUGIN_DIR)
+                    # do_cmd(cmd)
+
+            # ----------------------------------------------------- Analysis ---------------------------------------------------- #
+            if "analysis" in tasks:
+                logfile = os.path.join(logs_dir, f"analysis_{datetime.datetime.now().strftime('%d-%m-%Y')}.txt")
+
+                ref_zbrains_paths = [os.path.join(args.dataset_ref[idx], 'derivatives', args.zbrains_ref[idx]) for idx in range(len(args.dataset_ref))]
+                
+                run_analysis.run(
+                subject_id=sid,
+                session=ses,
+                zbrains_ref=ref_zbrains_paths,
+                demo_ref=args.demo_ref,
+                zbrains=px_zbrains_path,
+                struct=structures,
+                feat=features,
+                smooth_ctx=smooth_ctx,
+                smooth_hip=smooth_hip,
+                threshold=threshold,
+                approach='zscore',
+                resolution=resolutions,
+                labels_ctx=labels_ctx,
+                labels_hip=labels_hip,
+                logfile=logfile,
+                tmp=tmp_dir,
+                verbose=VERBOSE,
+                demo=args.demo,
+                normative=args.normative, 
+                deconfound=args.deconfound, 
+                column_map=args.column_map ,
+            )
+                # print(' '.join(cmd))
                 # do_cmd(cmd)
 
-        # ----------------------------------------------------- Analysis ---------------------------------------------------- #
-        if "analysis" in tasks:
-            logfile = os.path.join(logs_dir, f"analysis_{datetime.datetime.now().strftime('%d-%m-%Y')}.txt")
-
-            ref_zbrains_paths = [os.path.join(args.dataset_ref[idx], 'derivatives', args.zbrains_ref[idx]) for idx in range(len(args.dataset_ref))]
-            
-            run_analysis.run(
-            subject_id=sid,
-            session=ses,
-            zbrains_ref=ref_zbrains_paths,
-            demo_ref=args.demo_ref,
-            zbrains=px_zbrains_path,
-            struct=structures,
-            feat=features,
-            smooth_ctx=smooth_ctx,
-            smooth_hip=smooth_hip,
-            threshold=threshold,
-            approach='zscore',
-            resolution=resolutions,
-            labels_ctx=labels_ctx,
-            labels_hip=labels_hip,
-            logfile=logfile,
-            tmp=tmp_dir,
-            verbose=VERBOSE,
-            demo=args.demo,
-            normative=args.normative, 
-            deconfound=args.deconfound, 
-            column_map=args.column_map ,
-        )
-            # print(' '.join(cmd))
-            # do_cmd(cmd)
-
-        # Total running time
-        elapsed = (time.time() - start_time) / 60
-        show_title(f"Total elapsed time for {BIDS_ID}: {elapsed:.2f} minutes")
-        try:
-            cleanup(tmp_dir)
-        except:
-            pass
-    except Exception as e:
-        print(e)
-        try:
-            cleanup(tmp_dir)
-        except:
-            pass
+            # Total running time
+            elapsed = (time.time() - start_time) / 60
+            show_title(f"Total elapsed time for {BIDS_ID}: {elapsed:.2f} minutes")
+            # try:
+            #     cleanup(tmp_dir)
+            # except:
+            #     pass
+        except Exception as e:
+            print(e)
+            # try:
+            #     cleanup(tmp_dir)
+            # except:
+            #     pass
 if __name__ == '__main__':
     pcolor = colorama.Fore.MAGENTA  # Purple
     rcolor = colorama.Fore.RED  # Red
