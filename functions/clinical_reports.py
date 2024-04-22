@@ -413,7 +413,7 @@ def _make_png_ctx(
                      filename=out_png, **kwds)
 
     # Plot cortex with different views
-    out_png2 = out_png.with_stem(out_png.stem + '_SI')
+    out_png2 = os.path.join(os.path.dirname(out_png), os.path.splitext(os.path.basename(out_png))[0] + '_SI' + os.path.splitext(out_png)[1])
     plot_surfs(surfaces=[slh, srh, srh, slh],
                values=[data_lh, data_rh, data_rh, data_lh],
                views=['dorsal', 'dorsal', 'ventral', 'ventral'],
