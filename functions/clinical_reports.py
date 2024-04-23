@@ -691,12 +691,14 @@ def generate_clinical_report(
         features.remove('volume')
     
     
-    if platform.platform().startswith('Linux'):
+    if os.environ["DISPLAY"] == ':0.0':
         os.environ['PYVIRTUALDISPLAY_DISPLAYFD'] = '0'
         # Display for headless plotting
         dsize = (900, 750)
-        display = Display(visible=False, size=dsize)
+        display = Display(visible=False, size=dsize,manage_global_env=False)
         display.start()
+    else: 
+        print(os.environ["DISPLAY"])
     # print(features)
     report = ''
     # for analysis in analyses:
@@ -711,7 +713,7 @@ def generate_clinical_report(
         if thresh is None:
             logger.info(f'Running summary of analysis={analysis}, '
                         f'approach={approach}, feature={feat}')
-        
+
         # -------------------------------------------------------------------------
         # Generate the report Title
         report += report_header_template(
@@ -743,7 +745,7 @@ def generate_clinical_report(
 
         # page break
         report += '<div style="page-break-after: always;"></div>'
-    if platform.platform().startswith('Linux'):
+    if os.environ["DISPLAY"] == ':0.0':
         # Stop display for headless plotting
         display.stop()
 
