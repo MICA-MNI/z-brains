@@ -8,10 +8,8 @@ import shutil
 import glob
 import time
 import datetime
-import atexit
 from functions.new_constants import *
 from functions import run_proc, run_analysis
-import colorama
 from functions.environment import setenv
 from joblib import Parallel, delayed
 import copy
@@ -19,10 +17,8 @@ from contextlib import contextmanager
 import argparse
 import sys
 from functions.help import help
-import platform
-from pyvirtualdisplay import Display
 from multiprocessing import Manager
-
+from functions.cleantemps import delete_temp_folders
 @contextmanager
 def tempdir(SUBJECT_OUTPUT_DIR, prefix):
     path = tempfile.mkdtemp(dir=SUBJECT_OUTPUT_DIR, prefix=prefix)
@@ -370,7 +366,7 @@ if __name__ == '__main__':
     runs = args.run
     os.environ['OMP_NUM_THREADS'] = str(args.n_jobs_wb)
     display_flag = False
-    
+    delete_temp_folders(os.path.join(args.dataset, 'derivatives', args.zbrains))
     show_info("zbrains is running with:")
     if "proc" in args.run:
         # Get WorkBench version

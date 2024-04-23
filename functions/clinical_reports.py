@@ -47,10 +47,8 @@ from brainspace.plotting import plot_hemispheres
 from brainspace.mesh.mesh_io import read_surface
 from brainspace.plotting.surface_plotting import plot_surf
 from scipy.spatial.transform import Rotation
-# from brainspace.vtk_interface import wrap_vtk, serial_connect
-# from vtk import vtkPolyDataNormals
-import platform
-if platform.platform().startswith('Linux'):
+
+if ("DISPLAY" not in os.environ or not os.environ["DISPLAY"]):
     from pyvirtualdisplay import Display
 
 from functions.constants import (
