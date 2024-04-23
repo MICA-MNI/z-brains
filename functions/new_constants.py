@@ -1,6 +1,6 @@
 LIST_TASKS = ['proc', 'analysis']
 LIST_STRUCTURES = ['cortex', 'subcortex', 'hippocampus']
-LIST_FEATURES = ['ADC', 'FA', 'flair', 'qT1', 'thickness']
+LIST_FEATURES = ['ADC', 'FA', 'flair', 'T1map', 'thickness']
 LIST_RESOLUTIONS = ['low', 'high']
 DEFAULT_SMOOTH_CTX = 5
 DEFAULT_SMOOTH_HIP = 2
