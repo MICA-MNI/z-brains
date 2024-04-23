@@ -20,7 +20,7 @@ import argparse
 import sys
 from functions.help import help
 import platform
-
+from pyvirtualdisplay import Display
 @contextmanager
 def tempdir(SUBJECT_OUTPUT_DIR, prefix):
     path = tempfile.mkdtemp(dir=SUBJECT_OUTPUT_DIR, prefix=prefix)
@@ -363,6 +363,7 @@ if __name__ == '__main__':
     os.environ['WORKBENCH_PATH'] = WORKBENCH_PATH
     runs = args.run
     os.environ['OMP_NUM_THREADS'] = str(args.n_jobs_wb)
+    display_flag = False
     
     if platform.platform() == 'Linux':
         # os.environ['MESA_GL_VERSION_OVERRIDE'] = str(3.0)
@@ -375,6 +376,20 @@ if __name__ == '__main__':
         show_note("WorkBench...", workbench_version)
         show_note("            ", os.path.join(os.environ['WORKBENCH_PATH'], 'wb_command'))
         
+        
+    if "analysis" in args.run:
+        
+        if ("DISPLAY" not in os.environ or not os.environ["DISPLAY"]):
+            os.environ['PYVIRTUALDISPLAY_DISPLAYFD'] = '0'
+            # Display for headless plotting
+            dsize = (900, 750)
+            display = Display(visible=False, size=dsize,manage_global_env=True)
+            display.start()
+            display_flag = True
+            
+        else: 
+            print(os.environ.get("DISPLAY"))
+        
     # Get Python version
     python_version = subprocess.check_output(['python', '--version']).decode().split()[1]
     show_note("python......", python_version)
@@ -383,6 +398,8 @@ if __name__ == '__main__':
     show_note("", "")
     
     main(args)
+    if display_flag:
+        display.stop()
     
 
 
