@@ -711,7 +711,7 @@ def generate_clinical_report(
         if thresh is None:
             logger.info(f'Running summary of analysis={analysis}, '
                         f'approach={approach}, feature={feat}')
-
+        
         # -------------------------------------------------------------------------
         # Generate the report Title
         report += report_header_template(
