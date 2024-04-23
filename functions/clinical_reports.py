@@ -691,7 +691,7 @@ def generate_clinical_report(
         features.remove('volume')
     
     
-    if os.environ.get("DISPLAY") == ':0.0':
+    if ("DISPLAY" not in os.environ or not os.environ["DISPLAY"]):
         os.environ['PYVIRTUALDISPLAY_DISPLAYFD'] = '0'
         # Display for headless plotting
         dsize = (900, 750)
