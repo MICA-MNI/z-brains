@@ -6,4 +6,4 @@ def delete_temp_folders(directory):
         for name in dirs:
             if fnmatch.fnmatch(name, 'z_brains_temp.????????'):
                 print(f"Deleting temp folder {name}")
-                # shutil.rmtree(os.path.join(root, name))
+                shutil.rmtree(os.path.join(root, name))
