@@ -19,6 +19,8 @@ from contextlib import contextmanager
 import argparse
 import sys
 from functions.help import help
+import platform
+
 @contextmanager
 def tempdir(SUBJECT_OUTPUT_DIR, prefix):
     path = tempfile.mkdtemp(dir=SUBJECT_OUTPUT_DIR, prefix=prefix)
@@ -361,7 +363,10 @@ if __name__ == '__main__':
     os.environ['WORKBENCH_PATH'] = WORKBENCH_PATH
     runs = args.run
     os.environ['OMP_NUM_THREADS'] = str(args.n_jobs_wb)
-    os.environ['MESA_GL_VERSION_OVERRIDE'] = str(3.0)
+    
+    if platform.platform() == 'Linux':
+        os.environ['MESA_GL_VERSION_OVERRIDE'] = str(3.0)
+        os.environ['MESA_GLSL_VERSION_OVERRIDE'] = str(150)
     
     show_info("zbrains is running with:")
     if "proc" in args.run:

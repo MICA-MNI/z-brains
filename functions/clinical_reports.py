@@ -49,7 +49,9 @@ from brainspace.plotting.surface_plotting import plot_surf
 from scipy.spatial.transform import Rotation
 # from brainspace.vtk_interface import wrap_vtk, serial_connect
 # from vtk import vtkPolyDataNormals
-from pyvirtualdisplay import Display
+import platform
+if platform.platform().startswith('Linux'):
+    from pyvirtualdisplay import Display
 
 from functions.constants import (
     LIST_ANALYSES, Analysis,Approach,Resolution,Structure,Feature,
@@ -688,12 +690,14 @@ def generate_clinical_report(
     if 'volume' in features:
         features.remove('volume')
     
-    os.environ['PYVIRTUALDISPLAY_DISPLAYFD'] = '0'
-    # Display for headless plotting
-    dsize = (900, 750)
-    display = Display(visible=False, size=dsize)
-    display.start()
-    print(features)
+    
+    if platform.platform().startswith('Linux'):
+        os.environ['PYVIRTUALDISPLAY_DISPLAYFD'] = '0'
+        # Display for headless plotting
+        dsize = (900, 750)
+        display = Display(visible=False, size=dsize)
+        display.start()
+    # print(features)
     report = ''
     # for analysis in analyses:
     for analysis, feat, thresh in itertools.product(analyses, features,
@@ -739,9 +743,9 @@ def generate_clinical_report(
 
         # page break
         report += '<div style="page-break-after: always;"></div>'
-
-    # Stop display for headless plotting
-    display.stop()
+    if platform.platform().startswith('Linux'):
+        # Stop display for headless plotting
+        display.stop()
 
     # Report file name
     file_pdf = f'{subject_dir}/{bids_id}_approach-{approach}_summary-report.pdf'
