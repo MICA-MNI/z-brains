@@ -694,6 +694,18 @@ def generate_clinical_report(
     report = ''
     # for analysis in analyses:
     with lock:
+        display_flag = False
+        if ("DISPLAY" not in os.environ or not os.environ["DISPLAY"]):
+            
+            os.environ['PYVIRTUALDISPLAY_DISPLAYFD'] = '0'
+            # Display for headless plotting
+            dsize = (900, 750)
+            display = Display(visible=False, size=dsize)
+            display.start()
+            display_flag = True
+            
+        else: 
+            print(os.environ.get("DISPLAY"))
         for analysis, feat, thresh in itertools.product(analyses, features,
                                                         [None, threshold]):
 
@@ -745,3 +757,5 @@ def generate_clinical_report(
         convert_html_to_pdf(report, file_pdf)
 
         logger.info(f'Clinical report successfully created: {file_pdf}')
+        if display_flag:
+            display.stop()

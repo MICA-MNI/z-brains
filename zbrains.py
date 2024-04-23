@@ -377,22 +377,7 @@ if __name__ == '__main__':
         workbench_version = subprocess.check_output([os.path.join(os.environ['WORKBENCH_PATH'], 'wb_command'), '-version']).decode().split()[1]
         show_note("WorkBench...", workbench_version)
         show_note("            ", os.path.join(os.environ['WORKBENCH_PATH'], 'wb_command'))
-        
-        
-    if "analysis" in args.run:
-
-        if ("DISPLAY" not in os.environ or not os.environ["DISPLAY"]):
-            
-            os.environ['PYVIRTUALDISPLAY_DISPLAYFD'] = '0'
-            # Display for headless plotting
-            dsize = (900, 750)
-            display = Display(visible=False, size=dsize,manage_global_env=True)
-            display.start()
-            display_flag = True
-            
-        else: 
-            print(os.environ.get("DISPLAY"))
-        
+    
     # Get Python version
     python_version = subprocess.check_output(['python', '--version']).decode().split()[1]
     show_note("python......", python_version)
@@ -401,8 +386,7 @@ if __name__ == '__main__':
     show_note("", "")
     
     main(args)
-    if display_flag:
-        display.stop()
+
     
 
 
