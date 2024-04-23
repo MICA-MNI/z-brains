@@ -218,7 +218,7 @@ def get_feature_path_from_template(struct: Structure, **kwargs) -> Path:
 
 
 def get_analysis_path_from_template(struct: Structure, **kwargs) -> Path:
-    kwargs['feat'] = kwargs['feat'].replace('qT1', 'T1map')
+    kwargs['feat'] = kwargs['feat'].replace('qT1', 'T1map').replace('thickness', 'volume')
     # print(kwargs['feat'])
     # if kwargs['feat'] == 'qT1':
     #     kwargs['feat'] = "T1map"
