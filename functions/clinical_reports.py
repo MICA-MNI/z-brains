@@ -690,13 +690,15 @@ def generate_clinical_report(
     if 'volume' in features:
         features.remove('volume')
     
-    
+    display_flag = False
     if ("DISPLAY" not in os.environ or not os.environ["DISPLAY"]):
         os.environ['PYVIRTUALDISPLAY_DISPLAYFD'] = '0'
         # Display for headless plotting
         dsize = (900, 750)
-        display = Display(visible=False, size=dsize,manage_global_env=False)
+        display = Display(visible=False, size=dsize,manage_global_env=True)
         display.start()
+        display_flag = True
+        
     else: 
         print(os.environ.get("DISPLAY"))
     # print(features)
@@ -745,7 +747,7 @@ def generate_clinical_report(
 
         # page break
         report += '<div style="page-break-after: always;"></div>'
-    if os.environ["DISPLAY"] == ':0.0':
+    if display_flag:
         # Stop display for headless plotting
         display.stop()
 
