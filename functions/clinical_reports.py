@@ -693,10 +693,10 @@ def generate_clinical_report(
     dsize = (900, 750)
     display = Display(visible=False, size=dsize)
     display.start()
-
+    print(features)
     report = ''
     # for analysis in analyses:
-    for analysis, feat, thresh in itertools.product(analyses, features[0],
+    for analysis, feat, thresh in itertools.product(analyses, features,
                                                     [None, threshold]):
 
         if isinstance(feat, list):
