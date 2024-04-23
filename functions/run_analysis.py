@@ -313,8 +313,7 @@ def main(zbrains_ref,demo_ref,column_map,subject_id,session,demo,zbrains,struct,
         feat_report.append(multi)
 
     print('feat_report={}'.format(feat_report))
-    print(feat_report)
-    exit()
+    del feat_report[-1]
     tmp = '/tmp' if tmp is None else tmp
     generate_clinical_report(
         zbrains_path=zbrains, sid=px_id, ses=px_ses, age=age, sex=sex,
