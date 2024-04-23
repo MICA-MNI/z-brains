@@ -218,10 +218,11 @@ def get_feature_path_from_template(struct: Structure, **kwargs) -> Path:
 
 
 def get_analysis_path_from_template(struct: Structure, **kwargs) -> Path:
-    if kwargs['feat'] == 'qT1':
-        kwargs['feat'] = "T1map"
-    if isinstance(kwargs['feat'], list):
-        kwargs['feat'].replace('qT1', 'T1map')
+    kwargs['feat'].replace('qT1', 'T1map')
+    # if kwargs['feat'] == 'qT1':
+    #     kwargs['feat'] = "T1map"
+    # if isinstance(kwargs['feat'], list):
+    #     kwargs['feat'].replace('qT1', 'T1map')
     if struct == 'subcortex':
         opth = '{root_path}/{bids_id}_feature-{feat}_analysis-{analysis}.csv'
 
@@ -235,10 +236,11 @@ def get_analysis_path_from_template(struct: Structure, **kwargs) -> Path:
 
     if 'res' in kwargs:
         kwargs['res'] = map_resolution(struct, kwargs['res'])
-    if kwargs['feat'] == 'T1map':
-        kwargs['feat'] = 'qT1'
-    if isinstance(kwargs['feat'], list):
-        kwargs['feat'].replace('T1map', 'qT1')
+    # if kwargs['feat'] == 'T1map':
+    #     kwargs['feat'] = 'qT1'
+    # if isinstance(kwargs['feat'], list):
+    #     kwargs['feat'].replace('T1map', 'qT1')
+    kwargs['feat'].replace('T1map', 'qT1')
     return Path(opth.format(**kwargs))
 
 
