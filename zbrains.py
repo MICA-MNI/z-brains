@@ -17,7 +17,6 @@ from contextlib import contextmanager
 import argparse
 import sys
 from functions.help import help
-from multiprocessing import Manager
 from functions.cleantemps import delete_temp_folders
 @contextmanager
 def tempdir(SUBJECT_OUTPUT_DIR, prefix):
@@ -257,7 +256,6 @@ def main_func(args):
                 normative=args.normative, 
                 deconfound=args.deconfound, 
                 column_map=args.column_map ,
-                lock=args.lock,
             )
             elapsed = (time.time() - start_time) / 60
             show_title(f"Total elapsed time for {BIDS_ID}: {elapsed:.2f} minutes")
@@ -301,15 +299,13 @@ def main(args):
     if args.ses and len(args.ses) != len(args.sub):
         print('Number of subs and sessions do not match')
         sys.exit()
-    with Manager() as manager:
-        lock = manager.Lock()
-        args.lock = lock
-        if 'proc' in args.run:
-            procjobs = create_jobs(args, args.sub, args.ses, 'proc')
-            Parallel(n_jobs=args.n_jobs)(delayed(jobloop)(job) for job in procjobs)
-        if 'analysis' in args.run:
-            analysisjobs = create_jobs(args, args.sub, args.ses, 'analysis')
-            Parallel(n_jobs=1)(delayed(jobloop)(job) for job in analysisjobs)
+
+    if 'proc' in args.run:
+        procjobs = create_jobs(args, args.sub, args.ses, 'proc')
+        Parallel(n_jobs=args.n_jobs)(delayed(jobloop)(job) for job in procjobs)
+    if 'analysis' in args.run:
+        analysisjobs = create_jobs(args, args.sub, args.ses, 'analysis')
+        Parallel(n_jobs=1)(delayed(jobloop)(job) for job in analysisjobs)
 
 class Parser(argparse.ArgumentParser):
 

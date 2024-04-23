@@ -20,7 +20,7 @@ from functions.clinical_reports import generate_clinical_report
 ################################################################################
 # Analysis
 ################################################################################
-def main(zbrains_ref,demo_ref,column_map,subject_id,session,demo,zbrains,struct,feat,normative,deconfound,smooth_ctx,smooth_hip,threshold,approach,resolution,labels_ctx,labels_hip,tmp,logger,lock):
+def main(zbrains_ref,demo_ref,column_map,subject_id,session,demo,zbrains,struct,feat,normative,deconfound,smooth_ctx,smooth_hip,threshold,approach,resolution,labels_ctx,labels_hip,tmp,logger):
     # Some checks
     # logger = logging.getLogger(tmp)
     if len(zbrains_ref) != len(demo_ref):
@@ -149,19 +149,9 @@ def main(zbrains_ref,demo_ref,column_map,subject_id,session,demo,zbrains,struct,
         analyses=LIST_ANALYSES, features=feat_report, approach=approach,
         threshold=threshold, smooth_ctx=smooth_ctx,
         smooth_hip=smooth_hip, res_ctx=res_ctx, res_hip=res_hip,
-        label_ctx=lab_ctx, label_hip=lab_hip, tmp_dir=tmp,lock=lock
-    )
+        label_ctx=lab_ctx, label_hip=lab_hip, tmp_dir=tmp)
 
-def run(subject_id, zbrains, demo_ref, zbrains_ref, session=None, demo=None, struct=None, feat=None, normative=None, deconfound=None, smooth_ctx=None, smooth_hip=None, threshold=None, approach=None, resolution=None, labels_ctx=None, labels_hip=None, logfile=None, tmp=None, verbose=None, filter_warnings=None, column_map=None,lock=None):
-    # # Check if mandatory options are provided
-    # if not subject_id:
-    #     raise ValueError("Error: --subject_id is required")
-    # if not zbrains:
-    #     raise ValueError("Error: --zbrains is required")
-    # if not demo_ref:
-    #     raise ValueError("Error: --demo_ref is required")
-    # if not zbrains_ref:
-    #     raise ValueError("Error: --zbrains_ref is required")
+def run(subject_id, zbrains, demo_ref, zbrains_ref, session=None, demo=None, struct=None, feat=None, normative=None, deconfound=None, smooth_ctx=None, smooth_hip=None, threshold=None, approach=None, resolution=None, labels_ctx=None, labels_hip=None, logfile=None, tmp=None, verbose=None, filter_warnings=None, column_map=None):
 
     # Logging settings
     if verbose == 0:
@@ -206,6 +196,6 @@ def run(subject_id, zbrains, demo_ref, zbrains_ref, session=None, demo=None, str
     # Assign the excepthook to the handler
     sys.excepthook = handle_unhandled_exception
     
-    main(zbrains_ref,demo_ref,column_map,subject_id,session,demo,zbrains,struct,feat,normative,deconfound,smooth_ctx,smooth_hip,threshold,approach,resolution,labels_ctx,labels_hip,tmp,logger,lock)
+    main(zbrains_ref,demo_ref,column_map,subject_id,session,demo,zbrains,struct,feat,normative,deconfound,smooth_ctx,smooth_hip,threshold,approach,resolution,labels_ctx,labels_hip,tmp,logger)
 if __name__ == '__main__':
     main()
