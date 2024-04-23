@@ -696,7 +696,7 @@ def generate_clinical_report(
 
     report = ''
     # for analysis in analyses:
-    for analysis, feat, thresh in itertools.product(analyses, features,
+    for analysis, feat, thresh in itertools.product(analyses, features[0],
                                                     [None, threshold]):
 
         if isinstance(feat, list):
