@@ -21,6 +21,8 @@ import sys
 from functions.help import help
 import platform
 from pyvirtualdisplay import Display
+from threading import Lock
+
 @contextmanager
 def tempdir(SUBJECT_OUTPUT_DIR, prefix):
     path = tempfile.mkdtemp(dir=SUBJECT_OUTPUT_DIR, prefix=prefix)
@@ -259,6 +261,7 @@ def main_func(args):
                 normative=args.normative, 
                 deconfound=args.deconfound, 
                 column_map=args.column_map ,
+                lock=args.lock,
             )
             elapsed = (time.time() - start_time) / 60
             show_title(f"Total elapsed time for {BIDS_ID}: {elapsed:.2f} minutes")
@@ -365,10 +368,6 @@ if __name__ == '__main__':
     os.environ['OMP_NUM_THREADS'] = str(args.n_jobs_wb)
     display_flag = False
     
-    if platform.platform() == 'Linux':
-        # os.environ['MESA_GL_VERSION_OVERRIDE'] = str(3.0)
-        os.environ['MESA_GLSL_VERSION_OVERRIDE'] = str(120)
-    
     show_info("zbrains is running with:")
     if "proc" in args.run:
         # Get WorkBench version
@@ -378,8 +377,10 @@ if __name__ == '__main__':
         
         
     if "analysis" in args.run:
-        
+        lock = Lock()
+        args.lock = lock
         if ("DISPLAY" not in os.environ or not os.environ["DISPLAY"]):
+            
             os.environ['PYVIRTUALDISPLAY_DISPLAYFD'] = '0'
             # Display for headless plotting
             dsize = (900, 750)

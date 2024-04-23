@@ -592,7 +592,7 @@ def generate_clinical_report(
         smooth_hip: float = 2, res_ctx: Resolution = 'high',
         res_hip: Resolution = 'high', label_ctx='white',
         label_hip='midthickness', color_bar='bottom', cmap='cmo.balance',
-        color_range=(-2, 2), cmap_asymmetry='PRGn', tmp_dir: PathType = '/tmp'
+        color_range=(-2, 2), cmap_asymmetry='PRGn', tmp_dir: PathType = '/tmp',lock=None
 ):
 
     """ Zbrains: Clinical report generator
@@ -693,54 +693,55 @@ def generate_clinical_report(
     # print(features)
     report = ''
     # for analysis in analyses:
-    for analysis, feat, thresh in itertools.product(analyses, features,
-                                                    [None, threshold]):
+    with lock:
+        for analysis, feat, thresh in itertools.product(analyses, features,
+                                                        [None, threshold]):
 
-        if isinstance(feat, list):
-            feat_sctx = ['volume' if feat == 'thickness' else v for v in feat]
-        else:
-            feat_sctx = 'volume' if feat == 'thickness' else feat
+            if isinstance(feat, list):
+                feat_sctx = ['volume' if feat == 'thickness' else v for v in feat]
+            else:
+                feat_sctx = 'volume' if feat == 'thickness' else feat
 
-        if thresh is None:
-            logger.info(f'Running summary of analysis={analysis}, '
-                        f'approach={approach}, feature={feat}')
+            if thresh is None:
+                logger.info(f'Running summary of analysis={analysis}, '
+                            f'approach={approach}, feature={feat}')
 
-        # -------------------------------------------------------------------------
-        # Generate the report Title
-        report += report_header_template(
-            sid=sid, ses=ses, age=age, sex=sex, analysis=analysis)
+            # -------------------------------------------------------------------------
+            # Generate the report Title
+            report += report_header_template(
+                sid=sid, ses=ses, age=age, sex=sex, analysis=analysis)
 
-        extra = '' if thresh is None else f'| Threshold: {thresh}'
-        report += feature_header_template(feat, extra=extra)
+            extra = '' if thresh is None else f'| Threshold: {thresh}'
+            report += feature_header_template(feat, extra=extra)
 
-        kwds = dict(
-            path_analysis=path_analysis, sid=sid, ses=ses, analysis=analysis,
-            approach=approach, thr=thresh, thr_alpha=threshold_alpha,
-            color_range=color_range,
-            cmap=cmap_asymmetry if analysis == 'asymmetry' else cmap,
-            color_bar=color_bar,
-            tmp_dir=tmp_dir,
-            )
+            kwds = dict(
+                path_analysis=path_analysis, sid=sid, ses=ses, analysis=analysis,
+                approach=approach, thr=thresh, thr_alpha=threshold_alpha,
+                color_range=color_range,
+                cmap=cmap_asymmetry if analysis == 'asymmetry' else cmap,
+                color_bar=color_bar,
+                tmp_dir=tmp_dir,
+                )
 
-        report += report_struct(
-            struct='cortex', feat=feat, res=res_ctx, label=label_ctx,
-            smooth=smooth_ctx, **kwds)
+            report += report_struct(
+                struct='cortex', feat=feat, res=res_ctx, label=label_ctx,
+                smooth=smooth_ctx, **kwds)
 
-        report += report_struct(struct='subcortex', feat=feat_sctx, **kwds)
+            report += report_struct(struct='subcortex', feat=feat_sctx, **kwds)
 
-        report += report_struct(
-            struct='hippocampus', feat=feat, res=res_hip, label=label_hip,
-            smooth=smooth_hip, **kwds)
+            report += report_struct(
+                struct='hippocampus', feat=feat, res=res_hip, label=label_hip,
+                smooth=smooth_hip, **kwds)
 
-        report += report_colors(analysis=analysis)
+            report += report_colors(analysis=analysis)
 
-        # page break
-        report += '<div style="page-break-after: always;"></div>'
+            # page break
+            report += '<div style="page-break-after: always;"></div>'
 
-    # Report file name
-    file_pdf = f'{subject_dir}/{bids_id}_approach-{approach}_summary-report.pdf'
+        # Report file name
+        file_pdf = f'{subject_dir}/{bids_id}_approach-{approach}_summary-report.pdf'
 
-    # Create the HTML file
-    convert_html_to_pdf(report, file_pdf)
+        # Create the HTML file
+        convert_html_to_pdf(report, file_pdf)
 
-    logger.info(f'Clinical report successfully created: {file_pdf}')
+        logger.info(f'Clinical report successfully created: {file_pdf}')
