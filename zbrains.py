@@ -303,13 +303,13 @@ def main(args):
         sys.exit()
     with Manager() as manager:
         lock = manager.Lock()
-        args.lock=lock
+        args.lock = lock
         if 'proc' in args.run:
             procjobs = create_jobs(args, args.sub, args.ses, 'proc')
             Parallel(n_jobs=args.n_jobs)(delayed(jobloop)(job) for job in procjobs)
         if 'analysis' in args.run:
             analysisjobs = create_jobs(args, args.sub, args.ses, 'analysis')
-            Parallel(n_jobs=args.n_jobs)(delayed(jobloop)(job) for job in analysisjobs)
+            Parallel(n_jobs=1)(delayed(jobloop)(job) for job in analysisjobs)
 
 class Parser(argparse.ArgumentParser):
 
