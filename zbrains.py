@@ -18,6 +18,7 @@ import argparse
 import sys
 from functions.help import help
 from functions.cleantemps import delete_temp_folders
+import gc
 @contextmanager
 def tempdir(SUBJECT_OUTPUT_DIR, prefix):
     path = tempfile.mkdtemp(dir=SUBJECT_OUTPUT_DIR, prefix=prefix)
@@ -34,6 +35,7 @@ def jobloop(args):
         main_func(args)
     except Exception as e:
         print(e)
+    gc.collect()
 
 def parse_args(args):
     # Define the ZBRAINS and script_dir variables
@@ -256,6 +258,7 @@ def main_func(args):
                 normative=args.normative, 
                 deconfound=args.deconfound, 
                 column_map=args.column_map ,
+                n_jobs=args.n_jobs
             )
             elapsed = (time.time() - start_time) / 60
             show_title(f"Total elapsed time for {BIDS_ID}: {elapsed:.2f} minutes")
@@ -305,7 +308,7 @@ def main(args):
         Parallel(n_jobs=args.n_jobs)(delayed(jobloop)(job) for job in procjobs)
     if 'analysis' in args.run:
         analysisjobs = create_jobs(args, args.sub, args.ses, 'analysis')
-        Parallel(n_jobs=1)(delayed(jobloop)(job) for job in analysisjobs)
+        [jobloop(job) for job in analysisjobs]
 
 class Parser(argparse.ArgumentParser):
 

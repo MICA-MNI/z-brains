@@ -101,7 +101,7 @@ def main(zbrains_ref,demo_ref,column_map,subject_id,session,demo,zbrains,struct,
         smooth_hip=smooth_hip, resolutions=resolution,
         labels_ctx=labels_ctx, labels_hip=labels_hip,
         actual_to_expected=actual_to_expected, analyses=LIST_ANALYSES,
-        approach=approach, col_dtypes=col_dtypes,tmp=tmp
+        approach=approach, col_dtypes=col_dtypes,tmp=tmp,n_jobs=n_jobs
         )
 
     # Generate report ----------------------------------------------------------

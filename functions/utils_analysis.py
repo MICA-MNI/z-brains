@@ -7,11 +7,12 @@ from pathlib import Path
 from typing import Union, Optional, List, Dict, Tuple, Any,DefaultDict
 from functools import reduce
 from collections import defaultdict
-
+from joblib import Parallel, delayed
+from multiprocessing import Manager
 import numpy as np
 import pandas as pd
 import nibabel as nib
-
+import copy
 from functions.deconfounding import CombatModel, RegressOutModel
 from functions.constants import (
     Structure,Analysis,Approach,Resolution,Feature,
@@ -630,6 +631,70 @@ def _subject_mahalanobis(
 
     return res
 
+def process_feature(feat,kwds,logger,cn_zbrains,list_df_cn,tmp,cov_deconfound,px_demo,px_zbrains,px_sid,px_ses,analyses,n_cn,struct,pth_analysis,data_mahalanobis):
+    kwds = copy.deepcopy(kwds)
+    # Load control data
+    kwds.update(dict(feat=feat))
+    data_cn, df_cn = _load_data(cn_zbrains, df_subjects=list_df_cn, tmp=tmp,
+                                **kwds)
+    if data_cn is None:
+        logger.warning(f'\t{feat:<15}: \tNo data available for '
+                        f'reference subjects.')
+        return
+
+    if isinstance(data_cn, pd.DataFrame):
+        data_cn = data_cn.to_numpy()
+
+    # Deconfounding
+    dec = None
+    if cov_deconfound is not None and px_demo is not None:
+        dec = get_deconfounder(covariates=cov_deconfound)
+        data_cn = dec.fit_transform(data_cn, df_cn)
+
+    # Load patient data
+    data_px = _load_one(px_zbrains, sid=px_sid, ses=px_ses,
+                        raise_error=False, tmp=tmp, **kwds)
+    if data_px is None:
+        logger.warning(f'\t{feat:<15}: \tNo data available for target '
+                        f'subject.')
+        return
+
+    # For subcortex, we have dataframes
+    cols_df = index_df = None
+    is_df = isinstance(data_px, pd.DataFrame)
+    if is_df:
+        index_df, cols_df = data_px.index, data_px.columns
+        data_px = data_px.to_numpy().ravel()
+
+    # Deconfounding
+    if dec:
+        df_px = px_demo.to_frame().T
+        data_px = dec.transform(data_px.reshape(1, -1), df_px)[0]
+
+    # Analysis: zscoring
+    res = _subject_zscore(
+        data_cn=data_cn, data_px=data_px, index_df=index_df,
+        cols_df=cols_df, analyses=analyses)
+
+    logger.info(f'\t{feat:<15}: \t[{df_cn.shape[0]}/{n_cn} '
+                f'reference subjects available]')
+
+    # Save results
+    for analysis in analyses:
+        z = res[analysis]
+        if analysis == 'regional' and struct != 'subcortex':
+            z = z.reshape(2, -1)
+        _save(pth_analysis, x=z, sid=px_sid, ses=px_ses,
+                analysis=analysis, **kwds)
+
+    # store for mahalanobis
+    res = dict(data_cn=data_cn, data_px=data_px,
+                df_cn=df_cn, feat=feat,
+                index_df=index_df, cols_df=cols_df)
+
+    for k, v in res.items():
+        data_mahalanobis[k].append(v)
+    
 
 def run_analysis(
         *, px_sid: str, px_ses: str = None, cn_zbrains: Optional[List[PathType]],
@@ -642,7 +707,7 @@ def run_analysis(
         labels_hip: Optional[List[str]], actual_to_expected: Dict[str, str],
         analyses: Optional[List[Analysis]], approach: Approach,
         col_dtypes: Union[Optional[Dict[str, type]], None] = None,
-        tmp: str
+        tmp: str,n_jobs:int
 ):
     """
 
@@ -725,69 +790,22 @@ def run_analysis(
                     )
 
         data_mahalanobis = defaultdict(list)
-        for feat in features:
+        with Manager() as manager:
+            dict_data_mahalanobis = manager.dict(data_mahalanobis)
+            Parallel(n_jobs=n_jobs)(
+                delayed(process_feature)(feat,kwds,logger,cn_zbrains,list_df_cn,tmp,cov_deconfound,px_demo,px_zbrains,px_sid,px_ses,analyses,n_cn,struct,pth_analysis,dict_data_mahalanobis)
+                for feat in features)
+    
+            # Define the order of the keys.
+            key_order = ['ADC', 'FA', 'flair', 'qT1', 'thickness']
 
-            # Load control data
-            kwds.update(dict(feat=feat))
-            data_cn, df_cn = _load_data(cn_zbrains, df_subjects=list_df_cn, tmp=tmp,
-                                        **kwds)
-            if data_cn is None:
-                logger.warning(f'\t{feat:<15}: \tNo data available for '
-                               f'reference subjects.')
-                continue
+            # Create a new OrderedDict.
+            ordered_dict_data_mahalanobis = defaultdict(str)
 
-            if isinstance(data_cn, pd.DataFrame):
-                data_cn = data_cn.to_numpy()
-
-            # Deconfounding
-            dec = None
-            if cov_deconfound is not None and px_demo is not None:
-                dec = get_deconfounder(covariates=cov_deconfound)
-                data_cn = dec.fit_transform(data_cn, df_cn)
-
-            # Load patient data
-            data_px = _load_one(px_zbrains, sid=px_sid, ses=px_ses,
-                                raise_error=False, tmp=tmp, **kwds)
-            if data_px is None:
-                logger.warning(f'\t{feat:<15}: \tNo data available for target '
-                               f'subject.')
-                continue
-
-            # For subcortex, we have dataframes
-            cols_df = index_df = None
-            is_df = isinstance(data_px, pd.DataFrame)
-            if is_df:
-                index_df, cols_df = data_px.index, data_px.columns
-                data_px = data_px.to_numpy().ravel()
-
-            # Deconfounding
-            if dec:
-                df_px = px_demo.to_frame().T
-                data_px = dec.transform(data_px.reshape(1, -1), df_px)[0]
-
-            # Analysis: zscoring
-            res = _subject_zscore(
-                data_cn=data_cn, data_px=data_px, index_df=index_df,
-                cols_df=cols_df, analyses=analyses)
-
-            logger.info(f'\t{feat:<15}: \t[{df_cn.shape[0]}/{n_cn} '
-                        f'reference subjects available]')
-
-            # Save results
-            for analysis in analyses:
-                z = res[analysis]
-                if analysis == 'regional' and struct != 'subcortex':
-                    z = z.reshape(2, -1)
-                _save(pth_analysis, x=z, sid=px_sid, ses=px_ses,
-                      analysis=analysis, **kwds)
-
-            # store for mahalanobis
-            res = dict(data_cn=data_cn, data_px=data_px,
-                       df_cn=df_cn, feat=feat,
-                       index_df=index_df, cols_df=cols_df)
-
-            for k, v in res.items():
-                data_mahalanobis[k].append(v)
+            # Add the keys in the desired order.
+            for key in key_order:
+                if key in dict_data_mahalanobis:
+                    ordered_dict_data_mahalanobis[key] = dict_data_mahalanobis[key]
 
         # store available features
         zeros = np.where(data_mahalanobis['data_cn'][3][1] == 0)[0]
