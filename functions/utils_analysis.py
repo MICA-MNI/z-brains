@@ -8,11 +8,11 @@ from typing import Union, Optional, List, Dict, Tuple, Any,DefaultDict
 from functools import reduce
 from collections import defaultdict
 from joblib import Parallel, delayed
-from multiprocessing import Manager
 import numpy as np
 import pandas as pd
 import nibabel as nib
 import copy
+from multiprocessing import Manager
 from functions.deconfounding import CombatModel, RegressOutModel
 from functions.constants import (
     Structure,Analysis,Approach,Resolution,Feature,
@@ -631,16 +631,17 @@ def _subject_mahalanobis(
 
     return res
 
-def process_feature(feat,kwds,logger,cn_zbrains,list_df_cn,tmp,cov_deconfound,px_demo,px_zbrains,px_sid,px_ses,analyses,n_cn,struct,pth_analysis,data_mahalanobis):
+def process_feature(feat,kwds,cn_zbrains,list_df_cn,tmp,cov_deconfound,px_demo,px_zbrains,px_sid,px_ses,analyses,n_cn,struct,pth_analysis, logs):
+    data_mahalanobis = defaultdict(list)
+    log = logs[feat]
     kwds = copy.deepcopy(kwds)
     # Load control data
     kwds.update(dict(feat=feat))
     data_cn, df_cn = _load_data(cn_zbrains, df_subjects=list_df_cn, tmp=tmp,
                                 **kwds)
     if data_cn is None:
-        logger.warning(f'\t{feat:<15}: \tNo data available for '
-                        f'reference subjects.')
-        return
+        log['warning'] = f'\t{feat:<15}: \tNo data available for reference subjects.'
+        return None, log
 
     if isinstance(data_cn, pd.DataFrame):
         data_cn = data_cn.to_numpy()
@@ -655,9 +656,8 @@ def process_feature(feat,kwds,logger,cn_zbrains,list_df_cn,tmp,cov_deconfound,px
     data_px = _load_one(px_zbrains, sid=px_sid, ses=px_ses,
                         raise_error=False, tmp=tmp, **kwds)
     if data_px is None:
-        logger.warning(f'\t{feat:<15}: \tNo data available for target '
-                        f'subject.')
-        return
+        log['warning'] = f'\t{feat:<15}: \tNo data available for target subject.'
+        return None, log
 
     # For subcortex, we have dataframes
     cols_df = index_df = None
@@ -676,8 +676,7 @@ def process_feature(feat,kwds,logger,cn_zbrains,list_df_cn,tmp,cov_deconfound,px
         data_cn=data_cn, data_px=data_px, index_df=index_df,
         cols_df=cols_df, analyses=analyses)
 
-    logger.info(f'\t{feat:<15}: \t[{df_cn.shape[0]}/{n_cn} '
-                f'reference subjects available]')
+    log['info'] = f'\t{feat:<15}: \t[{df_cn.shape[0]}/{n_cn} reference subjects available]'
 
     # Save results
     for analysis in analyses:
@@ -694,6 +693,7 @@ def process_feature(feat,kwds,logger,cn_zbrains,list_df_cn,tmp,cov_deconfound,px
 
     for k, v in res.items():
         data_mahalanobis[k].append(v)
+    return data_mahalanobis, log
     
 
 def run_analysis(
@@ -788,28 +788,28 @@ def run_analysis(
         kwds = dict(struct=struct, resolution=resol, label=label, smooth=smooth,
                     # analysis=analysis
                     )
+        
+        logs = {'ADC':{'info':None,"warning":None}, 'FA':{'info':None,"warning":None}, 'flair':{'info':None,"warning":None}, 'qT1':{'info':None,"warning":None}, 'thickness':{'info':None,"warning":None}}
+        results = Parallel(n_jobs=n_jobs)(
+            delayed(process_feature)(feat,kwds,cn_zbrains,list_df_cn,tmp,cov_deconfound,px_demo,px_zbrains,px_sid,px_ses,analyses,n_cn,struct,pth_analysis,logs)
+            for feat in features)
+        mahalanobis_dicts, logs = zip(*results)
+        for log in logs:
+            if log['info']: 
+                logger.info(log['info'])
+            if log['warning']:
+                logger.warning(log['warning'])
 
         data_mahalanobis = defaultdict(list)
-        with Manager() as manager:
-            dict_data_mahalanobis = manager.dict(data_mahalanobis)
-            Parallel(n_jobs=n_jobs)(
-                delayed(process_feature)(feat,kwds,logger,cn_zbrains,list_df_cn,tmp,cov_deconfound,px_demo,px_zbrains,px_sid,px_ses,analyses,n_cn,struct,pth_analysis,dict_data_mahalanobis)
-                for feat in features)
-    
-            # Define the order of the keys.
-            key_order = ['ADC', 'FA', 'flair', 'qT1', 'thickness']
 
-            # Create a new OrderedDict.
-            ordered_dict_data_mahalanobis = defaultdict(str)
-
-            # Add the keys in the desired order.
-            for key in key_order:
-                if key in dict_data_mahalanobis:
-                    ordered_dict_data_mahalanobis[key] = dict_data_mahalanobis[key]
-
+        # Iterate over the dictionaries and the keys.
+        for d in mahalanobis_dicts:
+            if d is None:
+                continue
+            for key, value in d.items():
+                # Append the values to the result.
+                data_mahalanobis[key].extend(value)
         # store available features
-        zeros = np.where(data_mahalanobis['data_cn'][3][1] == 0)[0]
-        print(zeros)
         if struct == 'subcortex':
             available_features[struct] = data_mahalanobis['feat']
         else:

@@ -365,7 +365,7 @@ if __name__ == '__main__':
     runs = args.run
     os.environ['OMP_NUM_THREADS'] = str(args.n_jobs_wb)
     display_flag = False
-    delete_temp_folders(os.path.join(args.dataset, 'derivatives', args.zbrains))
+    # delete_temp_folders(os.path.join(args.dataset, 'derivatives', args.zbrains))
     show_info("zbrains is running with:")
     if "proc" in args.run:
         # Get WorkBench version
