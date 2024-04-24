@@ -21,12 +21,11 @@ set "demo_patients=E:\PX_participants.csv"
 
 @REM set "sids=sub-PX070 sub-PX003 sub-PX002 sub-PX001"
 @REM echo "here"
-set "sids=sub-PX002 sub-PX001"
+set "sids=all"
 set "sess=ses-01 ses-01"
 call conda activate zbrains
-call python zbrains.py --run proc ^
+call python zbrains.py --run analysis ^
                    --sub "%sids%" ^
-                   --ses "%sess%" ^
                    --micapipe %micapipe_dir% ^
                    --hippunfold %hippunfold_dir% ^
                    --dataset %pth_dataset% ^
@@ -35,9 +34,9 @@ call python zbrains.py --run proc ^
                    --demo %demo_patients% ^
                    --dataset_ref %pth_dataset% ^
                    --zbrains_ref %zbrains_dir% ^
-                   --smooth_ctx 5 ^
-                   --smooth_hip 2 ^
-                   --n_jobs 1 ^
+                   --smooth_ctx 10 ^
+                   --smooth_hip 5 ^
+                   --n_jobs 5 ^
                    --wb_path "C:/Users/Ian/Downloads/workbench-windows64-v1.5.0/workbench/bin_windows64" ^
                    --column_map participant_id=ID session_id=SES ^
                    --verbose 2

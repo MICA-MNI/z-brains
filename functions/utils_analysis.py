@@ -12,15 +12,22 @@ import numpy as np
 import pandas as pd
 import nibabel as nib
 import copy
-from multiprocessing import Manager
-from functions.deconfounding import CombatModel, RegressOutModel
-from functions.constants import (
-    Structure,Analysis,Approach,Resolution,Feature,
-                        struct_to_folder, approach_to_folder,
-                       map_feature_to_file, HIGH_RESOLUTION_CTX,
-                       LOW_RESOLUTION_CTX, HIGH_RESOLUTION_HIP,
-                       LOW_RESOLUTION_HIP, FOLDER_MAPS)
-
+try:
+    from functions.deconfounding import CombatModel, RegressOutModel
+    from functions.constants import (
+        Structure,Analysis,Approach,Resolution,Feature,
+                            struct_to_folder, approach_to_folder,
+                        map_feature_to_file, HIGH_RESOLUTION_CTX,
+                        LOW_RESOLUTION_CTX, HIGH_RESOLUTION_HIP,
+                        LOW_RESOLUTION_HIP, FOLDER_MAPS)
+except ModuleNotFoundError as e:
+    from deconfounding import CombatModel, RegressOutModel
+    from constants import (
+        Structure,Analysis,Approach,Resolution,Feature,
+                            struct_to_folder, approach_to_folder,
+                        map_feature_to_file, HIGH_RESOLUTION_CTX,
+                        LOW_RESOLUTION_CTX, HIGH_RESOLUTION_HIP,
+                        LOW_RESOLUTION_HIP, FOLDER_MAPS)
 COLUMN_DATASET = '__zbrains_dataset_identifier__'
 
 PathType = Union[str, os.PathLike]

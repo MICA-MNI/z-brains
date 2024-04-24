@@ -18,6 +18,7 @@ import argparse
 import sys
 from functions.help import help
 from functions.cleantemps import delete_temp_folders
+import subprocess
 import gc
 @contextmanager
 def tempdir(SUBJECT_OUTPUT_DIR, prefix):
@@ -25,6 +26,7 @@ def tempdir(SUBJECT_OUTPUT_DIR, prefix):
     try:
         yield path
     finally:
+        print(f"Cleaning up temp dir {path}")
         try:
             shutil.rmtree(path)
         except IOError:
@@ -236,30 +238,61 @@ def main_func(args):
             if "analysis" in tasks:
                 logfile = os.path.join(logs_dir, f"analysis_{datetime.datetime.now().strftime('%d-%m-%Y')}.txt")
                 ref_zbrains_paths = [os.path.join(args.dataset_ref[idx], 'derivatives', args.zbrains_ref[idx]) for idx in range(len(args.dataset_ref))]
-                run_analysis.run(
-                subject_id=sid,
-                session=ses,
-                zbrains_ref=ref_zbrains_paths,
-                demo_ref=args.demo_ref,
-                zbrains=px_zbrains_path,
-                struct=structures,
-                feat=features,
-                smooth_ctx=smooth_ctx,
-                smooth_hip=smooth_hip,
-                threshold=threshold,
-                approach='zscore',
-                resolution=resolutions,
-                labels_ctx=labels_ctx,
-                labels_hip=labels_hip,
-                logfile=logfile,
-                tmp=tmp_dir,
-                verbose=VERBOSE,
-                demo=args.demo,
-                normative=args.normative, 
-                deconfound=args.deconfound, 
-                column_map=args.column_map ,
-                n_jobs=args.n_jobs
-            )
+                args_list = [
+                    os.path.join(ZBRAINS, 'functions', 'run_analysis.py'), 
+                    '--sub', sid, 
+                    '--ses', ses, 
+                    '--zbrains', px_zbrains_path, 
+                    '--struct', '-'.join(structures),
+                    '--feat', '-'.join(features),
+                    '--demo_ref', '-'.join(args.demo_ref),
+                    '--zbrains_ref', '-'.join(ref_zbrains_paths),
+                    '--resolution', '-'.join(resolutions),
+                    '--labels_ctx', labels_ctx[0],
+                    '--labels_hip', labels_hip[0],
+                    '--smooth_ctx', smooth_ctx,
+                    '--smooth_hip', smooth_hip,
+                    '--threshold', str(threshold),
+                    '--approach', 'zscore',
+                    '--logfile', logfile,
+                    '--tmp', tmp_dir,
+                    '--verbose', str(VERBOSE),
+                    '--demo', args.demo,
+                    '--column_map', str(args.column_map),
+                    '--n_jobs', str(args.n_jobs)
+                ]
+
+                if args.normative:
+                    args_list.extend(['--normative', args.normative])
+
+                if args.deconfound:
+                    args_list.extend(['--deconfound', args.deconfound])
+                out = subprocess.call(['python', *args_list])
+
+            #     run_analysis.run(
+            #     subject_id=sid,
+            #     session=ses,
+            #     zbrains_ref=ref_zbrains_paths,
+            #     demo_ref=args.demo_ref,
+            #     zbrains=px_zbrains_path,
+            #     struct=structures,
+            #     feat=features,
+            #     smooth_ctx=smooth_ctx,
+            #     smooth_hip=smooth_hip,
+            #     threshold=threshold,
+            #     approach='zscore',
+            #     resolution=resolutions,
+            #     labels_ctx=labels_ctx,
+            #     labels_hip=labels_hip,
+            #     logfile=logfile,
+            #     tmp=tmp_dir,
+            #     verbose=VERBOSE,
+            #     demo=args.demo,
+            #     normative=args.normative, 
+            #     deconfound=args.deconfound, 
+            #     column_map=args.column_map ,
+            #     n_jobs=args.n_jobs
+            # )
             elapsed = (time.time() - start_time) / 60
             show_title(f"Total elapsed time for {BIDS_ID}: {elapsed:.2f} minutes")
         except Exception as e:

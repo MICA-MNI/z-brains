@@ -29,7 +29,6 @@ USAGE:
 
 """
 
-
 import glob
 import uuid
 import logging
@@ -42,6 +41,7 @@ import numpy as np
 import pandas as pd
 import nibabel as nib
 from xhtml2pdf import pisa
+import platform
 from brainspace.datasets import load_mask
 from brainspace.plotting import plot_hemispheres
 from brainspace.mesh.mesh_io import read_surface
@@ -50,13 +50,20 @@ from scipy.spatial.transform import Rotation
 
 if ("DISPLAY" not in os.environ or not os.environ["DISPLAY"]):
     from pyvirtualdisplay import Display
-
-from functions.constants import (
-    LIST_ANALYSES, Analysis,Approach,Resolution,Structure,Feature,
-    struct_to_folder, approach_to_folder)
-from functions.utils_analysis import (
-    get_bids_id, map_resolution, get_analysis_path_from_template,
-    get_subject_dir, PathType)
+try:
+    from functions.constants import (
+        LIST_ANALYSES, Analysis,Approach,Resolution,Structure,Feature,
+        struct_to_folder, approach_to_folder)
+    from functions.utils_analysis import (
+        get_bids_id, map_resolution, get_analysis_path_from_template,
+        get_subject_dir, PathType)
+except ModuleNotFoundError as e:
+    from constants import (
+        LIST_ANALYSES, Analysis,Approach,Resolution,Structure,Feature,
+        struct_to_folder, approach_to_folder)
+    from utils_analysis import (
+        get_bids_id, map_resolution, get_analysis_path_from_template,
+        get_subject_dir, PathType)
 
 
 cmaps = cmocean.cm.cmap_d
@@ -693,7 +700,7 @@ def generate_clinical_report(
     # for analysis in analyses:
 
     display_flag = False
-    if ("DISPLAY" not in os.environ or not os.environ["DISPLAY"]):
+    if ("DISPLAY" not in os.environ or not os.environ["DISPLAY"]) and platform.system() != 'Windows':
         
         os.environ['PYVIRTUALDISPLAY_DISPLAYFD'] = '0'
         # Display for headless plotting
@@ -702,8 +709,6 @@ def generate_clinical_report(
         display.start()
         display_flag = True
         
-    else: 
-        print(os.environ.get("DISPLAY"))
     for analysis, feat, thresh in itertools.product(analyses, features,
                                                     [None, threshold]):
 

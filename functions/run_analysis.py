@@ -2,20 +2,30 @@ import sys
 import logging
 import argparse
 from pathlib import Path
-
+import ast
 import numpy as np
+try:
+    from functions.new_constants import (
+        LIST_FEATURES, LIST_STRUCTURES, LIST_APPROACHES, LIST_RESOLUTIONS,
+        DEFAULT_SMOOTH_CTX, DEFAULT_SMOOTH_HIP, DEFAULT_THRESHOLD, LIST_ANALYSES,
+        Resolution,
+    )
 
-from functions.new_constants import (
-    LIST_FEATURES, LIST_STRUCTURES, LIST_APPROACHES, LIST_RESOLUTIONS,
-    DEFAULT_SMOOTH_CTX, DEFAULT_SMOOTH_HIP, DEFAULT_THRESHOLD, LIST_ANALYSES,
-    Resolution,
-)
+    from functions.utils_analysis import (
+        get_id, get_session, run_analysis, get_bids_id, load_demo
+    )
+    from functions.clinical_reports import generate_clinical_report
+except ModuleNotFoundError as e:
+    from new_constants import (
+        LIST_FEATURES, LIST_STRUCTURES, LIST_APPROACHES, LIST_RESOLUTIONS,
+        DEFAULT_SMOOTH_CTX, DEFAULT_SMOOTH_HIP, DEFAULT_THRESHOLD, LIST_ANALYSES,
+        Resolution,
+    )
 
-from functions.utils_analysis import (
-    get_id, get_session, run_analysis, get_bids_id, load_demo
-)
-from functions.clinical_reports import generate_clinical_report
-
+    from utils_analysis import (
+        get_id, get_session, run_analysis, get_bids_id, load_demo
+    )
+    from clinical_reports import generate_clinical_report
 
 ################################################################################
 # Analysis
@@ -152,7 +162,7 @@ def main(zbrains_ref,demo_ref,column_map,subject_id,session,demo,zbrains,struct,
         label_ctx=lab_ctx, label_hip=lab_hip, tmp_dir=tmp)
 
 def run(subject_id, zbrains, demo_ref, zbrains_ref, session=None, demo=None, struct=None, feat=None, normative=None, deconfound=None, smooth_ctx=None, smooth_hip=None, threshold=None, approach=None, resolution=None, labels_ctx=None, labels_hip=None, logfile=None, tmp=None, verbose=None, filter_warnings=None, column_map=None, n_jobs=None):
-
+    
     # Logging settings
     if verbose == 0:
         logging_level = logging.ERROR
@@ -198,4 +208,58 @@ def run(subject_id, zbrains, demo_ref, zbrains_ref, session=None, demo=None, str
     
     main(zbrains_ref,demo_ref,column_map,subject_id,session,demo,zbrains,struct,feat,normative,deconfound,smooth_ctx,smooth_hip,threshold,approach,resolution,labels_ctx,labels_hip,tmp,logger,n_jobs)
 if __name__ == '__main__':
-    main()
+    # Parse the command line arguments.
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--subject_id', required=True)
+    parser.add_argument('--session', required=True)
+    parser.add_argument('--zbrains_ref', required=True)
+    parser.add_argument('--demo_ref', required=True)
+    parser.add_argument('--zbrains', required=True)
+    parser.add_argument('--struct', required=True)
+    parser.add_argument('--feat', required=True)
+    parser.add_argument('--smooth_ctx', required=True)
+    parser.add_argument('--smooth_hip', required=True)
+    parser.add_argument('--threshold', required=True)
+    parser.add_argument('--approach', required=True)
+    parser.add_argument('--resolution', required=True)
+    parser.add_argument('--labels_ctx', required=True)
+    parser.add_argument('--labels_hip', required=True)
+    parser.add_argument('--logfile', required=True)
+    parser.add_argument('--tmp', required=True)
+    parser.add_argument('--verbose', required=True)
+    parser.add_argument('--demo', required=True)
+    parser.add_argument('--normative', default=None)
+    parser.add_argument('--deconfound', default=None)
+    parser.add_argument('--column_map', required=True)
+    parser.add_argument('--n_jobs', type=int, required=True)
+
+    # Parse the arguments.
+    args = parser.parse_args()
+    args.struct = args.struct.split('-')
+    args.feat = args.feat.split('-')
+    args.demo_ref = args.demo_ref.split('-')
+    args.zbrains_ref = args.zbrains_ref.split('-')
+    args.resolution = args.resolution.split('-')
+    run(subject_id=args.subject_id, 
+        zbrains=args.zbrains, 
+        demo_ref=args.demo_ref, 
+        zbrains_ref=args.zbrains_ref, 
+        session=args.session, 
+        demo=args.demo, 
+        struct=args.struct, 
+        feat=args.feat, 
+        normative=args.normative, 
+        deconfound=args.deconfound, 
+        smooth_ctx=args.smooth_ctx, 
+        smooth_hip=args.smooth_hip, 
+        threshold=float(args.threshold), 
+        approach=args.approach,
+        resolution=args.resolution, 
+        labels_ctx=[args.labels_ctx], 
+        labels_hip=[args.labels_hip], 
+        logfile=args.logfile, 
+        tmp=args.tmp, 
+        verbose=int(args.verbose), 
+        filter_warnings=False, 
+        column_map=ast.literal_eval(args.column_map), 
+        n_jobs=int(args.n_jobs))
