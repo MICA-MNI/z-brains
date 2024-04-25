@@ -57,5 +57,7 @@ HIGH_RESOLUTION_CTX = '32k'
 LOW_RESOLUTION_HIP = '0p5mm'
 HIGH_RESOLUTION_HIP = '2mm'
 
+map_resolution_ctx = {'low': LOW_RESOLUTION_CTX, 'high': HIGH_RESOLUTION_CTX}
+map_resolution_hip = {'low': LOW_RESOLUTION_HIP, 'high': HIGH_RESOLUTION_HIP}
 class ProcessingException(Exception):
     pass
