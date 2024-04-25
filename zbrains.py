@@ -8,7 +8,7 @@ import shutil
 import glob
 import time
 import datetime
-from functions.constants import *
+from functions.constants import FOLDER_LOGS, FOLDER_MAPS, FOLDER_NORM_Z, FOLDER_NORM_MODEL, FOLDER_SCTX, FOLDER_CTX, FOLDER_HIP, LIST_TASKS, LIST_STRUCTURES, LIST_FEATURES, LIST_RESOLUTIONS, DEFAULT_SMOOTH_CTX, DEFAULT_SMOOTH_HIP, DEFAULT_THRESHOLD, map_resolution_ctx, map_resolution_hip, ProcessingException
 from functions import run_proc, run_analysis
 from functions.environment import setenv
 from joblib import Parallel, delayed
