@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Z-BRAINS - Generating, normalizing, and visualizing structural imaging features
-
+PATH+=:/home/igoodall/anaconda3/envs/zbrains/bin
 export VERBOSE=-1  # Default
 
 
@@ -156,7 +156,13 @@ ${pcolor}OPTIONS:${nc}
                                                         unless indicated otherwise (e.g., --column_map site=center)
 \t${gcolor}--init${nc} [path]             : Initialization script that will be sourced before executing the main script.
                                     Useful for setting up environment variables, activating virtual environments, or any
-                                    other setup tasks needed before running your script (see DEPENDENCIES below).
+                                    other setup tasks needed before running your script (see DEPENDENCIES below). Unused when backend
+                                    is 'python'                 
+\t${gcolor}--n_jobs${nc} [number]         : Number of jobs to run in parallel. Default is ${bcolor}1${nc}.
+\t${gcolor}--wb_path${nc} [path]          : Path to the Connectome Workbench binaries. Default is ${bcolor}/data/mica1/01_programs/workbench-1.4.2/bin_linux64${nc}.
+\t${gcolor}--patient_prefix${nc} [prefix] : Prefix to use when determining patients versus controls. Default is ${bcolor}PX${nc}.
+\t${gcolor}--backend${nc} [backend]        : Backend to use for processing. Default is ${bcolor}shell${nc}, retaining old functionality. Can be set to ${bcolor}python${nc} to test the new branch.
+                                          Has no effect when calling the Python script directly.
 \t${gcolor}--verbose${nc} [level]         : Verbosity level (default is ${bcolor}-1${nc}). Levels:
                                       - 0             : Only errors
                                       - 1             : Warning messages and previous levels
@@ -231,6 +237,18 @@ declare -A map_resolution_hip=([low]=$LOW_RESOLUTION_HIP [high]=$HIGH_RESOLUTION
 args=("$@")
 while (( "${#args[@]}" )); do
   option="${args[0]}"
+  case "${option}" in
+  --backend)
+    PARSE_OPTION_SINGLE_VALUE backend args || exit $?
+    if [ "$backend" == "python" ]; then
+      backend_python=true
+    fi
+    ;;
+  *)
+    # If --backend python was given, add the argument to the Python script arguments
+    if [ "$backend_python" = true ]; then
+      python_args+=("$option")
+    fi
   case "${option}" in
   --sub)
     PARSE_OPTION_SINGLE_VALUE sid args || exit $?
@@ -329,6 +347,10 @@ while (( "${#args[@]}" )); do
 
 done
 
+# If --backend python was given, run the Python script with the collected arguments
+if [ "$backend_python" = true ]; then
+  python zbrains.py "${python_args[@]}"
+fi
 
 # ------------------------------------------------- Check arguments ------------------------------------------------- #
 ASSERT_REQUIRED "--sub" "$sid"
@@ -399,16 +421,17 @@ threshold=${threshold:-$DEFAULT_THRESHOLD}
 # Dependencies required for processing
 if [[ " ${tasks[*]} " =~ " proc "  ]]; then
 
-  # TODO: ANTs not needed now, maybe in the future for flair?
-  binary=$(type -P ${ANTSPATH:+${ANTSPATH%/}/}antsRegistration)
-  if [[ -z "${binary}" ]]; then
-    SHOW_ERROR "ANTs not found. Please set the ANTSPATH variable to the location of ANTs binaries."
-    exit 1
-  fi
-  ANTSPATH=$(dirname "$(which "$binary")")
-  export ANTSPATH
+  # # TODO: ANTs not needed now, maybe in the future for flair?
+  # binary=$(type -P ${ANTSPATH:+${ANTSPATH%/}/}antsRegistration)
+  # if [[ -z "${binary}" ]]; then
+  #   SHOW_ERROR "ANTs not found. Please set the ANTSPATH variable to the location of ANTs binaries."
+  #   exit 1
+  # fi
+  # ANTSPATH=$(dirname "$(which "$binary")")
+  # export ANTSPATH
 
   binary=$(type -P ${WORKBENCH_PATH:+${WORKBENCH_PATH%/}/}wb_command)
+  echo $binary
   if [[ -z "${binary}" ]]; then
     SHOW_ERROR "Workbench not found. Please set the WORKBENCH_PATH variable to the location of Workbench binaries."
     exit 1
@@ -432,7 +455,7 @@ px_zbrains_path=${dataset_path}/${zbrains_dir}
 # export BIDS_ID, SUBJECT_OUTPUT_DIR
 export BIDS_ID="${sid}${ses:+_${ses}}"
 export SUBJECT_OUTPUT_DIR="${px_zbrains_path}/${sid}${ses:+/${ses}}"
-
+echo ${ses:+/${ses}}
 # Sanity checks required for processing
 if [[ " ${tasks[*]} " =~ " proc " ]]; then
 
@@ -443,6 +466,7 @@ if [[ " ${tasks[*]} " =~ " proc " ]]; then
   # Subject's hippunfold directory exists
   if [[ " ${structures[*]} " =~ " hippocampus " ]]; then
     export SUBJECT_HIPPUNFOLD_DIR=${dataset_path}/${hipunfold_dir}/hippunfold/${sid}${ses:+/${ses}}
+    echo $SUBJECT_HIPPUNFOLD_DIR
     ASSERT_EXISTS "${SUBJECT_HIPPUNFOLD_DIR}" "${BIDS_ID} hippunfold directory does not exist."
   fi
 
@@ -472,6 +496,7 @@ if [[ " ${tasks[*]} " =~ " proc " ]]; then
 
     # recon is 'freesurfer' or 'fastsurfer'
     export SUBJECT_SURF_DIR=${dataset_path}/${recon}/${BIDS_ID}
+    echo $SUBJECT_SURF_DIR
     ASSERT_EXISTS "${SUBJECT_SURF_DIR}" "${BIDS_ID} ${recon} directory does not exist."
   fi
 fi
@@ -482,8 +507,8 @@ fi
 # ------------------------------------------------------------------------------------------------------------------- #
 SHOW_INFO "zbrains is running with:"
 if [[ " ${tasks[*]} " =~ " proc " ]]; then
-  SHOW_NOTE "ANTs........" "$("${ANTSPATH}/antsRegistration" --version | awk -F '[: ]' '/ANTs Version/{print $4}')"
-  SHOW_NOTE "            " "$(which "${ANTSPATH}/antsRegistration")"
+  # SHOW_NOTE "ANTs........" "$("${ANTSPATH}/antsRegistration" --version | awk -F '[: ]' '/ANTs Version/{print $4}')"
+  # SHOW_NOTE "            " "$(which "${ANTSPATH}/antsRegistration")"
   SHOW_NOTE "WorkBench..." "$("${WORKBENCH_PATH}/wb_command" -version | awk -F ': ' '/^Version/{print $2}')"
   SHOW_NOTE "            " "$(which "${WORKBENCH_PATH}/wb_command")"
 fi
@@ -589,7 +614,7 @@ if [[ " ${tasks[*]} " =~ " analysis "  ]]; then
   [[ -v normative ]] && cmd+=" --normative ${normative[*]}"
   [[ -v deconfound ]] && cmd+=" --deconfound ${deconfound[*]}"
   [[ -v column_map ]] && cmd+=" --column_map ${column_map[*]}"
-
+  echo ${cmd[*]}
   DO_CMD "$cmd"
 fi
 
