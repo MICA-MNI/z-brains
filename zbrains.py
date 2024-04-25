@@ -8,7 +8,7 @@ import shutil
 import glob
 import time
 import datetime
-from functions.new_constants import *
+from functions.constants import *
 from functions import run_proc, run_analysis
 from functions.environment import setenv
 from joblib import Parallel, delayed

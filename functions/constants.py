@@ -57,12 +57,5 @@ HIGH_RESOLUTION_CTX = '32k'
 LOW_RESOLUTION_HIP = '0p5mm'
 HIGH_RESOLUTION_HIP = '2mm'
 
-
-# Do not change - this is used in bash
-if __name__ == '__main__':
-    constants = {k: v for k, v in globals().items() if k.isupper()}
-    for k, v in constants.items():
-        if isinstance(v, list):
-            print('export {}="{}"'.format(k, " ".join(v)))
-        else:
-            print('export {}="{}"'.format(k, v))
+class ProcessingException(Exception):
+    pass

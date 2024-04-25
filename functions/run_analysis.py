@@ -5,9 +5,8 @@ from pathlib import Path
 import ast
 import numpy as np
 try:
-    from functions.new_constants import (
-        LIST_FEATURES, LIST_STRUCTURES, LIST_APPROACHES, LIST_RESOLUTIONS,
-        DEFAULT_SMOOTH_CTX, DEFAULT_SMOOTH_HIP, DEFAULT_THRESHOLD, LIST_ANALYSES,
+    from functions.constants import (
+     LIST_ANALYSES,
         Resolution,
     )
 
@@ -16,9 +15,7 @@ try:
     )
     from functions.clinical_reports import generate_clinical_report
 except ModuleNotFoundError as e:
-    from new_constants import (
-        LIST_FEATURES, LIST_STRUCTURES, LIST_APPROACHES, LIST_RESOLUTIONS,
-        DEFAULT_SMOOTH_CTX, DEFAULT_SMOOTH_HIP, DEFAULT_THRESHOLD, LIST_ANALYSES,
+    from new_constants import ( LIST_ANALYSES,
         Resolution,
     )
 

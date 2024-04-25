@@ -48,7 +48,7 @@ from brainspace.mesh.mesh_io import read_surface
 from brainspace.plotting.surface_plotting import plot_surf
 from scipy.spatial.transform import Rotation
 
-if ("DISPLAY" not in os.environ or not os.environ["DISPLAY"]):
+if ("DISPLAY" not in os.environ or not os.environ["DISPLAY"]) and platform.system() != 'Windows':
     from pyvirtualdisplay import Display
 try:
     from functions.constants import (
@@ -695,7 +695,6 @@ def generate_clinical_report(
     if 'volume' in features:
         features.remove('volume')
     
-    # print(features)
     report = ''
     # for analysis in analyses:
 
