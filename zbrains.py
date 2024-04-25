@@ -62,7 +62,7 @@ def tempdir(SUBJECT_OUTPUT_DIR, prefix):
             sys.stderr.write(f"Failed to clean up temp dir {path}")
 
 
-def jobloop(args):
+def _jobloop(args):
     try:
         main_func(args)
     except Exception as e:
@@ -482,32 +482,6 @@ def main_func(args):
                 if args.deconfound:
                     args_list.extend(["--deconfound", args.deconfound])
                 out = subprocess.call(["python", *args_list])
-
-            # -------------------------------------------------- Temporary fix for memory leak ------------------------------------------------- #
-            #     run_analysis.run(
-            #     subject_id=sid,
-            #     session=ses,
-            #     zbrains_ref=ref_zbrains_paths,
-            #     demo_ref=args.demo_ref,
-            #     zbrains=px_zbrains_path,
-            #     struct=structures,
-            #     feat=features,
-            #     smooth_ctx=smooth_ctx,
-            #     smooth_hip=smooth_hip,
-            #     threshold=threshold,
-            #     approach='zscore',
-            #     resolution=resolutions,
-            #     labels_ctx=labels_ctx,
-            #     labels_hip=labels_hip,
-            #     logfile=logfile,
-            #     tmp=tmp_dir,
-            #     verbose=VERBOSE,
-            #     demo=args.demo,
-            #     normative=args.normative,
-            #     deconfound=args.deconfound,
-            #     column_map=args.column_map ,
-            #     n_jobs=args.n_jobs
-            # )
             elapsed = (time.time() - start_time) / 60
             show_title(f"Total elapsed time for {BIDS_ID}: {elapsed:.2f} minutes")
         except Exception as e:
@@ -554,6 +528,41 @@ def create_jobs(args, subs, ses, run_type):
 
 
 def main(args):
+
+    WORKBENCH_PATH = setenv(args.wb_path)
+    os.environ["WORKBENCH_PATH"] = WORKBENCH_PATH
+    os.environ["OMP_NUM_THREADS"] = str(args.n_jobs_wb)
+
+    if args.delete_temps:
+        print("Deleting temp folders")
+        delete_temp_folders(os.path.join(args.dataset, "derivatives", args.zbrains))
+        print("Done")
+        exit(0)
+
+    show_info("zbrains is running with:")
+    if "proc" in args.run:
+        # Get WorkBench version
+        workbench_version = (
+            subprocess.check_output(
+                [os.path.join(os.environ["WORKBENCH_PATH"], "wb_command"), "-version"]
+            )
+            .decode()
+            .split()[1]
+        )
+        show_note("WorkBench...", workbench_version)
+        show_note(
+            "            ", os.path.join(os.environ["WORKBENCH_PATH"], "wb_command")
+        )
+
+    # Get Python version
+    python_version = (
+        subprocess.check_output(["python", "--version"]).decode().split()[1]
+    )
+    show_note("python......", python_version)
+    show_note("            ", shutil.which("python"))
+
+    show_note("", "")
+
     # Assume args is parsed from command line arguments
     args.ses = args.ses.split(" ") if args.ses else None
     args.sub = (
@@ -574,10 +583,10 @@ def main(args):
 
     if "proc" in args.run:
         procjobs = create_jobs(args, args.sub, args.ses, "proc")
-        Parallel(n_jobs=args.n_jobs)(delayed(jobloop)(job) for job in procjobs)
+        Parallel(n_jobs=args.n_jobs)(delayed(_jobloop)(job) for job in procjobs)
     if "analysis" in args.run:
         analysisjobs = create_jobs(args, args.sub, args.ses, "analysis")
-        [jobloop(job) for job in analysisjobs]
+        [_jobloop(job) for job in analysisjobs]
 
 
 class Parser(argparse.ArgumentParser):
@@ -589,7 +598,6 @@ class Parser(argparse.ArgumentParser):
 if __name__ == "__main__":
 
     # Define the argument parser
-
     parser = Parser(description="Handle all arguments and create variables")
 
     # Add arguments to the parser
@@ -617,7 +625,7 @@ if __name__ == "__main__":
     parser.add_argument("--threshold", type=str, default=None)
     parser.add_argument("--column_map", nargs="*", default=None)
     parser.add_argument("--init", type=str, default=None)
-
+    parser.add_argument("--delete_temps", type=str, default=None)
     parser.add_argument("--n_jobs", type=int, default=1)
     parser.add_argument("--n_jobs_wb", type=int, default=8)
     parser.add_argument(
@@ -632,34 +640,5 @@ if __name__ == "__main__":
 
     # Parse the arguments
     args = parser.parse_args()
-    WORKBENCH_PATH = setenv(args.wb_path)
-    os.environ["WORKBENCH_PATH"] = WORKBENCH_PATH
-    runs = args.run
-    os.environ["OMP_NUM_THREADS"] = str(args.n_jobs_wb)
-    display_flag = False
-    # delete_temp_folders(os.path.join(args.dataset, 'derivatives', args.zbrains))
-    show_info("zbrains is running with:")
-    if "proc" in args.run:
-        # Get WorkBench version
-        workbench_version = (
-            subprocess.check_output(
-                [os.path.join(os.environ["WORKBENCH_PATH"], "wb_command"), "-version"]
-            )
-            .decode()
-            .split()[1]
-        )
-        show_note("WorkBench...", workbench_version)
-        show_note(
-            "            ", os.path.join(os.environ["WORKBENCH_PATH"], "wb_command")
-        )
-
-    # Get Python version
-    python_version = (
-        subprocess.check_output(["python", "--version"]).decode().split()[1]
-    )
-    show_note("python......", python_version)
-    show_note("            ", shutil.which("python"))
-
-    show_note("", "")
 
     main(args)
