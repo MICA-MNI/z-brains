@@ -1,6 +1,10 @@
 import os
 import pytest
 from unittest.mock import patch, mock_open
+import sys
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from functions.run_proc import (
     map_hippocampus,
     map_cortex,

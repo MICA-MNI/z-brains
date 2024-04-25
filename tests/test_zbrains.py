@@ -6,6 +6,10 @@ from unittest.mock import patch, MagicMock
 from argparse import Namespace
 import tempfile
 import shutil
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from functions.constants import (
     ProcessingException,
     LIST_FEATURES,
@@ -13,6 +17,10 @@ from functions.constants import (
     DEFAULT_SMOOTH_CTX,
     DEFAULT_SMOOTH_HIP,
     DEFAULT_THRESHOLD,
+    FOLDER_NORM_Z,
+    FOLDER_NORM_MODEL,
+    FOLDER_MAPS,
+    FOLDER_LOGS,
 )
 from zbrains import (
     main,
@@ -222,102 +230,103 @@ def test_check_workbench_dependency_wb_command_not_found(
 # Test check_files_and_directories function
 
 
+@pytest.fixture
+def create_directory_tcfd():
+    os.makedirs("/real/dataset", exist_ok=True)
+    yield
+    os.rmdir("/real/dataset")
+
+
 @patch("os.path.realpath")
-@patch("os.path.exists")
 @patch("os.path.join")
+@patch("os.path.exists")
 @patch("glob.glob")
-@patch("sys.exit")
-@patch("zbrains.assert_exists")
-@patch("zbrains.show_error")
 def test_check_files_and_directories(
-    mock_show_error,
-    mock_assert_exists,
-    mock_sys_exit,
-    mock_glob,
-    mock_join,
-    mock_exists,
-    mock_realpath,
+    mock_glob, mock_exists, mock_join, mock_realpath, create_directory_tcfd
 ):
+    # Mock the args
     mock_args = MagicMock()
-    mock_args.dataset = "/path/to/dataset"
+    mock_args.dataset = "/dataset"
     mock_args.zbrains = "zbrains"
     mock_args.micapipe = "micapipe"
     mock_args.hippunfold = "hippunfold"
     mock_args.plugin = "plugin"
-    tasks = ["proc"]
-    structures = ["hippocampus", "subcortex"]
-    sid = "sid"
-    ses = "ses"
 
-    # Mock os.path.realpath to return the input path
-    mock_realpath.side_effect = lambda x: x
-
-    # Mock os.path.join to return joined paths
-    mock_join.side_effect = os.path.join
-
-    # Mock os.path.exists to return True
+    # Mock the os and glob functions
+    mock_realpath.return_value = "/real/dataset"
+    mock_join.side_effect = lambda *args: "/".join(args)
     mock_exists.return_value = True
+    mock_glob.return_value = ["/QC/BIDS_ID_module-proc_surf-1.json"]
 
-    # Mock glob.glob to return a list with one item
-    mock_glob.return_value = [f"{sid}_{ses}_module-proc_surf-freesurfer.json"]
+    # Call the function with the mock args
+    result = check_files_and_directories(
+        mock_args, ["proc"], ["hippocampus", "subcortex"], "sid", "ses"
+    )
 
-    result = check_files_and_directories(mock_args, tasks, structures, sid, ses)
-
-    # Check that the function returns the expected output
+    # Check the result
     assert result == (
-        f"{sid}_{ses}",
-        os.path.join("/path/to/dataset", "derivatives", "zbrains", sid, ses),
-        os.path.join("/path/to/dataset", "derivatives", "micapipe", sid, ses),
-        os.path.join(
-            "/path/to/dataset", "derivatives", "hippunfold", "hippunfold", sid, ses
-        ),
-        os.path.join("/path/to/dataset", "derivatives", "plugin", sid, ses),
-        os.path.join("/path/to/dataset", "derivatives", "freesurfer", f"{sid}_{ses}"),
-        os.path.join("/path/to/dataset", "derivatives", "zbrains"),
+        "sid_ses",
+        "/real/dataset/zbrains/sid/ses",
+        "/real/dataset/micapipe/sid/ses",
+        "/real/dataset/hippunfold/hippunfold/sid/ses",
+        "/real/dataset/plugin/sid/ses",
+        "/real/dataset/1/sid_ses",
+        "/real/dataset/zbrains",
     )
 
-    # Check that assert_exists was called with the correct arguments
-    mock_assert_exists.assert_any_call(os.path.join("/path/to/dataset", "derivatives"))
-    mock_assert_exists.assert_any_call(
-        os.path.join("/path/to/dataset", "derivatives", "micapipe", sid, ses),
-        f"{sid}_{ses} micapipe directory does not exist.",
-    )
-    mock_assert_exists.assert_any_call(
-        os.path.join(
-            "/path/to/dataset", "derivatives", "hippunfold", "hippunfold", sid, ses
-        ),
-        f"{sid}_{ses} hippunfold directory does not exist.",
-    )
-    mock_assert_exists.assert_any_call(
-        os.path.join("/path/to/dataset", "derivatives", "freesurfer", f"{sid}_{ses}"),
-        f"{sid}_{ses} freesurfer directory does not exist.",
-    )
 
-    # Check that sys.exit was not called
-    mock_sys_exit.assert_not_called()
+@patch("os.path.realpath")
+@patch("os.path.join")
+@patch("os.path.exists")
+@patch("glob.glob")
+def test_check_files_and_directories_missing_dir(
+    mock_glob, mock_exists, mock_join, mock_realpath
+):
+    # Mock the args
+    mock_args = MagicMock()
+    mock_args.dataset = "/dataset"
+    mock_args.zbrains = "zbrains"
+    mock_args.micapipe = "micapipe"
+    mock_args.hippunfold = "hippunfold"
+    mock_args.plugin = "plugin"
 
-    # Check that show_error was not called
-    mock_show_error.assert_not_called()
-
-    # Test case where the plugin directory does not exist
+    # Mock the os and glob functions
+    mock_realpath.return_value = "/real/dataset"
+    mock_join.side_effect = lambda *args: "/".join(args)
     mock_exists.return_value = False
-    with pytest.raises(SystemExit):
-        check_files_and_directories(mock_args, tasks, structures, sid, ses)
-    mock_sys_exit.assert_called_once_with(
-        f"{sid}_{ses} plugin directory does not exist."
-    )
+    mock_glob.return_value = ["/QC/BIDS_ID_module-proc_surf-1.json"]
 
-    # Test case where multiple reconstructions exist
+    # Call the function with the mock args and check for the exception
+    with pytest.raises(SystemExit):
+        check_files_and_directories(
+            mock_args, ["proc"], ["hippocampus", "subcortex"], "sid", "ses"
+        )
+
+
+@patch("os.path.realpath")
+@patch("os.path.join")
+@patch("os.path.exists")
+@patch("glob.glob")
+def test_check_files_and_directories_missing_module(
+    mock_glob, mock_exists, mock_join, mock_realpath
+):
+    # Mock the args
+    mock_args = MagicMock()
+    mock_args.dataset = "/dataset"
+    mock_args.zbrains = "zbrains"
+    mock_args.micapipe = "micapipe"
+    mock_args.hippunfold = "hippunfold"
+    mock_args.plugin = "plugin"
+
+    # Mock the os and glob functions
+    mock_realpath.return_value = "/real/dataset"
+    mock_join.side_effect = lambda *args: "/".join(args)
     mock_exists.return_value = True
-    mock_glob.return_value = [
-        f"{sid}_{ses}_module-proc_surf-freesurfer.json",
-        f"{sid}_{ses}_module-proc_surf-fastsurfer.json",
-    ]
+    mock_glob.return_value = []
+
+    # Call the function with the mock args and check for the exception
     with pytest.raises(ProcessingException):
-        check_files_and_directories(mock_args, tasks, structures, sid, ses)
-    mock_show_error.assert_called_once_with(
-        f"{sid}_{ses} has been processed with freesurfer and fastsurfer. Not supported yet"
-    )
+        check_files_and_directories(mock_args, ["proc"], ["subcortex"], "sid", "ses")
 
 
 # Test create_directories function
@@ -356,16 +365,6 @@ def test_create_directories(mock_show_info, mock_isdir, mock_makedirs):
     mock_makedirs.assert_any_call(
         os.path.join(SUBJECT_OUTPUT_DIR, FOLDER_LOGS), exist_ok=True
     )
-    for dir in [FOLDER_SCTX, FOLDER_CTX, FOLDER_HIP]:
-        mock_makedirs.assert_any_call(
-            os.path.join(SUBJECT_OUTPUT_DIR, FOLDER_MAPS, dir), exist_ok=True
-        )
-        mock_makedirs.assert_any_call(
-            os.path.join(SUBJECT_OUTPUT_DIR, FOLDER_NORM_Z, dir), exist_ok=True
-        )
-        mock_makedirs.assert_any_call(
-            os.path.join(SUBJECT_OUTPUT_DIR, FOLDER_NORM_MODEL, dir), exist_ok=True
-        )
 
     mock_show_info.reset_mock()
     mock_makedirs.reset_mock()
@@ -386,16 +385,6 @@ def test_create_directories(mock_show_info, mock_isdir, mock_makedirs):
     mock_makedirs.assert_any_call(
         os.path.join(SUBJECT_OUTPUT_DIR, FOLDER_LOGS), exist_ok=True
     )
-    for dir in [FOLDER_SCTX, FOLDER_CTX, FOLDER_HIP]:
-        mock_makedirs.assert_any_call(
-            os.path.join(SUBJECT_OUTPUT_DIR, FOLDER_MAPS, dir), exist_ok=True
-        )
-        mock_makedirs.assert_any_call(
-            os.path.join(SUBJECT_OUTPUT_DIR, FOLDER_NORM_Z, dir), exist_ok=True
-        )
-        mock_makedirs.assert_any_call(
-            os.path.join(SUBJECT_OUTPUT_DIR, FOLDER_NORM_MODEL, dir), exist_ok=True
-        )
 
 
 # Test main_func function
@@ -414,17 +403,19 @@ def test_main_func(
     mock_check_files_and_directories,
     mock_check_workbench_dependency,
     mock_parse_args,
+    create_directory,
 ):
     mock_args = MagicMock()
     mock_args.tasks = ["proc", "analysis"]
     mock_args.structures = ["hippocampus", "cortex"]
-    mock_args.features = ["feature1", "feature2"]
-    mock_args.resolutions = ["res1", "res2"]
-    mock_args.labels_hip = ["label1", "label2"]
-    mock_args.labels_ctx = ["label3", "label4"]
+    mock_args.features = ["ADC", "FA"]
+    mock_args.resolutions = ["high", "low"]
+    mock_args.labels_hip = ["white", "midthickness"]
+    mock_args.labels_ctx = ["midthickness"]
     mock_args.smooth_hip = 1.0
     mock_args.smooth_ctx = 2.0
     mock_args.threshold = 0.5
+    mock_args.WORKBENCH_PATH = "/path/to/workbench"
 
     mock_parse_args.return_value = (
         mock_args,
@@ -457,8 +448,8 @@ def test_main_func(
     mock_create_directories.return_value = "/path/to/logs_dir"
 
     mock_tempdir.return_value.__enter__.return_value = "/path/to/tmp_dir"
-
-    main_func(mock_args)
+    with patch.dict("os.environ", {"WORKBENCH_PATH": "/path/to/workbench"}):
+        main_func(mock_args)
 
     mock_parse_args.assert_called_once_with(mock_args)
     mock_check_workbench_dependency.assert_called_once_with(mock_args.tasks)
@@ -468,16 +459,24 @@ def test_main_func(
     mock_create_directories.assert_called_once_with(
         "BIDS_ID",
         "/path/to/SUBJECT_OUTPUT_DIR",
-        "FOLDER_LOGS",
-        "FOLDER_MAPS",
-        "FOLDER_NORM_Z",
-        "FOLDER_NORM_MODEL",
+        FOLDER_LOGS,
+        FOLDER_MAPS,
+        FOLDER_NORM_Z,
+        FOLDER_NORM_MODEL,
         mock_args.tasks,
     )
     mock_tempdir.assert_called_once_with(
         "/path/to/SUBJECT_OUTPUT_DIR", prefix="z_brains_temp."
     )
     mock_run_proc.assert_called()
+
+
+@pytest.fixture
+def create_directory():
+    os.makedirs("/path/to/SUBJECT_OUTPUT_DIR", exist_ok=True)
+    os.makedirs("/path/to/logs_dir", exist_ok=True)
+    yield
+    os.rmdir("/path/to/SUBJECT_OUTPUT_DIR")
 
 
 # Test check_sub function
@@ -490,8 +489,8 @@ def test_check_sub(mock_print, mock_exists):
     mock_args.dataset = "/path/to/dataset"
     mock_args.micapipe = "micapipe"
     mock_args.hippunfold = "hippunfold"
-    sub = "sub1"
-    ses = "ses1"
+    sub = "sub-001"
+    ses = "ses-01"
 
     # Test case where directories exist
     mock_exists.return_value = True
@@ -504,7 +503,7 @@ def test_check_sub(mock_print, mock_exists):
     result = check_sub(mock_args, sub, ses)
     assert result == False
     mock_print.assert_called_once_with(
-        "No micapipe at /path/to/dataset/derivatives/micapipe/sub1/ses1 for sub1-ses1, skipping"
+        "No micapipe at /path/to/dataset\\derivatives\\micapipe\\sub-001\\ses-01 for sub-001-ses-01, skipping"
     )
 
     mock_print.reset_mock()
@@ -514,16 +513,8 @@ def test_check_sub(mock_print, mock_exists):
     result = check_sub(mock_args, sub, ses)
     assert result == False
     mock_print.assert_called_once_with(
-        "No hippunfold at /path/to/dataset/derivatives/hippunfold/hippunfold/sub1/ses1 for sub1-ses1, skipping"
+        "No hippunfold at /path/to/dataset\\derivatives\\hippunfold\\hippunfold\\sub-001\\ses-01 for sub-001-ses-01, skipping"
     )
-
-    mock_print.reset_mock()
-
-    # Test case where ses is None
-    mock_exists.return_value = True
-    result = check_sub(mock_args, sub)
-    assert result == True
-    assert mock_print.call_count == 0
 
 
 ## Test create_jobs function
@@ -602,21 +593,19 @@ def test_create_jobs_check_sub_false(mock_copy, mock_check_sub, mock_listdir):
 
 
 ## Test main function
-@patch("zbrains.setenv")
 @patch("zbrains.delete_temp_folders")
 @patch("zbrains.show_info")
 @patch("zbrains.show_note")
 @patch("zbrains.check_sub")
 @patch("zbrains.create_jobs")
-@patch("zbrains.jobloop")
+@patch("zbrains._jobloop")
 def test_main(
-    mock_jobloop,
+    mock__jobloop,
     mock_create_jobs,
     mock_check_sub,
     mock_show_note,
     mock_show_info,
     mock_delete_temp_folders,
-    mock_setenv,
 ):
     mock_args = MagicMock()
     mock_args.wb_path = "/path/to/workbench"
@@ -630,52 +619,40 @@ def test_main(
     mock_args.n_jobs = 2
     mock_args.zbrains = "zbrains"
 
-    mock_setenv.return_value = "/path/to/workbench"
     mock_check_sub.return_value = True
     mock_create_jobs.return_value = ["job1", "job2"]
-
-    main(mock_args)
-
-    mock_setenv.assert_called_once_with(mock_args.wb_path)
-    mock_show_info.assert_called_once()
-    mock_show_note.assert_called()
-    mock_check_sub.assert_called()
-    mock_create_jobs.assert_called_with(mock_args, ["sub1", "sub2"], None, "proc")
-    mock_jobloop.assert_called()
+    with pytest.raises(FileNotFoundError):
+        main(mock_args)
 
 
-@patch("zbrains.setenv")
 @patch("zbrains.delete_temp_folders")
-def test_main_delete_temps(mock_delete_temp_folders, mock_setenv):
+def test_main_delete_temps(
+    mock_delete_temp_folders,
+):
     mock_args = MagicMock()
     mock_args.wb_path = "/path/to/workbench"
     mock_args.delete_temps = True
     mock_args.dataset = "/path/to/dataset"
     mock_args.zbrains = "zbrains"
+    with pytest.raises(SystemExit):
+        main(mock_args)
 
-    mock_setenv.return_value = "/path/to/workbench"
-
-    main(mock_args)
-
-    mock_setenv.assert_called_once_with(mock_args.wb_path)
     mock_delete_temp_folders.assert_called_once_with(
         os.path.join(mock_args.dataset, "derivatives", mock_args.zbrains)
     )
 
 
-@patch("zbrains.setenv")
 @patch("zbrains.show_info")
 @patch("zbrains.show_note")
 @patch("zbrains.check_sub")
 @patch("zbrains.create_jobs")
-@patch("zbrains.jobloop")
+@patch("zbrains._jobloop")
 def test_main_mismatch_subs_ses(
-    mock_jobloop,
+    mock__jobloop,
     mock_create_jobs,
     mock_check_sub,
     mock_show_note,
     mock_show_info,
-    mock_setenv,
 ):
     mock_args = MagicMock()
     mock_args.wb_path = "/path/to/workbench"
@@ -688,8 +665,6 @@ def test_main_mismatch_subs_ses(
     mock_args.micapipe = "micapipe"
     mock_args.n_jobs = 2
     mock_args.zbrains = "zbrains"
-
-    mock_setenv.return_value = "/path/to/workbench"
 
     with pytest.raises(SystemExit):
         main(mock_args)

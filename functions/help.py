@@ -134,8 +134,9 @@ zbrains.py
 \t{gcolor}--n_jobs{nc} [number]         : Number of jobs to run in parallel. Default is {bcolor}1{nc}.
 \t{gcolor}--wb_path{nc} [path]          : Path to the Connectome Workbench binaries. Default is {bcolor}/data/mica1/01_programs/workbench-1.4.2/bin_linux64{nc}.
 \t{gcolor}--patient_prefix{nc} [prefix] : Prefix to use when determining patients versus controls. Default is {bcolor}PX{nc}.
-\t{gcolor}--backend{nc} [backend]        : Backend to use for processing. Default is {bcolor}shell{nc}, retaining old functionality. Can be set to {bcolor}python{nc} to test the new branch.
+\t{gcolor}--backend{nc} [backend]       : Backend to use for processing. Default is {bcolor}shell{nc}, retaining old functionality. Can be set to {bcolor}python{nc} to test the new branch.
                                           Has no effect when calling the Python script directly.
+\t{gcolor}--delete_temps{nc} [bool]     : If set to True, will delete any ragged temp files left from crashed analyses, then exit. Default is {bcolor}False{nc}.
 \t{gcolor}--verbose{nc} [level]         : Verbosity level (default is {bcolor}-1{nc}). Levels:
                                     - 0             : Only errors
                                     - 1             : Warning messages and previous levels

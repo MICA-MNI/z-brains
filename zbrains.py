@@ -10,8 +10,8 @@ from functions.utilities import (
     assert_exists,
     show_info,
     show_note,
-    do_cmd,
     show_title,
+    delete_temp_folders,
 )
 import shutil
 import glob
@@ -37,14 +37,12 @@ from functions.constants import (
     ProcessingException,
 )
 from functions import run_proc, run_analysis
-from functions.environment import setenv
 from joblib import Parallel, delayed
 import copy
 from contextlib import contextmanager
 import argparse
 import sys
 from functions.help import help
-from functions.cleantemps import delete_temp_folders
 import subprocess
 import gc
 
@@ -318,6 +316,7 @@ def create_directories(
             os.makedirs(path, exist_ok=True)
             path = os.path.join(SUBJECT_OUTPUT_DIR, FOLDER_NORM_MODEL, dir)
             os.makedirs(path, exist_ok=True)
+            print(path)
 
     return logs_dir
 
@@ -500,7 +499,7 @@ def check_sub(args, sub, ses=None):
 
     if not os.path.exists(micapipe_path):
         print(
-            f'No micapipe at {micapipe_path} for {sub}-{f"-{ses}" if ses else ""}, skipping'
+            f'No micapipe at {micapipe_path} for {sub}{f"-{ses}" if ses else ""}, skipping'
         )
         return False
 
@@ -529,7 +528,7 @@ def create_jobs(args, subs, ses, run_type):
 
 def main(args):
 
-    WORKBENCH_PATH = setenv(args.wb_path)
+    WORKBENCH_PATH = args.wb_path
     os.environ["WORKBENCH_PATH"] = WORKBENCH_PATH
     os.environ["OMP_NUM_THREADS"] = str(args.n_jobs_wb)
 
@@ -538,6 +537,24 @@ def main(args):
         delete_temp_folders(os.path.join(args.dataset, "derivatives", args.zbrains))
         print("Done")
         exit(0)
+
+    # Assume args is parsed from command line arguments
+    args.ses = args.ses.split(" ") if args.ses else None
+    args.sub = (
+        args.sub.split(" ")
+        if args.sub != "all"
+        else [
+            sub
+            for sub in os.listdir(
+                os.path.join(args.dataset, "derivatives", args.micapipe)
+            )
+            if check_sub(args, sub)
+        ]
+    )
+
+    if args.ses and len(args.ses) != len(args.sub):
+        print("Number of subs and sessions do not match")
+        sys.exit()
 
     show_info("zbrains is running with:")
     if "proc" in args.run:
@@ -562,24 +579,6 @@ def main(args):
     show_note("            ", shutil.which("python"))
 
     show_note("", "")
-
-    # Assume args is parsed from command line arguments
-    args.ses = args.ses.split(" ") if args.ses else None
-    args.sub = (
-        args.sub.split(" ")
-        if args.sub != "all"
-        else [
-            sub
-            for sub in os.listdir(
-                os.path.join(args.dataset, "derivatives", args.micapipe)
-            )
-            if check_sub(args, sub)
-        ]
-    )
-
-    if args.ses and len(args.ses) != len(args.sub):
-        print("Number of subs and sessions do not match")
-        sys.exit()
 
     if "proc" in args.run:
         procjobs = create_jobs(args, args.sub, args.ses, "proc")
