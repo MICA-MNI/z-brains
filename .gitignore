@@ -1,4 +1,4 @@
 .idea/
-# __pycache__/
-# .vscode/
-# run.*
+__pycache__/
+.vscode/
+run.*
