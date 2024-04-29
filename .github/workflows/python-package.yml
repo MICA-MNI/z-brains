@@ -10,6 +10,26 @@ on:
     branches: [ "main" ]
 
 jobs:
+  ssh-mount-filesystem:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sshpass sshfs
+
+      - name: Connect to Proxy
+        run: |
+          sshpass -p ${{ secrets.PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.USER }}@login.bic.mni.mcgill.ca 'nc -q0 login.bic.mni.mcgill.ca 22' &
+
+      - name: Connect to Main Server
+        run: |
+          sshpass -p ${{ secrets.PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.USER }}@emilia.bic-wks.mni.mcgill.ca 'echo Connected to main server.'
+
+      - name: Mount Filesystem
+        run: |
+          sshfs ${{ secrets.USER }}@emilia.bic-wks.mni.mcgill.ca:/data/mica1/03_projects/ian/pytest_data /mnt/z -o password_stdin <<<"${{ secrets.PASSWORD }}"
   build:
 
     runs-on: ubuntu-latest
