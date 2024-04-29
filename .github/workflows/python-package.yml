@@ -26,7 +26,8 @@ jobs:
       - name: Create Mount Point
         run: |
             sudo mkdir -p /mnt/z
-            
+            sudo chown -R $(whoami) /mnt/z
+
       - name: Mount Filesystem
         run: |
           sshfs ${{ secrets.USER }}@emilia.bic-wks.mni.mcgill.ca:/data/mica1/03_projects/ian/pytest_data /mnt/z -o password_stdin <<<"${{ secrets.PASSWORD }}"
