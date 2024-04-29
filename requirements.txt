@@ -1,4 +1,4 @@
-python>=3.8
+python_version >= "3.8"
 
 arabic-reshaper>=3.0.0
 asn1crypto>=1.5.1
