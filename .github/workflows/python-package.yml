@@ -30,7 +30,7 @@ jobs:
 
       - name: Mount Filesystem
         run: |
-          sshfs ${{ secrets.USER }}@emilia.bic-wks.mni.mcgill.ca:/data/mica1/03_projects/ian/pytest_data /mnt/z -v -o password_stdin <<<"${{ secrets.PASSWORD }}"
+          sshfs ${{ secrets.USER }}@login.bic.mni.mcgill.ca:/data/mica1/03_projects/ian/pytest_data /mnt/z -v -o password_stdin <<<"${{ secrets.PASSWORD }}"
   build:
 
     runs-on: ubuntu-latest
