@@ -2,7 +2,7 @@ python_version >= "3.8"
 
 arabic-reshaper>=3.0.0
 asn1crypto>=1.5.1
-backports.zoneinfo>=0.2.1
+backports.zoneinfo==0.2.1;python_version<"3.9"
 brainspace>=0.1.10
 certifi>=2024.2.2
 cffi>=1.16.0
