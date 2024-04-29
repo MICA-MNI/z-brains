@@ -23,6 +23,10 @@ jobs:
         run: |
           sshpass -p ${{ secrets.PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.USER }}@login.bic.mni.mcgill.ca 'nc -q0 login.bic.mni.mcgill.ca 22' &
 
+      - name: Create Mount Point
+        run: |
+            sudo mkdir -p /mnt/z
+            
       - name: Mount Filesystem
         run: |
           sshfs ${{ secrets.USER }}@emilia.bic-wks.mni.mcgill.ca:/data/mica1/03_projects/ian/pytest_data /mnt/z -o password_stdin <<<"${{ secrets.PASSWORD }}"
