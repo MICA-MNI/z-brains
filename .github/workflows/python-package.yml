@@ -21,7 +21,7 @@ jobs:
 
       - name: Connect to Proxy
         run: |
-          sshpass -p ${{ secrets.PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.USER }}@login.bic.mni.mcgill.ca 'nc -q0 login.bic.mni.mcgill.ca 22' &
+          sshpass -p ${{ secrets.PASSWORD }} ssh -v -o StrictHostKeyChecking=no ${{ secrets.USER }}@login.bic.mni.mcgill.ca 'nc -q0 login.bic.mni.mcgill.ca 22' &
 
       - name: Create Mount Point
         run: |
