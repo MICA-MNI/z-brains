@@ -280,7 +280,7 @@ def report_1x2_table(fig1: PathType, fig2: PathType, height=250):
 
 
 # Utility functions ------------------------------------------------------------
-def map_subcortical_vertices(x: np.ndarray) -> np.ndarray:
+def map_subcortical_vertices(x) -> np.ndarray:
     """
     Taken from the ENIGMA toolbox
     https://github.com/MICA-MNI/ENIGMA/blob/master/enigmatoolbox
@@ -335,11 +335,14 @@ def map_subcortical_vertices(x: np.ndarray) -> np.ndarray:
 
 # Load surfaces ----------------------------------------------------------------
 def _load_surfaces_ctx(resolution: Resolution = "high"):
+
     res_ctx = map_resolution("cortex", resolution)
+
     inf_lh = read_surface(f"{DATA_PATH}/fsLR-{res_ctx}.L.inflated.surf.gii")
     inf_rh = read_surface(f"{DATA_PATH}/fsLR-{res_ctx}.R.inflated.surf.gii")
-    mask = load_mask(join=True)
 
+    mask = load_mask(join=True)
+    print("here")
     return inf_lh, inf_rh, mask
 
 
@@ -702,7 +705,6 @@ def report_struct(
             file_rh = get_analysis_path_from_template(struct, **kwds)
     else:
         file_lh = get_analysis_path_from_template(struct, **kwds)
-
     # html
     thr_str = "" if thr is None else f" | threshold={thr}"
     info = ""

@@ -1,7 +1,6 @@
 import sys
 import logging
 import argparse
-from pathlib import Path
 import ast
 import numpy as np
 
@@ -20,12 +19,18 @@ try:
     )
     from functions.clinical_reports import generate_clinical_report
 except ModuleNotFoundError as e:
-    from new_constants import (
+    from constants import (
         LIST_ANALYSES,
         Resolution,
     )
 
-    from utils_analysis import get_id, get_session, run_analysis, get_bids_id, load_demo
+    from utils_analysis import (
+        get_id,
+        get_session,
+        run_analysis,
+        get_bids_id,
+        load_demo,
+    )
     from clinical_reports import generate_clinical_report
 
 
