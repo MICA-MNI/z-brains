@@ -3,7 +3,7 @@ import sys
 import subprocess
 import tempfile
 from pathlib import Path
-from functions.utilities import (
+from .functions.utilities import (
     assert_same_size,
     assert_required,
     show_error,
@@ -17,7 +17,7 @@ import shutil
 import glob
 import time
 import datetime
-from functions.constants import (
+from .functions.constants import (
     FOLDER_LOGS,
     FOLDER_MAPS,
     FOLDER_NORM_Z,
@@ -36,13 +36,13 @@ from functions.constants import (
     map_resolution_hip,
     ProcessingException,
 )
-from functions import run_proc, run_analysis
+from .functions import run_proc, run_analysis
 from joblib import Parallel, delayed
 import copy
 from contextlib import contextmanager
 import argparse
 import sys
-from functions.help import help
+from .functions.help import help
 import subprocess
 import gc
 
@@ -447,7 +447,6 @@ def main_func(args):
                     for idx in range(len(args.dataset_ref))
                 ]
                 args_list = [
-                    os.path.join(ZBRAINS, "functions", "run_analysis.py"),
                     "--sub",
                     sid,
                     "--ses",
@@ -495,7 +494,9 @@ def main_func(args):
 
                 if args.deconfound:
                     args_list.extend(["--deconfound", args.deconfound])
-                out = subprocess.call(["python", *args_list])
+                out = subprocess.call(
+                    ["python", "-m", "src.functions.run_analysis", *args_list]
+                )
             elapsed = (time.time() - start_time) / 60
             show_title(f"Total elapsed time for {BIDS_ID}: {elapsed:.2f} minutes")
         except Exception as e:

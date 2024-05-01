@@ -2,10 +2,13 @@ import os
 import pytest
 from unittest.mock import patch, mock_open
 import sys
+import warnings
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.append(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
-from functions.run_proc import (
+from src.functions.run_proc import (
     map_hippocampus,
     map_cortex,
     map_subcortex,
@@ -16,7 +19,7 @@ import numpy as np
 
 
 @patch("numpy.asanyarray")
-@patch("nib.load")
+@patch("nibabel.load")
 @patch("pandas.DataFrame")
 @patch("pandas.read_csv")
 @patch("builtins.open")
@@ -40,14 +43,15 @@ def test_subcortical_mapping(
     )
 
     # Test when seg and image are provided and vol is None
-    subcortical_mapping(
-        "subject_id",
-        "image",
-        "seg",
-        None,
-        "output",
-        False,
-    )
+    with pytest.warns(RuntimeWarning):
+        subcortical_mapping(
+            "subject_id",
+            "image",
+            "seg",
+            None,
+            "output",
+            False,
+        )
     # Assertions
     mock_asanyarray.assert_called()
     mock_nib_load.assert_called()
@@ -104,9 +108,9 @@ def test_subcortical_mapping(
 
 @patch("os.path.isfile")
 @patch("os.makedirs")
-@patch("functions.run_proc.subcortical_mapping")
-@patch("functions.utilities.show_warning")
-@patch("functions.utilities.show_note")
+@patch("src.functions.run_proc.subcortical_mapping")
+@patch("src.functions.run_proc.show_warning")
+@patch("src.functions.run_proc.show_note")
 def test_map_subcortex(
     mock_show_note,
     mock_show_warning,
@@ -166,6 +170,7 @@ def test_map_subcortex(
     # Assertions
     mock_os_makedirs.assert_called()
     mock_subcortical_mapping.assert_called()
+    mock_subcortical_mapping.reset_mock()
 
     # Test when required files do not exist
     mock_os_path_isfile.return_value = False
@@ -186,7 +191,7 @@ def test_map_subcortex(
     mock_show_warning.assert_called()
 
     # Test when output file is not created successfully
-    mock_os_path_isfile.side_effect = [True, True, False]
+    mock_os_path_isfile.side_effect = [True, True, False, False]
     map_subcortex(
         "bids_id",
         "feat",
@@ -279,6 +284,7 @@ def test_map_hippocampus(
     # Assertions
     mock_os_makedirs.assert_called()
     mock_subprocess_run.assert_called()
+    mock_subprocess_run.reset_mock()
 
     # Test when required files do not exist
     mock_os_path_isfile.return_value = False
@@ -300,9 +306,10 @@ def test_map_hippocampus(
     # Assertions
     mock_os_makedirs.assert_called()
     mock_subprocess_run.assert_not_called()
+    mock_subprocess_run.reset_mock()
 
     # Test when output file is not created successfully
-    mock_os_path_isfile.side_effect = [True, True, False]
+    mock_os_path_isfile.side_effect = [True, True, False, False]
     map_hippocampus(
         "bids_id",
         "feat",
@@ -324,9 +331,9 @@ def test_map_hippocampus(
 
 
 # Test map_cortex function
-@patch("os.path.isfile")
-@patch("os.makedirs")
-@patch("subprocess.run")
+@patch("src.functions.run_proc.os.path.isfile")
+@patch("src.functions.run_proc.os.makedirs")
+@patch("src.functions.run_proc.subprocess.run")
 def test_map_cortex(mock_subprocess_run, mock_os_makedirs, mock_os_path_isfile):
     # Setup
     mock_os_path_isfile.return_value = True
@@ -422,7 +429,7 @@ def test_map_cortex(mock_subprocess_run, mock_os_makedirs, mock_os_path_isfile):
     # Assertions
     mock_os_makedirs.assert_called()
     mock_subprocess_run.assert_called()
-
+    mock_subprocess_run.reset_mock()
     # Test when required files do not exist
     mock_os_path_isfile.return_value = False
     map_cortex(
@@ -442,8 +449,9 @@ def test_map_cortex(mock_subprocess_run, mock_os_makedirs, mock_os_path_isfile):
     mock_os_makedirs.assert_called()
     mock_subprocess_run.assert_not_called()
 
+    mock_subprocess_run.reset_mock()
     # Test when output file is not created successfully
-    mock_os_path_isfile.side_effect = [True, True, False]
+    mock_os_path_isfile.side_effect = [True, True, False, False]
     map_cortex(
         "bids_id",
         "feat",

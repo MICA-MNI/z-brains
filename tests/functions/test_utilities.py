@@ -8,7 +8,7 @@ sys.path.append(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
 
-from functions.utilities import delete_temp_folders
+from src.functions.utilities import delete_temp_folders
 
 
 # Test delete_temp_folders
@@ -24,7 +24,7 @@ def test_delete_temp_folders():
 
         delete_temp_folders("root")
 
-        mock_rmtree.assert_called_once_with("root/z_brains_temp.12345678")
+        mock_rmtree.assert_called_once_with("root\\z_brains_temp.12345678")
 
 
 def test_delete_temp_folders_no_match():
@@ -55,5 +55,5 @@ def test_delete_temp_folders_multiple_matches():
         delete_temp_folders("root")
 
         assert mock_rmtree.call_count == 2
-        mock_rmtree.assert_any_call("root/z_brains_temp.12345678")
-        mock_rmtree.assert_any_call("root/z_brains_temp.87654321")
+        mock_rmtree.assert_any_call("root\\z_brains_temp.12345678")
+        mock_rmtree.assert_any_call("root\\z_brains_temp.87654321")

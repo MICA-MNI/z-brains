@@ -10,7 +10,7 @@ sys.path.append(
 )
 from brainspace.vtk_interface.wrappers.data_object import BSPolyData
 
-from functions.clinical_reports import (
+from src.functions.clinical_reports import (
     adjectivize_struct,
     plot_surfs,
     convert_html_to_pdf,
@@ -37,8 +37,8 @@ import tempfile
 # Test generate_clinical_report
 
 
-@patch("functions.clinical_reports.get_bids_id")
-@patch("functions.clinical_reports.get_subject_dir")
+@patch("src.functions.clinical_reports.get_bids_id")
+@patch("src.functions.clinical_reports.get_subject_dir")
 @patch("glob.glob")
 def test_generate_clinical_report(mock_glob, mock_get_subject_dir, mock_get_bids_id):
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -87,11 +87,11 @@ def test_generate_clinical_report(mock_glob, mock_get_subject_dir, mock_get_bids
 # Test report_struct
 
 
-@patch("functions.clinical_reports.get_analysis_path_from_template")
-@patch("functions.utils_analysis.get_bids_id")
-@patch("functions.clinical_reports.make_png_missing")
-@patch("functions.clinical_reports.make_png")
-@patch("functions.clinical_reports.load_data_struct")
+@patch("src.functions.clinical_reports.get_analysis_path_from_template")
+@patch("src.functions.utils_analysis.get_bids_id")
+@patch("src.functions.clinical_reports.make_png_missing")
+@patch("src.functions.clinical_reports.make_png")
+@patch("src.functions.clinical_reports.load_data_struct")
 @patch("logging.getLogger")
 def test_report_struct(
     mock_getLogger,
@@ -161,7 +161,7 @@ def test_report_struct(
 
 
 @patch("nibabel.load")
-@patch("functions.clinical_reports._load_data_sctx")
+@patch("src.functions.clinical_reports._load_data_sctx")
 def test_load_data_struct_subcortex(mock_load_data_sctx, mock_nib_load):
     mock_load_data_sctx.return_value = (
         np.array([1, 2, 3], dtype=np.float64),
@@ -218,7 +218,7 @@ def test_load_data_struct_cortex_regional(mock_nib_load):
 # Test _load_data_sctx
 
 
-@patch("functions.clinical_reports.map_subcortical_vertices")
+@patch("src.functions.clinical_reports.map_subcortical_vertices")
 @patch("pandas.read_csv")
 def test_load_data_sctx(mock_read_csv, mock_map_subcortical_vertices):
     # Mocking the read_csv function
@@ -309,7 +309,7 @@ def test_load_surfaces_hip_low_resolution(var):
 @pytest.fixture
 def var(mocker):
     return mocker.patch(
-        "functions.clinical_reports.DATA_PATH", new="data", autospec=False
+        "src.functions.clinical_reports.DATA_PATH", new="src/data", autospec=False
     )
 
 

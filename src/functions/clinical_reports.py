@@ -52,42 +52,25 @@ if (
     "DISPLAY" not in os.environ or not os.environ["DISPLAY"]
 ) and platform.system() != "Windows":
     from pyvirtualdisplay import Display
-try:
-    from functions.constants import (
-        LIST_ANALYSES,
-        Analysis,
-        Approach,
-        Resolution,
-        Structure,
-        Feature,
-        struct_to_folder,
-        approach_to_folder,
-    )
-    from functions.utils_analysis import (
-        get_bids_id,
-        map_resolution,
-        get_analysis_path_from_template,
-        get_subject_dir,
-        PathType,
-    )
-except ModuleNotFoundError as e:
-    from constants import (
-        LIST_ANALYSES,
-        Analysis,
-        Approach,
-        Resolution,
-        Structure,
-        Feature,
-        struct_to_folder,
-        approach_to_folder,
-    )
-    from utils_analysis import (
-        get_bids_id,
-        map_resolution,
-        get_analysis_path_from_template,
-        get_subject_dir,
-        PathType,
-    )
+
+
+from .constants import (
+    LIST_ANALYSES,
+    Analysis,
+    Approach,
+    Resolution,
+    Structure,
+    Feature,
+    struct_to_folder,
+    approach_to_folder,
+)
+from .utils_analysis import (
+    get_bids_id,
+    map_resolution,
+    get_analysis_path_from_template,
+    get_subject_dir,
+    PathType,
+)
 
 
 cmaps = cmocean.cm.cmap_d

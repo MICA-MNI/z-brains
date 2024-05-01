@@ -1,12 +1,12 @@
 import os
-from functions.utilities import (
+from .utilities import (
     show_title,
     show_note,
     show_info,
     show_warning,
 )
 import subprocess
-from functions.constants import *
+from .constants import *
 import time
 import glob
 from typing import Union
@@ -147,6 +147,7 @@ def map_subcortex(
 
         for file in [seg_file, input_file]:
             if not os.path.isfile(file):
+
                 show_warning(
                     f"{bids_id}: cannot map '{feat}' to subcortical structures. Missing file: {file}"
                 )

@@ -13,42 +13,27 @@ import pandas as pd
 import nibabel as nib
 import copy
 
-try:
-    from functions.deconfounding import CombatModel, RegressOutModel
-    from functions.constants import (
-        Structure,
-        Analysis,
-        Approach,
-        Resolution,
-        Feature,
-        struct_to_folder,
-        approach_to_folder,
-        map_feature_to_file,
-        HIGH_RESOLUTION_CTX,
-        LOW_RESOLUTION_CTX,
-        HIGH_RESOLUTION_HIP,
-        LOW_RESOLUTION_HIP,
-        FOLDER_MAPS,
-        LIST_FEATURES,
-    )
-except ModuleNotFoundError as e:
-    from deconfounding import CombatModel, RegressOutModel
-    from constants import (
-        Structure,
-        Analysis,
-        Approach,
-        Resolution,
-        Feature,
-        struct_to_folder,
-        approach_to_folder,
-        map_feature_to_file,
-        HIGH_RESOLUTION_CTX,
-        LOW_RESOLUTION_CTX,
-        HIGH_RESOLUTION_HIP,
-        LOW_RESOLUTION_HIP,
-        FOLDER_MAPS,
-        LIST_FEATURES,
-    )
+from .constants import ProcessingException
+
+
+from .deconfounding import CombatModel, RegressOutModel
+from .constants import (
+    Structure,
+    Analysis,
+    Approach,
+    Resolution,
+    Feature,
+    struct_to_folder,
+    approach_to_folder,
+    map_feature_to_file,
+    HIGH_RESOLUTION_CTX,
+    LOW_RESOLUTION_CTX,
+    HIGH_RESOLUTION_HIP,
+    LOW_RESOLUTION_HIP,
+    FOLDER_MAPS,
+    LIST_FEATURES,
+)
+
 COLUMN_DATASET = "__zbrains_dataset_identifier__"
 
 PathType = Union[str, os.PathLike]
@@ -195,8 +180,12 @@ def mahalanobis_distance(x_train: np.ndarray, x_test: np.ndarray) -> np.ndarray:
 
     cov = np.moveaxis(x_train, 0, -1) @ x_train.swapaxes(0, 1)
     cov /= n_train - 1
-    # print(cov)
-    cov_inv = np.linalg.inv(cov)
+    try:
+        cov_inv = np.linalg.inv(cov)
+    except np.linalg.LinAlgError:
+        raise ProcessingException(
+            "Singular matrix, unable to compute Mahalanobis distance. Check your smoothing kernels, they might be too small."
+        )
 
     x_test = x_test - mu
     dist = np.sqrt(x_test[:, None] @ cov_inv @ x_test[..., None]).squeeze()
@@ -765,6 +754,7 @@ def process_feature(
     data_px = _load_one(
         px_zbrains, sid=px_sid, ses=px_ses, raise_error=False, tmp=tmp, **kwds
     )
+    print(data_px)
     if data_px is None:
         log["warning"] = f"\t{feat:<15}: \tNo data available for target subject."
         return None, log

@@ -12,7 +12,7 @@ import sys
 
 from .pytest_constants import HC_DEMOGRAPHICS, PX_DEMOGRAPHICS, DATASET_DIR
 
-from functions.constants import (
+from src.functions.constants import (
     ProcessingException,
     LIST_FEATURES,
     LIST_RESOLUTIONS,
@@ -24,7 +24,7 @@ from functions.constants import (
     FOLDER_MAPS,
     FOLDER_LOGS,
 )
-from zbrains import (
+from src.zbrains import (
     main,
     create_jobs,
     check_sub,
@@ -87,7 +87,10 @@ def test_parse_args():
     FEATURES_NOPLUGIN.remove("plugin-*")
     # Check the result
     assert result[0] == mock_args
-    assert str(result[1]) == os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    assert (
+        str(result[1])
+        == os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + "\\src"
+    )
     assert result[2].name == "functions"
     assert result[3] == True
     assert result[4] == ["proc"]
@@ -139,7 +142,7 @@ def test_parse_args_missing_required_option():
 @patch("os.environ", {"WORKBENCH_PATH": "/path/to/workbench"})
 @patch("os.path.join")
 @patch("shutil.which")
-@patch("zbrains.show_error")
+@patch("src.zbrains.show_error")
 def test_check_workbench_dependency_workbench_path_set(
     mock_show_error, mock_which, mock_join
 ):
@@ -153,7 +156,7 @@ def test_check_workbench_dependency_workbench_path_set(
 @patch("os.environ", {"WORKBENCH_PATH": None})
 @patch("os.path.join")
 @patch("shutil.which")
-@patch("zbrains.show_error")
+@patch("src.zbrains.show_error")
 def test_check_workbench_dependency_workbench_path_not_set(
     mock_show_error, mock_which, mock_join
 ):
@@ -167,7 +170,7 @@ def test_check_workbench_dependency_workbench_path_not_set(
 @patch("os.environ", {"WORKBENCH_PATH": None})
 @patch("os.path.join")
 @patch("shutil.which")
-@patch("zbrains.show_error")
+@patch("src.zbrains.show_error")
 def test_check_workbench_dependency_wb_command_not_found(
     mock_show_error, mock_which, mock_join
 ):
@@ -290,7 +293,7 @@ def test_check_files_and_directories_missing_module(
 
 @patch("os.makedirs")
 @patch("os.path.isdir")
-@patch("zbrains.show_info")
+@patch("src.zbrains.show_info")
 def test_create_directories(mock_show_info, mock_isdir, mock_makedirs):
     BIDS_ID = "test"
     SUBJECT_OUTPUT_DIR = "/path/to/output"
@@ -346,12 +349,12 @@ def test_create_directories(mock_show_info, mock_isdir, mock_makedirs):
 # Test main_func function
 
 
-@patch("zbrains.parse_args")
-@patch("zbrains.check_workbench_dependency")
-@patch("zbrains.check_files_and_directories")
-@patch("zbrains.create_directories")
-@patch("zbrains.tempdir")
-@patch("zbrains.run_proc.run")
+@patch("src.zbrains.parse_args")
+@patch("src.zbrains.check_workbench_dependency")
+@patch("src.zbrains.check_files_and_directories")
+@patch("src.zbrains.create_directories")
+@patch("src.zbrains.tempdir")
+@patch("src.zbrains.run_proc.run")
 def test_main_func(
     mock_run_proc,
     mock_tempdir,
@@ -476,8 +479,8 @@ def test_check_sub(mock_print, mock_exists):
 ## Test create_jobs function
 
 
-@patch("zbrains.os.listdir")
-@patch("zbrains.check_sub")
+@patch("src.zbrains.os.listdir")
+@patch("src.zbrains.check_sub")
 @patch("copy.copy")
 def test_create_jobs(mock_copy, mock_check_sub, mock_listdir):
     mock_args = MagicMock()
@@ -500,8 +503,8 @@ def test_create_jobs(mock_copy, mock_check_sub, mock_listdir):
     mock_listdir.assert_not_called()
 
 
-@patch("zbrains.os.listdir")
-@patch("zbrains.check_sub")
+@patch("src.zbrains.os.listdir")
+@patch("src.zbrains.check_sub")
 @patch("copy.copy")
 def test_create_jobs_no_ses(mock_copy, mock_check_sub, mock_listdir):
     mock_args = MagicMock()
@@ -524,8 +527,8 @@ def test_create_jobs_no_ses(mock_copy, mock_check_sub, mock_listdir):
     mock_listdir.assert_called()
 
 
-@patch("zbrains.os.listdir")
-@patch("zbrains.check_sub")
+@patch("src.zbrains.os.listdir")
+@patch("src.zbrains.check_sub")
 @patch("copy.copy")
 def test_create_jobs_check_sub_false(mock_copy, mock_check_sub, mock_listdir):
     mock_args = MagicMock()
@@ -549,12 +552,12 @@ def test_create_jobs_check_sub_false(mock_copy, mock_check_sub, mock_listdir):
 
 
 ## Test main function
-@patch("zbrains.delete_temp_folders")
-@patch("zbrains.show_info")
-@patch("zbrains.show_note")
-@patch("zbrains.check_sub")
-@patch("zbrains.create_jobs")
-@patch("zbrains._jobloop")
+@patch("src.zbrains.delete_temp_folders")
+@patch("src.zbrains.show_info")
+@patch("src.zbrains.show_note")
+@patch("src.zbrains.check_sub")
+@patch("src.zbrains.create_jobs")
+@patch("src.zbrains._jobloop")
 def test_main(
     mock__jobloop,
     mock_create_jobs,
@@ -581,7 +584,7 @@ def test_main(
         main(mock_args)
 
 
-@patch("zbrains.delete_temp_folders")
+@patch("src.zbrains.delete_temp_folders")
 def test_main_delete_temps(
     mock_delete_temp_folders,
 ):
@@ -598,11 +601,11 @@ def test_main_delete_temps(
     )
 
 
-@patch("zbrains.show_info")
-@patch("zbrains.show_note")
-@patch("zbrains.check_sub")
-@patch("zbrains.create_jobs")
-@patch("zbrains._jobloop")
+@patch("src.zbrains.show_info")
+@patch("src.zbrains.show_note")
+@patch("src.zbrains.check_sub")
+@patch("src.zbrains.create_jobs")
+@patch("src.zbrains._jobloop")
 def test_main_mismatch_subs_ses(
     mock__jobloop,
     mock_create_jobs,

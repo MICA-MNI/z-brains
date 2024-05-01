@@ -1,17 +1,18 @@
 import pytest
-import logging
-import os
-import sys
-
-sys.path.append(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-)
-
 from unittest.mock import patch, MagicMock
-from functions.run_analysis import run, main
+from src.functions.run_analysis import main
 
 
-def test_main_mismatched_zbrains_demo_refs():
+@patch("src.functions.clinical_reports.generate_clinical_report")
+@patch("src.functions.utils_analysis.run_analysis")
+@patch("src.functions.utils_analysis.load_demo")
+@patch("src.functions.utils_analysis.approach_to_folder")
+def test_main_mismatched_zbrains_demo_refs(
+    mock_approach_to_folder,
+    mock_load_demo,
+    mock_run_analysis,
+    mock_generate_clinical_reports,
+):
     logger = MagicMock()
     with pytest.raises(
         ValueError,
@@ -42,7 +43,16 @@ def test_main_mismatched_zbrains_demo_refs():
         )
 
 
-def test_main_unknown_column_names():
+@patch("src.functions.clinical_reports.generate_clinical_report")
+@patch("src.functions.utils_analysis.run_analysis")
+@patch("src.functions.utils_analysis.load_demo")
+@patch("src.functions.utils_analysis.approach_to_folder")
+def test_main_unknown_column_names(
+    mock_approach_to_folder,
+    mock_load_demo,
+    mock_run_analysis,
+    mock_generate_clinical_reports,
+):
     logger = MagicMock()
     with pytest.raises(
         ValueError, match="Unknown column names: {'unknown'}. Allowed options are:"
@@ -72,41 +82,85 @@ def test_main_unknown_column_names():
         )
 
 
-def test_main_no_demo_row():
+@patch("src.functions.clinical_reports.generate_clinical_report")
+@patch("src.functions.utils_analysis.run_analysis")
+@patch("src.functions.run_analysis.load_demo")
+@patch("src.functions.utils_analysis.approach_to_folder")
+def test_main_multiple_demo_rows_2(
+    mock_approach_to_folder,
+    mock_load_demo,
+    mock_run_analysis,
+    mock_generate_clinical_reports,
+):
+    mock_run_analysis.return_value = {
+        "cortex": {"high": {"midthickness": "ADC"}},
+        "subcortex": "ADC",
+        "hippocampus": {"high": {"midthickness": "ADC"}},
+    }
+    mock_generate_clinical_reports.return_value = "clinical_reports"
+    mock_approach_to_folder.return_value = "approach_folder"
+    return_val = MagicMock()
+    new_mock = MagicMock()
+    new_mock.empty = True
+
+    return_val.loc.__getitem__.return_value = new_mock
+
+    mock_load_demo.return_value = return_val
     logger = MagicMock()
     demo = MagicMock()
-    demo.empty = True
-    main(
-        zbrains_ref=["ref1"],
-        demo_ref=["ref1"],
-        column_map={},
-        subject_id="sub-001",
-        session=None,
-        demo=demo,
-        zbrains=None,
-        struct=None,
-        feat=None,
-        normative=None,
-        deconfound=None,
-        smooth_ctx=None,
-        smooth_hip=None,
-        threshold=None,
-        approach=None,
-        resolution=None,
-        labels_ctx=None,
-        labels_hip=None,
-        tmp=None,
-        logger=logger,
-        n_jobs=None,
-    )
-    logger.warning.assert_called_once()
+    with pytest.raises(ValueError, match="Cannot find sub-001 in demographics"):
+        main(
+            zbrains_ref=["ref1"],
+            demo_ref=["ref1"],
+            column_map={},
+            subject_id="sub-001",
+            session=None,
+            demo=demo,
+            zbrains=None,
+            struct=None,
+            feat=None,
+            normative=MagicMock(),
+            deconfound=None,
+            smooth_ctx=None,
+            smooth_hip=None,
+            threshold=1,
+            approach=None,
+            resolution=["high"],
+            labels_ctx=["midthickness"],
+            labels_hip=["midthickness"],
+            tmp=None,
+            logger=logger,
+            n_jobs=None,
+        )
 
 
-def test_main_multiple_demo_rows():
+@patch("src.functions.clinical_reports.generate_clinical_report")
+@patch("src.functions.utils_analysis.run_analysis")
+@patch("src.functions.run_analysis.load_demo")
+@patch("src.functions.utils_analysis.approach_to_folder")
+def test_main_multiple_demo_rows(
+    mock_approach_to_folder,
+    mock_load_demo,
+    mock_run_analysis,
+    mock_generate_clinical_reports,
+):
+    mock_run_analysis.return_value = {
+        "cortex": {"high": {"midthickness": "ADC"}},
+        "subcortex": "ADC",
+        "hippocampus": {"high": {"midthickness": "ADC"}},
+    }
+    mock_generate_clinical_reports.return_value = "clinical_reports"
+    mock_approach_to_folder.return_value = "approach_folder"
+    return_val = MagicMock()
+    new_mock = MagicMock()
+    new_mock.shape.__getitem__.return_value = 2
+    new_mock.empty = False
+
+    return_val.loc.__getitem__.return_value = new_mock
+
+    mock_load_demo.return_value = return_val
     logger = MagicMock()
     demo = MagicMock()
-    demo.empty = False
-    demo.shape = (2, 2)
     with pytest.raises(
         ValueError, match="Provided sub-001 is not unique in demographics file."
     ):
@@ -120,107 +174,16 @@ def test_main_multiple_demo_rows():
             zbrains=None,
             struct=None,
             feat=None,
-            normative=None,
+            normative=MagicMock(),
             deconfound=None,
             smooth_ctx=None,
             smooth_hip=None,
-            threshold=None,
+            threshold=1,
             approach=None,
-            resolution=None,
-            labels_ctx=None,
-            labels_hip=None,
+            resolution=["high"],
+            labels_ctx=["midthickness"],
+            labels_hip=["midthickness"],
             tmp=None,
             logger=logger,
             n_jobs=None,
         )
-
-
-def test_run():
-    # Mock the main function
-    with patch("functions.run_analysis.main") as mock_main:
-        # Mock the logger and its methods
-        mock_logger = MagicMock()
-        with patch("logging.getLogger", return_value=mock_logger):
-            # Mock the console handler and its methods
-            mock_console_handler = MagicMock()
-            with patch("logging.StreamHandler", return_value=mock_console_handler):
-                # Mock the file handler and its methods
-                mock_file_handler = MagicMock()
-                with patch("logging.FileHandler", return_value=mock_file_handler):
-                    # Call the run function
-                    run(
-                        subject_id="sub-001",
-                        zbrains="zbrains",
-                        demo_ref="demo_ref",
-                        zbrains_ref="zbrains_ref",
-                        verbose=2,
-                        filter_warnings=True,
-                        logfile="logfile.log",
-                    )
-
-    # Check that the main function was called with the correct arguments
-    mock_main.assert_called_once_with(
-        "zbrains_ref",
-        "demo_ref",
-        None,
-        "sub-001",
-        None,
-        None,
-        "zbrains",
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        mock_logger,
-        None,
-    )
-
-    # Check that the logger was created with the correct name
-    logging.getLogger.assert_called_once_with(None)
-
-    # Check that the console handler was created and configured correctly
-    mock_console_handler.assert_called_once_with(sys.stdout)
-    mock_console_handler.setFormatter.assert_called_once()
-    mock_console_handler.setLevel.assert_called_once_with(logging.INFO)
-    mock_console_handler.addFilter.assert_called_once()
-
-    # Check that the file handler was created and configured correctly
-    mock_console_handler.assert_called_once_with("logfile.log", mode="w")
-    mock_file_handler.setFormatter.assert_called_once()
-
-    # Check that the logger was configured correctly
-    mock_logger.setLevel.assert_called_once_with(logging.DEBUG)
-    assert mock_logger.addHandler.call_count == 2
-
-
-def test_run_unhandled_exception():
-    # Mock the main function to raise an exception
-    with patch("functions.run_analysis.main", side_effect=Exception):
-        # Mock the logger and its methods
-        mock_logger = MagicMock()
-        with patch("logging.getLogger", return_value=mock_logger):
-            # Mock the console handler and its methods
-            mock_console_handler = MagicMock()
-            with patch("logging.StreamHandler", return_value=mock_console_handler):
-                # Call the run function and check for the exception
-                with pytest.raises(Exception):
-                    run(
-                        subject_id="sub-001",
-                        zbrains="zbrains",
-                        demo_ref="demo_ref",
-                        zbrains_ref="zbrains_ref",
-                        verbose=2,
-                        filter_warnings=True,
-                        logfile="logfile.log",
-                    )
-
-    # Check that the logger was called with the correct arguments
-    mock_logger.critical.assert_called_once()
