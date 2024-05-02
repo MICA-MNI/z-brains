@@ -44,7 +44,8 @@ jobs:
       - name: Mount Filesystem
         run: |
           sshfs ${{ secrets.USER }}@login.bic.mni.mcgill.ca:/data/mica1/03_projects/ian/pytest_data /mnt/z -v -o password_stdin <<<"${{ secrets.PASSWORD }}"
-      - uses: actions/checkout@v4
+          ls /mnt/z
+          - uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v3
         with:
