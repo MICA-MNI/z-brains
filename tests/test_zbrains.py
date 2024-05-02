@@ -648,7 +648,7 @@ def test_main_fullrun():
         )
     else:
         rootdir = "/mnt/z/BIDS_MICS_Test"
-        WBPATH = "workbench/bin_linux64/"
+        WBPATH = "/home/runner/work/workbench/bin_linux64/"
     print(os.getcwd())
     print(os.listdir(os.getcwd()))
     DATASET_DIR = f"{rootdir}/data"
