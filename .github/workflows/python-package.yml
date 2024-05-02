@@ -18,6 +18,13 @@ jobs:
       matrix:
         python-version: ["3.8", "3.9", "3.10"]
     steps:
+      
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sshpass sshfs
+          sudo apt-get install libglu1
+
       - name: Install Connectome Workbench
         run: |
           wget https://www.humanconnectome.org/storage/app/media/workbench/workbench-linux64-v1.5.0.zip
@@ -25,11 +32,6 @@ jobs:
           echo 'export PATH=$PATH:$(pwd)/workbench/bin_linux64' >> ~/.bashrc
           source ~/.bashrc
           workbench/bin_linux64/wb_command -version
-      - name: Install System Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y sshpass sshfs
-
       - name: Connect to Proxy
         run: |
           sshpass -p ${{ secrets.PASSWORD }} ssh -v -o StrictHostKeyChecking=no ${{ secrets.USER }}@login.bic.mni.mcgill.ca 'nc -q0 login.bic.mni.mcgill.ca 22' &
