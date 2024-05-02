@@ -24,7 +24,7 @@ jobs:
           unzip workbench-linux64-v1.5.0.zip
           echo 'export PATH=$PATH:$(pwd)/workbench/bin_linux64' >> ~/.bashrc
           source ~/.bashrc
-          ls
+          ls -l workbench/bin_linux64
           .$(pwd)/workbench/bin_linux64/wb_command -version
       - name: Install System Dependencies
         run: |
