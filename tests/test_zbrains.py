@@ -690,7 +690,7 @@ def test_main_fullrun():
             n_jobs=4,
             test=True,
         )
-
+        print("PATH TO WB COMMAND", shutil.which("wb_command"))
         try:
             main(mock_args)
         except Exception as e:
