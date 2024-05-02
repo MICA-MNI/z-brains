@@ -370,80 +370,74 @@ def test_main_func(
     mock_check_files_and_directories,
     mock_check_workbench_dependency,
     mock_parse_args,
-    create_directory,
 ):
-    mock_args = MagicMock()
-    mock_args.tasks = ["proc", "analysis"]
-    mock_args.structures = ["hippocampus", "cortex"]
-    mock_args.features = ["ADC", "FA"]
-    mock_args.resolutions = ["high", "low"]
-    mock_args.labels_hip = ["white", "midthickness"]
-    mock_args.labels_ctx = ["midthickness"]
-    mock_args.smooth_hip = 1.0
-    mock_args.smooth_ctx = 2.0
-    mock_args.threshold = 0.5
-    mock_args.WORKBENCH_PATH = "/path/to/workbench"
+    with tempfile.TemporaryDirectory() as tmpdir:
+        os.mkdir(os.path.join(f"{tmpdir}/SUBJECT_OUTPUT_DIR"))
+        os.mkdir(os.path.join(f"{tmpdir}/logs_dir"))
+        mock_args = MagicMock()
+        mock_args.tasks = ["proc", "analysis"]
+        mock_args.structures = ["hippocampus", "cortex"]
+        mock_args.features = ["ADC", "FA"]
+        mock_args.resolutions = ["high", "low"]
+        mock_args.labels_hip = ["white", "midthickness"]
+        mock_args.labels_ctx = ["midthickness"]
+        mock_args.smooth_hip = 1.0
+        mock_args.smooth_ctx = 2.0
+        mock_args.threshold = 0.5
+        mock_args.WORKBENCH_PATH = f"{tmpdir}/workbench"
 
-    mock_parse_args.return_value = (
-        mock_args,
-        "ZBRAINS",
-        "/path/to/script",
-        True,
-        mock_args.tasks,
-        "sid",
-        "ses",
-        mock_args.structures,
-        mock_args.features,
-        mock_args.resolutions,
-        mock_args.labels_ctx,
-        mock_args.labels_hip,
-        mock_args.smooth_ctx,
-        mock_args.smooth_hip,
-        mock_args.threshold,
-    )
+        mock_parse_args.return_value = (
+            mock_args,
+            "ZBRAINS",
+            f"{tmpdir}/script",
+            True,
+            mock_args.tasks,
+            "sid",
+            "ses",
+            mock_args.structures,
+            mock_args.features,
+            mock_args.resolutions,
+            mock_args.labels_ctx,
+            mock_args.labels_hip,
+            mock_args.smooth_ctx,
+            mock_args.smooth_hip,
+            mock_args.threshold,
+        )
 
-    mock_check_files_and_directories.return_value = (
-        "BIDS_ID",
-        "/path/to/SUBJECT_OUTPUT_DIR",
-        "/path/to/SUBJECT_MICAPIPE_DIR",
-        "/path/to/SUBJECT_HIPPUNFOLD_DIR",
-        "/path/to/SUBJECT_PLUGIN_DIR",
-        "/path/to/SUBJECT_SURF_DIR",
-        "/path/to/px_zbrains_path",
-    )
+        mock_check_files_and_directories.return_value = (
+            "BIDS_ID",
+            f"{tmpdir}/SUBJECT_OUTPUT_DIR",
+            f"{tmpdir}/SUBJECT_MICAPIPE_DIR",
+            f"{tmpdir}/SUBJECT_HIPPUNFOLD_DIR",
+            f"{tmpdir}/SUBJECT_PLUGIN_DIR",
+            f"{tmpdir}/SUBJECT_SURF_DIR",
+            f"{tmpdir}/px_zbrains_path",
+        )
 
-    mock_create_directories.return_value = "/path/to/logs_dir"
+        mock_create_directories.return_value = f"{tmpdir}/logs_dir"
 
-    mock_tempdir.return_value.__enter__.return_value = "/path/to/tmp_dir"
-    with patch.dict("os.environ", {"WORKBENCH_PATH": "/path/to/workbench"}):
-        main_func(mock_args)
+        mock_tempdir.return_value.__enter__.return_value = f"{tmpdir}/tmp_dir"
+        with patch.dict("os.environ", {"WORKBENCH_PATH": f"{tmpdir}/workbench"}):
+            main_func(mock_args)
 
-    mock_parse_args.assert_called_once_with(mock_args)
-    mock_check_workbench_dependency.assert_called_once_with(mock_args.tasks)
-    mock_check_files_and_directories.assert_called_once_with(
-        mock_args, mock_args.tasks, mock_args.structures, "sid", "ses"
-    )
-    mock_create_directories.assert_called_once_with(
-        "BIDS_ID",
-        "/path/to/SUBJECT_OUTPUT_DIR",
-        FOLDER_LOGS,
-        FOLDER_MAPS,
-        FOLDER_NORM_Z,
-        FOLDER_NORM_MODEL,
-        mock_args.tasks,
-    )
-    mock_tempdir.assert_called_once_with(
-        "/path/to/SUBJECT_OUTPUT_DIR", prefix="z_brains_temp."
-    )
-    mock_run_proc.assert_called()
-
-
-@pytest.fixture
-def create_directory():
-    os.makedirs("/path/to/SUBJECT_OUTPUT_DIR", exist_ok=True)
-    os.makedirs("/path/to/logs_dir", exist_ok=True)
-    yield
-    os.rmdir("/path/to/SUBJECT_OUTPUT_DIR")
+        mock_parse_args.assert_called_once_with(mock_args)
+        mock_check_workbench_dependency.assert_called_once_with(mock_args.tasks)
+        mock_check_files_and_directories.assert_called_once_with(
+            mock_args, mock_args.tasks, mock_args.structures, "sid", "ses"
+        )
+        mock_create_directories.assert_called_once_with(
+            "BIDS_ID",
+            f"{tmpdir}/SUBJECT_OUTPUT_DIR",
+            FOLDER_LOGS,
+            FOLDER_MAPS,
+            FOLDER_NORM_Z,
+            FOLDER_NORM_MODEL,
+            mock_args.tasks,
+        )
+        mock_tempdir.assert_called_once_with(
+            f"{tmpdir}/SUBJECT_OUTPUT_DIR", prefix="z_brains_temp."
+        )
+        mock_run_proc.assert_called()
 
 
 # Test check_sub function
@@ -655,6 +649,7 @@ def test_main_fullrun():
     else:
         rootdir = "/mnt/z/BIDS_MICS_Test"
         WBPATH = "/home/runner/work/z-brains/z-brains/workbench/bin_linux64"
+    print(os.getcwd())
     DATASET_DIR = f"{rootdir}/data"
     HC_DEMOGRAPHICS = f"{rootdir}/HC_participants.csv"
     PX_DEMOGRAPHICS = f"{rootdir}/PX_participants.csv"
