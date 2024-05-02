@@ -654,7 +654,7 @@ def test_main_fullrun():
         )
     else:
         rootdir = "/mnt/z/BIDS_MICS_Test"
-        WBPATH = "workbench/bin_linux64"
+        WBPATH = "/home/runner/work/z-brains/z-brains/workbench/bin_linux64"
     DATASET_DIR = f"{rootdir}/data"
     HC_DEMOGRAPHICS = f"{rootdir}/HC_participants.csv"
     PX_DEMOGRAPHICS = f"{rootdir}/PX_participants.csv"
