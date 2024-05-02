@@ -650,6 +650,7 @@ def test_main_fullrun():
         rootdir = "/mnt/z/BIDS_MICS_Test"
         WBPATH = "workbench/bin_linux64/"
     print(os.getcwd())
+    print(os.listdir(os.getcwd()))
     DATASET_DIR = f"{rootdir}/data"
     HC_DEMOGRAPHICS = f"{rootdir}/HC_participants.csv"
     PX_DEMOGRAPHICS = f"{rootdir}/PX_participants.csv"
