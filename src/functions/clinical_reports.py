@@ -72,7 +72,6 @@ from .utils_analysis import (
     PathType,
 )
 
-
 cmaps = cmocean.cm.cmap_d
 
 
