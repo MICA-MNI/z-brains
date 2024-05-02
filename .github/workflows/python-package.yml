@@ -27,11 +27,11 @@ jobs:
 
       - name: Install Connectome Workbench
         run: |
-          wget https://www.humanconnectome.org/storage/app/media/workbench/workbench-linux64-v1.5.0.zip
-          unzip workbench-linux64-v1.5.0.zip
-          echo 'export PATH=$PATH:$(pwd)/workbench/bin_linux64' >> ~/.bashrc
+          wget  https://www.humanconnectome.org/storage/app/media/workbench/workbench-linux64-v1.5.0.zip
+          unzip workbench-linux64-v1.5.0.zip -d /home/runner/work
+          echo 'export PATH=$PATH:/home/runner/work/workbench/bin_linux64' >> ~/.bashrc
           source ~/.bashrc
-          workbench/bin_linux64/wb_command -version
+          /home/runner/work/workbench/bin_linux64/wb_command -version
       - name: Connect to Proxy
         run: |
           sshpass -p ${{ secrets.PASSWORD }} ssh -v -o StrictHostKeyChecking=no ${{ secrets.USER }}@login.bic.mni.mcgill.ca 'nc -q0 login.bic.mni.mcgill.ca 22' &
