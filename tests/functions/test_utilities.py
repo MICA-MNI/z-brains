@@ -24,7 +24,10 @@ def test_delete_temp_folders():
 
         delete_temp_folders("root")
 
-        mock_rmtree.assert_called_once_with("root\\z_brains_temp.12345678")
+        if os.name == "nt":
+            mock_rmtree.assert_called_once_with("root\\z_brains_temp.12345678")
+        elif os.name == "posix":
+            mock_rmtree.assert_called_once_with("root/z_brains_temp.12345678")
 
 
 def test_delete_temp_folders_no_match():
@@ -55,5 +58,10 @@ def test_delete_temp_folders_multiple_matches():
         delete_temp_folders("root")
 
         assert mock_rmtree.call_count == 2
-        mock_rmtree.assert_any_call("root\\z_brains_temp.12345678")
-        mock_rmtree.assert_any_call("root\\z_brains_temp.87654321")
+
+        if os.name == "nt":
+            mock_rmtree.assert_any_call("root\\z_brains_temp.12345678")
+            mock_rmtree.assert_any_call("root\\z_brains_temp.87654321")
+        elif os.name == "posix":
+            mock_rmtree.assert_any_call("root/z_brains_temp.12345678")
+            mock_rmtree.assert_any_call("root/z_brains_temp.87654321")

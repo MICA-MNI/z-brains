@@ -87,10 +87,18 @@ def test_parse_args():
     FEATURES_NOPLUGIN.remove("plugin-*")
     # Check the result
     assert result[0] == mock_args
-    assert (
-        str(result[1])
-        == os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + "\\src"
-    )
+
+    if os.name == "nt":
+        assert (
+            str(result[1])
+            == os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + "\\src"
+        )
+    elif os.name == "posix":
+        assert (
+            str(result[1])
+            == os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + "/src"
+        )
+
     assert result[2].name == "functions"
     assert result[3] == True
     assert result[4] == ["proc"]
@@ -461,19 +469,28 @@ def test_check_sub(mock_print, mock_exists):
     mock_exists.side_effect = [False, True]
     result = check_sub(mock_args, sub, ses)
     assert result == False
-    mock_print.assert_called_once_with(
-        "No micapipe at /path/to/dataset\\derivatives\\micapipe\\sub-001\\ses-01 for sub-001-ses-01, skipping"
-    )
-
+    if os.name == "nt":
+        mock_print.assert_called_once_with(
+            "No micapipe at /path/to/dataset\\derivatives\\micapipe\\sub-001\\ses-01 for sub-001-ses-01, skipping"
+        )
+    elif os.name == "posix":
+        mock_print.assert_called_once_with(
+            "No micapipe at /path/to/dataset/derivatives/micapipe/sub-001/ses-01 for sub-001-ses-01, skipping"
+        )
     mock_print.reset_mock()
 
     # Test case where hippunfold directory does not exist
     mock_exists.side_effect = [True, False]
     result = check_sub(mock_args, sub, ses)
     assert result == False
-    mock_print.assert_called_once_with(
-        "No hippunfold at /path/to/dataset\\derivatives\\hippunfold\\hippunfold\\sub-001\\ses-01 for sub-001-ses-01, skipping"
-    )
+    if os.name == "nt":
+        mock_print.assert_called_once_with(
+            "No hippunfold at /path/to/dataset\\derivatives\\hippunfold\\hippunfold\\sub-001\\ses-01 for sub-001-ses-01, skipping"
+        )
+    elif os.name == "posix":
+        mock_print.assert_called_once_with(
+            "No hippunfold at /path/to/dataset/derivatives/hippunfold/hippunfold/sub-001/ses-01 for sub-001-ses-01, skipping"
+        )
 
 
 ## Test create_jobs function
