@@ -647,7 +647,7 @@ def test_main_fullrun():
             "C:/Users/Ian/Downloads/workbench-windows64-v1.5.0/workbench/bin_windows64"
         )
     else:
-        rootdir = "/mnt/z/BIDS_MICS_Test"
+        rootdir = "/mnt/z/BIDS_MICs_Test"
         WBPATH = "/home/runner/work/workbench/bin_linux64/"
     print(os.getcwd())
     print(os.listdir(os.getcwd()))
