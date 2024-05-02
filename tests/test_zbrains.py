@@ -648,7 +648,7 @@ def test_main_fullrun():
         )
     else:
         rootdir = "/mnt/z/BIDS_MICS_Test"
-        WBPATH = "./workbench/bin_linux64"
+        WBPATH = "workbench/bin_linux64/"
     print(os.getcwd())
     DATASET_DIR = f"{rootdir}/data"
     HC_DEMOGRAPHICS = f"{rootdir}/HC_participants.csv"
@@ -690,7 +690,6 @@ def test_main_fullrun():
             n_jobs=4,
             test=True,
         )
-        print("PATH TO WB COMMAND", shutil.which("wb_command"))
         try:
             main(mock_args)
         except Exception as e:
