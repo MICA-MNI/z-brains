@@ -647,15 +647,19 @@ def test_main_mismatch_subs_ses(
 
 
 def test_main_fullrun():
-    rootdir = "E:/BIDS_MICS_Test"
-    DATASET_DIR = f"{rootdir}/data"
-    HC_DEMOGRAPHICS = f"{rootdir}/HC_participants.csv"
-    PX_DEMOGRAPHICS = f"{rootdir}/PX_participants.csv"
-    with tempfile.TemporaryDirectory() as tmpdir:
-
+    if os.name == "nt":
+        rootdir = "E:/BIDS_MICS_Test"
         WBPATH = (
             "C:/Users/Ian/Downloads/workbench-windows64-v1.5.0/workbench/bin_windows64"
         )
+    else:
+        rootdir = "/mnt/z/BIDS_MICS_Test"
+        WBPATH = "workbench/bin_linux64"
+    DATASET_DIR = f"{rootdir}/data"
+    HC_DEMOGRAPHICS = f"{rootdir}/HC_participants.csv"
+    PX_DEMOGRAPHICS = f"{rootdir}/PX_participants.csv"
+
+    with tempfile.TemporaryDirectory() as tmpdir:
 
         sub = "sub-HC005 sub-PX001"
         ses = "all"
