@@ -665,4 +665,5 @@ if __name__ == "__main__":
     args, unknown_args = parser.parse_known_args()
     if unknown_args:
         raise ProcessingException(f"Unknown options: {' '.join(unknown_args)}")
+    print(shutil.which("wb_command"))
     main(args)
