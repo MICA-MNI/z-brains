@@ -23,6 +23,7 @@ jobs:
           wget https://www.humanconnectome.org/storage/app/media/workbench/workbench-linux64-v1.5.0.zip
           unzip workbench-linux64-v1.5.0.zip
           export PATH=$PATH:$(pwd)/workbench/bin_linux64
+          echo $(pwd)/workbench/bin_linux64
       - name: Install System Dependencies
         run: |
           sudo apt-get update
