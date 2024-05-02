@@ -37,6 +37,7 @@ pypdf>=4.2.0
 pypng>=0.20220715.0
 python-bidi>=0.4.2
 python-dateutil>=2.9.0.post0
+pytest-mock>=3.14.0
 pytz>=2024.1
 PyVirtualDisplay>=3.0
 PyYAML>=6.0.1
