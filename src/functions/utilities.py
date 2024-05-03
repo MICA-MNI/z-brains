@@ -1,6 +1,6 @@
 import os
 import subprocess
-from functions.constants import ProcessingException
+from .constants import ProcessingException
 import fnmatch
 import os
 import shutil

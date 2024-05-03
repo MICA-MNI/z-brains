@@ -3,7 +3,7 @@ import sys
 import subprocess
 import tempfile
 from pathlib import Path
-from functions.utilities import (
+from .functions.utilities import (
     assert_same_size,
     assert_required,
     show_error,
@@ -17,7 +17,7 @@ import shutil
 import glob
 import time
 import datetime
-from functions.constants import (
+from .functions.constants import (
     FOLDER_LOGS,
     FOLDER_MAPS,
     FOLDER_NORM_Z,
@@ -36,13 +36,13 @@ from functions.constants import (
     map_resolution_hip,
     ProcessingException,
 )
-from functions import run_proc, run_analysis
+from .functions import run_proc, run_analysis
 from joblib import Parallel, delayed
 import copy
 from contextlib import contextmanager
 import argparse
 import sys
-from functions.help import help
+from .functions.help import help
 import subprocess
 import gc
 
@@ -65,6 +65,8 @@ def _jobloop(args):
         main_func(args)
     except Exception as e:
         print(e)
+        if args.test:
+            raise e
     gc.collect()
 
 
@@ -72,9 +74,16 @@ def parse_args(args):
     # Define the ZBRAINS and script_dir variables
     ZBRAINS = Path(os.path.realpath(__file__)).parent
     script_dir = ZBRAINS / "functions"
+
     if isinstance(args.column_map, list):
         args.column_map = (
             dict([arg.split("=") for arg in args.column_map])
+            if args.column_map
+            else None
+        )
+    elif isinstance(args.column_map, str):
+        args.column_map = (
+            dict([arg.split("=") for arg in args.column_map.split(" ")])
             if args.column_map
             else None
         )
@@ -122,6 +131,12 @@ def parse_args(args):
         assert_required(
             "--demo_ref", args.demo_ref, "--demo_ref option is required for analysis."
         )
+        if isinstance(args.demo_ref, str):
+            args.demo_ref = [args.demo_ref]
+        if isinstance(args.dataset_ref, str):
+            args.dataset_ref = [args.dataset_ref]
+        if isinstance(args.zbrains_ref, str):
+            args.zbrains_ref = [args.zbrains_ref]
         assert_same_size("--dataset_ref", args.dataset_ref, "--demo_ref", args.demo_ref)
 
         n_datasets = len(args.dataset_ref)
@@ -432,7 +447,6 @@ def main_func(args):
                     for idx in range(len(args.dataset_ref))
                 ]
                 args_list = [
-                    os.path.join(ZBRAINS, "functions", "run_analysis.py"),
                     "--sub",
                     sid,
                     "--ses",
@@ -454,9 +468,9 @@ def main_func(args):
                     "--labels_hip",
                     labels_hip[0],
                     "--smooth_ctx",
-                    smooth_ctx,
+                    str(smooth_ctx),
                     "--smooth_hip",
-                    smooth_hip,
+                    str(smooth_hip),
                     "--threshold",
                     str(threshold),
                     "--approach",
@@ -480,7 +494,9 @@ def main_func(args):
 
                 if args.deconfound:
                     args_list.extend(["--deconfound", args.deconfound])
-                out = subprocess.call(["python", *args_list])
+                out = subprocess.call(
+                    ["python", "-m", "src.functions.run_analysis", *args_list]
+                )
             elapsed = (time.time() - start_time) / 60
             show_title(f"Total elapsed time for {BIDS_ID}: {elapsed:.2f} minutes")
         except Exception as e:
@@ -514,9 +530,15 @@ def check_sub(args, sub, ses=None):
 
 def create_jobs(args, subs, ses, run_type):
     jobs = []
-    for sub in subs:
-        for s in ses or os.listdir(
-            os.path.join(args.dataset, "derivatives", args.micapipe, sub)
+    for enum, sub in enumerate(subs):
+        s = None
+        if args.ses is not None:
+            s = args.ses[enum]
+
+        for s in (
+            os.listdir(os.path.join(args.dataset, "derivatives", args.micapipe, sub))
+            if not ses
+            else [s]
         ):
             if check_sub(args, sub, s):
                 job = copy.copy(args)
@@ -527,7 +549,7 @@ def create_jobs(args, subs, ses, run_type):
 
 
 def main(args):
-
+    print("here")
     WORKBENCH_PATH = args.wb_path
     os.environ["WORKBENCH_PATH"] = WORKBENCH_PATH
     os.environ["OMP_NUM_THREADS"] = str(args.n_jobs_wb)
@@ -551,7 +573,9 @@ def main(args):
             if check_sub(args, sub)
         ]
     )
-
+    print(args.sub, args.ses)
+    if args.ses == ["all"]:
+        args.ses = None
     if args.ses and len(args.ses) != len(args.sub):
         print("Number of subs and sessions do not match")
         sys.exit()
@@ -638,6 +662,8 @@ if __name__ == "__main__":
     parser.add_argument("--version", action="version", version="1.0.0")
 
     # Parse the arguments
-    args = parser.parse_args()
+    args, unknown_args = parser.parse_known_args()
+    if unknown_args:
+        raise ProcessingException(f"Unknown options: {' '.join(unknown_args)}")
 
     main(args)

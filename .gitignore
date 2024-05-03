@@ -2,3 +2,9 @@
 __pycache__/
 .vscode/
 run.*
+*.pyc
+*.pyo
+*.bat
+*.bash
+.vscode
+.pytest_cache/

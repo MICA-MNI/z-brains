@@ -52,43 +52,25 @@ if (
     "DISPLAY" not in os.environ or not os.environ["DISPLAY"]
 ) and platform.system() != "Windows":
     from pyvirtualdisplay import Display
-try:
-    from functions.constants import (
-        LIST_ANALYSES,
-        Analysis,
-        Approach,
-        Resolution,
-        Structure,
-        Feature,
-        struct_to_folder,
-        approach_to_folder,
-    )
-    from functions.utils_analysis import (
-        get_bids_id,
-        map_resolution,
-        get_analysis_path_from_template,
-        get_subject_dir,
-        PathType,
-    )
-except ModuleNotFoundError as e:
-    from constants import (
-        LIST_ANALYSES,
-        Analysis,
-        Approach,
-        Resolution,
-        Structure,
-        Feature,
-        struct_to_folder,
-        approach_to_folder,
-    )
-    from utils_analysis import (
-        get_bids_id,
-        map_resolution,
-        get_analysis_path_from_template,
-        get_subject_dir,
-        PathType,
-    )
 
+
+from .constants import (
+    LIST_ANALYSES,
+    Analysis,
+    Approach,
+    Resolution,
+    Structure,
+    Feature,
+    struct_to_folder,
+    approach_to_folder,
+)
+from .utils_analysis import (
+    get_bids_id,
+    map_resolution,
+    get_analysis_path_from_template,
+    get_subject_dir,
+    PathType,
+)
 
 cmaps = cmocean.cm.cmap_d
 
@@ -280,7 +262,7 @@ def report_1x2_table(fig1: PathType, fig2: PathType, height=250):
 
 
 # Utility functions ------------------------------------------------------------
-def map_subcortical_vertices(x: np.ndarray) -> np.ndarray:
+def map_subcortical_vertices(x) -> np.ndarray:
     """
     Taken from the ENIGMA toolbox
     https://github.com/MICA-MNI/ENIGMA/blob/master/enigmatoolbox
@@ -335,11 +317,14 @@ def map_subcortical_vertices(x: np.ndarray) -> np.ndarray:
 
 # Load surfaces ----------------------------------------------------------------
 def _load_surfaces_ctx(resolution: Resolution = "high"):
+
     res_ctx = map_resolution("cortex", resolution)
+
     inf_lh = read_surface(f"{DATA_PATH}/fsLR-{res_ctx}.L.inflated.surf.gii")
     inf_rh = read_surface(f"{DATA_PATH}/fsLR-{res_ctx}.R.inflated.surf.gii")
-    mask = load_mask(join=True)
 
+    mask = load_mask(join=True)
+    print("here")
     return inf_lh, inf_rh, mask
 
 
@@ -702,7 +687,6 @@ def report_struct(
             file_rh = get_analysis_path_from_template(struct, **kwds)
     else:
         file_lh = get_analysis_path_from_template(struct, **kwds)
-
     # html
     thr_str = "" if thr is None else f" | threshold={thr}"
     info = ""
