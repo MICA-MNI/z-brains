@@ -220,7 +220,10 @@ def map_cortex(
             surf_dir,
             f"{bids_id}_hemi-{h}_space-nativepro_surf-fsLR-{resol}_label-{label}.surf.gii",
         )
-
+        volume_geometry_file = os.path.join(
+            surf_dir,
+            f"{bids_id}_hemi-{h}_surf-fsnative-{resol}_label-midthickness.surf.gii",
+        )
         prefix = f"{bids_id}_hemi-{h}_surf-fsLR-{resol}"
         if feat == "thickness":
             input_file = os.path.join(
