@@ -7,11 +7,17 @@ pyinit_flag=0
 default_env_path="/data/mica1/01_programs/miniforge3"
 env_path=$default_env_path
 
+# Create an array to hold the arguments for src.zbrains
+args=()
+
 for arg in "$@"
 do
     if [[ $arg == --pyinit=* ]]; then
         env_path="${arg#*=}"
         pyinit_flag=1
+    else
+        # If the argument is not --pyinit, add it to the args array
+        args+=("$arg")
     fi
 done
 
@@ -24,4 +30,6 @@ if [[ $env_path != "false" ]]; then
 else
     echo "The --pyinit argument was set to false, zbrains will use your currently active Python environment."
 fi
-python -m src.zbrains "$@"
+
+# Pass the args array to src.zbrains
+python -m src.zbrains "${args[@]}"
