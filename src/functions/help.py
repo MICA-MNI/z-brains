@@ -117,15 +117,15 @@ zbrains.py
 \t{gcolor}--column_map{nc} [VAR=col ...]: Map expected to actual column names in the CSV/TSV files:
                                     - participant_id: Subject ID is assumed to be provided by the 'participant_id'
                                                         column, unless indicated otherwise. For example, if subject ID
-                                                        is under the column ‘SubID’, you can indicate this with
+                                                        is under the column \u2018SubID\u2019, you can indicate this with
                                                         --column_map participant_id=SubID.
-                                    - session_id    : Session ID is assumed to be provided by the ‘session_id’ column,
+                                    - session_id    : Session ID is assumed to be provided by the \u2018session_id\u2019 column,
                                                         unless indicated otherwise (e.g., --column_map session_id=ses)
-                                    - age           : Age is assumed to be provided by the ‘age’ column, unless
+                                    - age           : Age is assumed to be provided by the \u2018age\u2019 column, unless
                                                         indicated otherwise (e.g., --column_map age=\"Subject age\")
                                     - sex           : Sex is assumed to be provided by the 'sex' column, unless
                                                         indicated otherwise (e.g., --column_map ses=\"Subject sex\")
-                                    - site          : Acquisition site is assumed to be provided by the ‘site’ column,
+                                    - site          : Acquisition site is assumed to be provided by the \u2018site\u2019 column,
                                                         unless indicated otherwise (e.g., --column_map site=center)                 
 \t{gcolor}--n_jobs{nc} [number]         : Number of jobs to run in parallel. Default is {bcolor}1{nc}.
 \t{gcolor}--wb_path{nc} [path]          : Path to the Connectome Workbench binaries. Default is {bcolor}/data/mica1/01_programs/workbench-1.4.2/bin_linux64{nc}.
@@ -139,7 +139,7 @@ zbrains.py
                                     - >3 or <0      : All messages
 \t{gcolor}--help{nc}                    : Print help
 \t{gcolor}--version{nc}                 : Print software version
-
+\t{gcolor}--pyinit{nc}                  : Specify a Python source, (e.g. a conda environment) to activate 
 
 
 {pcolor}USAGE:{nc}
@@ -184,7 +184,7 @@ zbrains.py
     {gray}# Set threads for Workbench{nc}
     $ export OMP_NUM_THREADS=4
 
-    Use the --init option to specify an initialization script for environment variables, Python activation, etc.
+
 
 
 

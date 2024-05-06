@@ -619,6 +619,7 @@ class Parser(argparse.ArgumentParser):
             != "the following arguments are required: --sub, --dataset, --zbrains"
         ):
             sys.stderr.write("error: %s\n" % message)
+            sys.exit(2)
         self.print_help()
         sys.exit(2)
 
