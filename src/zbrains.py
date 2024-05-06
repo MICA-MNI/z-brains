@@ -613,6 +613,14 @@ def main(args):
 
 
 class Parser(argparse.ArgumentParser):
+    def error(self, message):
+        if (
+            message
+            != "the following arguments are required: --sub, --dataset, --zbrains"
+        ):
+            sys.stderr.write("error: %s\n" % message)
+        self.print_help()
+        sys.exit(2)
 
     def print_help(self):
         print(help)
@@ -663,6 +671,11 @@ if __name__ == "__main__":
 
     # Parse the arguments
     args, unknown_args = parser.parse_known_args()
+
+    if not vars(args):
+        parser.print_help()
+        sys.exit(1)
+
     if unknown_args:
         raise ProcessingException(f"Unknown options: {' '.join(unknown_args)}")
 

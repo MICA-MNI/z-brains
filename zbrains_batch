@@ -1,2 +1,9 @@
 #!/bin/bash
+
+# Get the directory of the current file
+current_directory=$(dirname "$0")
+
+# Change the current working directory to the parent directory
+cd "$current_directory/.."
+
 python -m src.zbrains.py "$@"
