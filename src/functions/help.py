@@ -36,7 +36,7 @@ zbrains.py
 \t{gcolor}--hippunfold{nc} [dir]        : Name of the hippunfold derivative folder in the target BIDS dataset. Required
                                     only for post-processing. Example: '--hippunfold hipdir' for
                                     '/path/to/BIDSDataset/derivatives/hipdir'.
-\t${gcolor}--plugin{nc} [dir]           : Name of a plugin derivative folder in the target BIDS dataset. zbrains can accept
+\t{gcolor}--plugin{nc} [dir]           : Name of a plugin derivative folder in the target BIDS dataset. zbrains can accept
                                 data outside of micapipe and hippunfold as a 'plugin' folder. However, these data MUST
                                 be formatted as BIDS-derivatives exactly as in micapipe and hippunfold. If hippocampal
                                 surface data are present then they will be used but otherwise volumetric data will be
