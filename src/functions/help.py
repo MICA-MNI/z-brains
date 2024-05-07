@@ -13,7 +13,7 @@ zbrains.py
 
 
 {pcolor}OPTIONS:{nc}
-\t{rcolor}--sub{nc} ID                  : Subject ID. This is the target subject. Example: 'sub-PX001'.
+\t{rcolor}--sub{nc} ID                  : Subject ID. This is the target subject. Example: 'sub-PX001'. Also accepts "all".
 \t{rcolor}--dataset{nc} path            : Path to the BIDS dataset containing the target subject's data.
                                     Example: '/path/to/BIDSDataset'.
 \t{rcolor}--zbrains{nc} dir             : Name of the zbrains derivative folder in the target BIDS dataset. The
@@ -28,8 +28,7 @@ zbrains.py
                                                         performed beforehand.
                                     - all           : perform all tasks
 
-\t{gcolor}--ses{nc} [ses]               : Identifier for a session in the target subject data. If omitted, data will
-                                    be managed as a single session. Example: 'ses-001'.
+\t{gcolor}--ses{nc} [ses]               : Identifier for a session in the target subject data. If omitted, all sessions will be used. Example: 'ses-001'.
 \t{gcolor}--micapipe{nc} [dir]          : Name of the micapipe derivative folder in the target BIDS dataset. Required
                                     only for post-processing. Example: '--micapipe micapipedir' for
                                     '/path/to/BIDSDataset/derivatives/micapipedir'.
