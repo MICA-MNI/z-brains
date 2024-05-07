@@ -22,14 +22,12 @@ do
 done
 
 if [[ $env_path != "false" ]]; then
-    echo "Activating Python environment at $env_path"
-    source $env_path/bin/activate zbrains
-    echo "Activated zbrains environment"
-    # conda activate zbrains
-    
     if [[ $pyinit_flag -eq 0 ]]; then
         echo "The --pyinit argument was left empty, zbrains will use the MICA lab default Python environment, to disable this behaviour and use your current environment use the --pyinit=false argument."
     fi
+    echo "Activating Python environment at $env_path"
+    source $env_path/bin/activate zbrains
+    echo "Activated zbrains environment"
 else
     echo "The --pyinit argument was set to false, zbrains will use your currently active Python environment."
 fi
