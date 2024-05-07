@@ -471,13 +471,13 @@ def main_func(args):
                     tmp_dir,
                     "--verbose",
                     str(VERBOSE),
-                    "--demo",
-                    args.demo,
                     "--column_map",
                     str(args.column_map),
                     "--n_jobs",
                     str(args.n_jobs),
                 ]
+                if args.demo:
+                    args_list.extend(["--demo", args.demo])
 
                 if args.normative:
                     args_list.extend(["--normative", args.normative])
