@@ -325,7 +325,7 @@ if __name__ == "__main__":
     parser.add_argument("--logfile", required=True)
     parser.add_argument("--tmp", required=True)
     parser.add_argument("--verbose", required=True)
-    parser.add_argument("--demo", required=True)
+    parser.add_argument("--demo", default=None)
     parser.add_argument("--normative", default=None)
     parser.add_argument("--deconfound", default=None)
     parser.add_argument("--column_map", required=True)
