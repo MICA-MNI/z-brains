@@ -23,7 +23,7 @@ done
 
 if [[ $env_path != "false" ]]; then
     echo "Activating Python environment at $env_path"
-    source $env_path/bin/activate
+    source $env_path/bin/conda
     echo "Activated zbrains environment"
     conda activate zbrains
     
