@@ -235,7 +235,7 @@ def run(
     column_map=None,
     n_jobs=None,
 ):
-
+    print("main")
     # Logging settings
     if verbose == 0:
         logging_level = logging.ERROR
@@ -279,7 +279,7 @@ def run(
 
     # Assign the excepthook to the handler
     sys.excepthook = handle_unhandled_exception
-    print("main")
+
     main(
         zbrains_ref,
         demo_ref,
