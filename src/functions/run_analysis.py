@@ -333,7 +333,6 @@ if __name__ == "__main__":
 
     # Parse the arguments.
     args = parser.parse_args()
-    print("main")
     args.struct = args.struct.split("-")
     args.feat = args.feat.split("-")
     args.demo_ref = args.demo_ref.split("-")
