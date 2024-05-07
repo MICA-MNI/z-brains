@@ -484,7 +484,7 @@ def main_func(args):
 
                 if args.deconfound:
                     args_list.extend(["--deconfound", args.deconfound])
-                print("here")
+                print(args_list)
                 out = subprocess.call(
                     ["python", "-m", "src.functions.run_analysis", *args_list]
                 )
