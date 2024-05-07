@@ -235,7 +235,7 @@ def run(
     column_map=None,
     n_jobs=None,
 ):
-    print("main")
+
     # Logging settings
     if verbose == 0:
         logging_level = logging.ERROR
@@ -333,6 +333,7 @@ if __name__ == "__main__":
 
     # Parse the arguments.
     args = parser.parse_args()
+    print("main")
     args.struct = args.struct.split("-")
     args.feat = args.feat.split("-")
     args.demo_ref = args.demo_ref.split("-")
