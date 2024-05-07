@@ -700,6 +700,18 @@ def test_main_fullrun():
         assert "sub-PX001_ses-02_approach-zscore_summary-report.pdf" in os.listdir(
             os.path.join(tmpdir, "sub-PX001", "ses-02")
         )
+        file_stats = os.stat(
+            os.path.join(
+                tmpdir,
+                "sub-PX001",
+                "ses-02",
+                "sub-PX001_ses-02_approach-zscore_summary-report.pdf",
+            )
+        )
+
+        print(file_stats)
+        print(f"File Size in Bytes is {file_stats.st_size}")
+        print(f"File Size in MegaBytes is {file_stats.st_size / (1024 * 1024)}")
         assert "logs" in os.listdir(os.path.join(tmpdir, "sub-PX001", "ses-02"))
         assert "maps" in os.listdir(os.path.join(tmpdir, "sub-PX001", "ses-02"))
         assert "norm-normative" in os.listdir(

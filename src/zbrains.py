@@ -331,7 +331,6 @@ def create_directories(
             os.makedirs(path, exist_ok=True)
             path = os.path.join(SUBJECT_OUTPUT_DIR, FOLDER_NORM_MODEL, dir)
             os.makedirs(path, exist_ok=True)
-            print(path)
 
     return logs_dir
 
@@ -549,7 +548,6 @@ def create_jobs(args, subs, ses, run_type):
 
 
 def main(args):
-    print("here")
     WORKBENCH_PATH = args.wb_path
     os.environ["WORKBENCH_PATH"] = WORKBENCH_PATH
     os.environ["OMP_NUM_THREADS"] = str(args.n_jobs_wb)
@@ -573,7 +571,6 @@ def main(args):
             if check_sub(args, sub)
         ]
     )
-    print(args.sub, args.ses)
     if args.ses == ["all"]:
         args.ses = None
     if args.ses and len(args.ses) != len(args.sub):

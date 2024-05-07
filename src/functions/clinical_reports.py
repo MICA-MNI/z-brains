@@ -324,7 +324,6 @@ def _load_surfaces_ctx(resolution: Resolution = "high"):
     inf_rh = read_surface(f"{DATA_PATH}/fsLR-{res_ctx}.R.inflated.surf.gii")
 
     mask = load_mask(join=True)
-    print("here")
     return inf_lh, inf_rh, mask
 
 
