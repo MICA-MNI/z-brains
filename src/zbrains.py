@@ -540,11 +540,15 @@ def create_jobs(args, subs, ses, run_type):
 
 def main(args):
 
-    args.wb_path = os.path.expanduser(args.wb_path)
-    args.dataset = os.path.expanduser(args.dataset)
-    args.demo = os.path.expanduser(args.demo)
-    args.demo_ref = [os.path.expanduser(d) for d in args.demo_ref]
-    args.dataset_ref = [os.path.expanduser(d) for d in args.dataset_ref]
+    args.wb_path = os.path.expanduser(args.wb_path) if args.wb_path else None
+    args.dataset = os.path.expanduser(args.dataset) if args.dataset else None
+    args.demo = os.path.expanduser(args.demo) if args.demo else None
+    args.demo_ref = (
+        [os.path.expanduser(d) for d in args.demo_ref] if args.demo_ref else None
+    )
+    args.dataset_ref = (
+        [os.path.expanduser(d) for d in args.dataset_ref] if args.dataset_ref else None
+    )
     if isinstance(args.run, list):
         args.run = args.run[0]
 
