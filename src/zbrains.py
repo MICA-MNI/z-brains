@@ -667,7 +667,6 @@ if __name__ == "__main__":
         default="/data/mica1/01_programs/workbench-1.4.2/bin_linux64",
     )
     parser.add_argument("--patient_prefix", type=str, default="PX")
-
     parser.add_argument("--verbose", type=int, default=-1)
     parser.add_argument("--version", action="version", version="1.0.0")
 
