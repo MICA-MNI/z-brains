@@ -279,7 +279,7 @@ def run(
 
     # Assign the excepthook to the handler
     sys.excepthook = handle_unhandled_exception
-
+    print("main")
     main(
         zbrains_ref,
         demo_ref,
