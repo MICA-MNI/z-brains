@@ -88,15 +88,6 @@ def parse_args(args):
             else None
         )
 
-    # Check for unknown arguments
-    unknown_args = vars(args)
-    for arg in sys.argv:
-        if arg.startswith("--"):
-            arg = arg[2:]
-            if arg not in unknown_args:
-                # print(f"Unknown option '--{arg}'")
-                raise ProcessingException(f"Unknown option '--{arg}'")
-
     VERBOSE = args.verbose
     tasks = args.run
     if "all" in tasks:
@@ -548,6 +539,15 @@ def create_jobs(args, subs, ses, run_type):
 
 
 def main(args):
+
+    args.wb_path = os.path.expanduser(args.wb_path)
+    args.dataset = os.path.expanduser(args.dataset)
+    args.demo = os.path.expanduser(args.demo)
+    args.demo_ref = [os.path.expanduser(d) for d in args.demo_ref]
+    args.dataset_ref = [os.path.expanduser(d) for d in args.dataset_ref]
+    if isinstance(args.run, list):
+        args.run = args.run[0]
+
     WORKBENCH_PATH = args.wb_path
     os.environ["WORKBENCH_PATH"] = WORKBENCH_PATH
     os.environ["OMP_NUM_THREADS"] = str(args.n_jobs_wb)
@@ -578,8 +578,10 @@ def main(args):
         sys.exit()
 
     show_info("zbrains is running with:")
+
     if "proc" in args.run:
         # Get WorkBench version
+
         workbench_version = (
             subprocess.check_output(
                 [os.path.join(os.environ["WORKBENCH_PATH"], "wb_command"), "-version"]
@@ -652,7 +654,9 @@ if __name__ == "__main__":
     parser.add_argument("--smooth_ctx", type=str, default=None)
     parser.add_argument("--smooth_hip", type=str, default=None)
     parser.add_argument("--threshold", type=str, default=None)
-    parser.add_argument("--column_map", nargs="*", default=None)
+    parser.add_argument(
+        "--column_map", nargs="*", default={"participant_id": "ID", "session_id": "SES"}
+    )
     parser.add_argument("--init", type=str, default=None)
     parser.add_argument("--delete_temps", type=str, default=None)
     parser.add_argument("--n_jobs", type=int, default=1)
@@ -677,4 +681,5 @@ if __name__ == "__main__":
     if unknown_args:
         raise ProcessingException(f"Unknown options: {' '.join(unknown_args)}")
 
+    args.test = None
     main(args)
