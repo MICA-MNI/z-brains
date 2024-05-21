@@ -4,6 +4,9 @@ from .constants import ProcessingException
 import fnmatch
 import os
 import shutil
+import sys
+import tempfile
+from contextlib import contextmanager
 
 
 def delete_temp_folders(directory):
@@ -126,6 +129,19 @@ def submit_job(scheduler, *args):
     else:
         show_error(f"Unknown scheduler: {scheduler}")
         raise ProcessingException(f"Unknown scheduler: {scheduler}")
+
+
+@contextmanager
+def tempdir(SUBJECT_OUTPUT_DIR, prefix):
+    path = tempfile.mkdtemp(dir=SUBJECT_OUTPUT_DIR, prefix=prefix)
+    try:
+        yield path
+    finally:
+        print(f"Cleaning up temp dir {path}")
+        try:
+            shutil.rmtree(path)
+        except IOError:
+            sys.stderr.write(f"Failed to clean up temp dir {path}")
 
 
 def print_version():

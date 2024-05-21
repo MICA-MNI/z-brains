@@ -3,7 +3,6 @@ import sys
 
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 import subprocess
-import tempfile
 from pathlib import Path
 from .functions.utilities import (
     assert_same_size,
@@ -14,6 +13,7 @@ from .functions.utilities import (
     show_note,
     show_title,
     delete_temp_folders,
+    tempdir,
 )
 import shutil
 import glob
@@ -41,25 +41,11 @@ from .functions.constants import (
 from .functions import run_proc, run_analysis
 from joblib import Parallel, delayed
 import copy
-from contextlib import contextmanager
 import argparse
 import sys
 from .functions.help import help
 import subprocess
 import gc
-
-
-@contextmanager
-def tempdir(SUBJECT_OUTPUT_DIR, prefix):
-    path = tempfile.mkdtemp(dir=SUBJECT_OUTPUT_DIR, prefix=prefix)
-    try:
-        yield path
-    finally:
-        print(f"Cleaning up temp dir {path}")
-        try:
-            shutil.rmtree(path)
-        except IOError:
-            sys.stderr.write(f"Failed to clean up temp dir {path}")
 
 
 def _jobloop(args):

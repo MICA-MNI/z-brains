@@ -10,7 +10,7 @@
       </MD>
       <MD>
          <Name><![CDATA[ParentProvenance]]></Name>
-         <Value><![CDATA[C:\Users\Ian\Documents\GitHub\z-brains-IanTesting\src\data\templates\fsLR-32k.L.sphere.reg.surf.gii:
+         <Value><![CDATA[C:/Users/Ian/Documents/GitHub/z-brains-IanTesting/src/data/templates/fsLR-32k.L.sphere.reg.surf.gii:
 wb_command -surface-sphere-project-unproject ../L.sphere.32k_fs_LR.surf.gii ../fs_L/fs_L-to-fs_LR_fsaverage.L_LR.spherical_std.164k_fs_L.surf.gii ../fs_L/fsaverage.L.sphere.164k_fs_L.surf.gii fs_LR-deformed-to-fsaverage.L.sphere.32k_fs_LR.surf.gii
 
 ]]></Value>
@@ -33,11 +33,11 @@ Operating System: Windows
       </MD>
       <MD>
          <Name><![CDATA[Provenance]]></Name>
-         <Value><![CDATA[wb_command -metric-resample C:\Users\Ian\Documents\GitHub\z-brains-IanTesting\src\data\sub-PX001_ses-02_hemi-L_surf-fsLR-32k_label-midthickness_feature-FA_smooth-10mm_analysis-asymmetry.func.gii C:\Users\Ian\Documents\GitHub\z-brains-IanTesting\src\data\templates\fsLR-32k.L.sphere.reg.surf.gii E:\data\derivatives\micapipe\sub-PX001\ses-02\surf\sub-PX001_ses-02_hemi-L_surf-fsnative_label-sphere.surf.gii BARYCENTRIC C:\Users\Ian\Documents\GitHub\z-brains-IanTesting\src\data\fsnative_surf_L.func.gii]]></Value>
+         <Value><![CDATA[wb_command -metric-resample C:/Users/Ian/Documents/GitHub/z-brains-IanTesting/src/data/sub-PX001_ses-02_hemi-L_surf-fsLR-32k_label-midthickness_feature-FA_smooth-10mm_analysis-asymmetry.func.gii C:/Users/Ian/Documents/GitHub/z-brains-IanTesting/src/data/templates/fsLR-32k.L.sphere.reg.surf.gii E:/data/derivatives/micapipe/sub-PX001/ses-02/surf/sub-PX001_ses-02_hemi-L_surf-fsnative_label-sphere.surf.gii BARYCENTRIC C:/Users/Ian/Documents/GitHub/z-brains-IanTesting/src/data/fsnative_surf_L.func.gii]]></Value>
       </MD>
       <MD>
          <Name><![CDATA[WorkingDirectory]]></Name>
-         <Value><![CDATA[C:/Users/Ian]]></Value>
+         <Value><![CDATA[C:/Users/Ian/Documents/GitHub/z-brains-IanTesting]]></Value>
       </MD>
    </MetaData>
    <LabelTable>
