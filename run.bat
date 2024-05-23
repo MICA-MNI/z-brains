@@ -24,7 +24,7 @@ set "demo_patients=E:\PX_participants.csv"
 set "sids=sub-PX001"
 set "sess=all"
 call conda activate zbrains
-call python -m src.zbrains --run analysis ^
+call python -m src.zbrains --run proc analysis ^
                    --sub "%sids%" ^
                    --micapipe %micapipe_dir% ^
                    --hippunfold %hippunfold_dir% ^
@@ -34,8 +34,8 @@ call python -m src.zbrains --run analysis ^
                    --demo %demo_patients% ^
                    --dataset_ref %pth_dataset% ^
                    --zbrains_ref %zbrains_dir% ^
-                   --smooth_ctx 10 ^
-                   --smooth_hip 5 ^
+                   --smooth_ctx 5 ^
+                   --smooth_hip 2 ^
                    --n_jobs 5 ^
                    --wb_path "C:/Users/Ian/Downloads/workbench-windows64-v1.5.0/workbench/bin_windows64" ^
                    --column_map participant_id=ID session_id=SES ^

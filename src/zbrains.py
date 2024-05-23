@@ -638,7 +638,7 @@ if __name__ == "__main__":
     parser.add_argument("--init", type=str, default=None)
     parser.add_argument("--delete_temps", type=str, default=None)
     parser.add_argument("--n_jobs", type=int, default=1)
-    parser.add_argument("--n_jobs_wb", type=int, default=8)
+    parser.add_argument("--n_jobs_wb", type=int, default=1)
     parser.add_argument(
         "--wb_path",
         type=str,

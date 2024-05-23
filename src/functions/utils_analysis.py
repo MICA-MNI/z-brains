@@ -700,8 +700,10 @@ def _subject_mahalanobis(
             x_px = data["data_px"][i]
             xh_px = x_px.reshape(2, -1)
             list_data_px[i] = compute_asymmetry(xh_px[0], xh_px[1])
-
-            list_cols_df[i] = data["data_px"][i][: xh_px.shape[1]]
+            if data["cols_df"][i] is None:
+                list_cols_df[i] = data["data_px"][i][: xh_px.shape[1]]
+            else:
+                list_cols_df[i] = data["cols_df"][i][: xh_px.shape[1]]
 
         data["data_cn"] = list_data_cn
         data["data_px"] = list_data_px
