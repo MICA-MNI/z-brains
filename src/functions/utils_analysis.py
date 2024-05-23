@@ -756,7 +756,6 @@ def process_feature(
     data_px = _load_one(
         px_zbrains, sid=px_sid, ses=px_ses, raise_error=False, tmp=tmp, **kwds
     )
-    print(data_px)
     if data_px is None:
         log["warning"] = f"\t{feat:<15}: \tNo data available for target subject."
         return None, log

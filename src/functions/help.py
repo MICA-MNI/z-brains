@@ -13,7 +13,7 @@ zbrains.py
 
 
 {pcolor}OPTIONS:{nc}
-\t{rcolor}--sub{nc} ID                  : Subject ID. This is the target subject. Example: 'sub-PX001'.
+\t{rcolor}--sub{nc} ID                  : Subject ID. This is the target subject. Example: 'sub-PX001'. Also accepts "all".
 \t{rcolor}--dataset{nc} path            : Path to the BIDS dataset containing the target subject's data.
                                     Example: '/path/to/BIDSDataset'.
 \t{rcolor}--zbrains{nc} dir             : Name of the zbrains derivative folder in the target BIDS dataset. The
@@ -28,15 +28,14 @@ zbrains.py
                                                         performed beforehand.
                                     - all           : perform all tasks
 
-\t{gcolor}--ses{nc} [ses]               : Identifier for a session in the target subject data. If omitted, data will
-                                    be managed as a single session. Example: 'ses-001'.
+\t{gcolor}--ses{nc} [ses]               : Identifier for a session in the target subject data. If omitted, all sessions will be used. Example: 'ses-001'.
 \t{gcolor}--micapipe{nc} [dir]          : Name of the micapipe derivative folder in the target BIDS dataset. Required
                                     only for post-processing. Example: '--micapipe micapipedir' for
                                     '/path/to/BIDSDataset/derivatives/micapipedir'.
 \t{gcolor}--hippunfold{nc} [dir]        : Name of the hippunfold derivative folder in the target BIDS dataset. Required
                                     only for post-processing. Example: '--hippunfold hipdir' for
                                     '/path/to/BIDSDataset/derivatives/hipdir'.
-\t${gcolor}--plugin{nc} [dir]           : Name of a plugin derivative folder in the target BIDS dataset. zbrains can accept
+\t{gcolor}--plugin{nc} [dir]           : Name of a plugin derivative folder in the target BIDS dataset. zbrains can accept
                                 data outside of micapipe and hippunfold as a 'plugin' folder. However, these data MUST
                                 be formatted as BIDS-derivatives exactly as in micapipe and hippunfold. If hippocampal
                                 surface data are present then they will be used but otherwise volumetric data will be
@@ -117,25 +116,19 @@ zbrains.py
 \t{gcolor}--column_map{nc} [VAR=col ...]: Map expected to actual column names in the CSV/TSV files:
                                     - participant_id: Subject ID is assumed to be provided by the 'participant_id'
                                                         column, unless indicated otherwise. For example, if subject ID
-                                                        is under the column ‘SubID’, you can indicate this with
+                                                        is under the column \u2018SubID\u2019, you can indicate this with
                                                         --column_map participant_id=SubID.
-                                    - session_id    : Session ID is assumed to be provided by the ‘session_id’ column,
+                                    - session_id    : Session ID is assumed to be provided by the \u2018session_id\u2019 column,
                                                         unless indicated otherwise (e.g., --column_map session_id=ses)
-                                    - age           : Age is assumed to be provided by the ‘age’ column, unless
+                                    - age           : Age is assumed to be provided by the \u2018age\u2019 column, unless
                                                         indicated otherwise (e.g., --column_map age=\"Subject age\")
                                     - sex           : Sex is assumed to be provided by the 'sex' column, unless
                                                         indicated otherwise (e.g., --column_map ses=\"Subject sex\")
-                                    - site          : Acquisition site is assumed to be provided by the ‘site’ column,
-                                                        unless indicated otherwise (e.g., --column_map site=center)
-\t{gcolor}--init{nc} [path]             : Initialization script that will be sourced before executing the main script.
-                                    Useful for setting up environment variables, activating virtual environments, or any
-                                    other setup tasks needed before running your script (see DEPENDENCIES below). Unused when backend
-                                    is 'python'                 
+                                    - site          : Acquisition site is assumed to be provided by the \u2018site\u2019 column,
+                                                        unless indicated otherwise (e.g., --column_map site=center)                 
 \t{gcolor}--n_jobs{nc} [number]         : Number of jobs to run in parallel. Default is {bcolor}1{nc}.
 \t{gcolor}--wb_path{nc} [path]          : Path to the Connectome Workbench binaries. Default is {bcolor}/data/mica1/01_programs/workbench-1.4.2/bin_linux64{nc}.
 \t{gcolor}--patient_prefix{nc} [prefix] : Prefix to use when determining patients versus controls. Default is {bcolor}PX{nc}.
-\t{gcolor}--backend{nc} [backend]       : Backend to use for processing. Default is {bcolor}shell{nc}, retaining old functionality. Can be set to {bcolor}python{nc} to test the new branch.
-                                          Has no effect when calling the Python script directly.
 \t{gcolor}--delete_temps{nc} [bool]     : If set to True, will delete any ragged temp files left from crashed analyses, then exit. Default is {bcolor}False{nc}.
 \t{gcolor}--verbose{nc} [level]         : Verbosity level (default is {bcolor}-1{nc}). Levels:
                                     - 0             : Only errors
@@ -145,7 +138,7 @@ zbrains.py
                                     - >3 or <0      : All messages
 \t{gcolor}--help{nc}                    : Print help
 \t{gcolor}--version{nc}                 : Print software version
-
+\t{gcolor}--pyinit{nc}                  : Specify a Python source, (e.g. a conda environment) to activate 
 
 
 {pcolor}USAGE:{nc}
@@ -190,7 +183,7 @@ zbrains.py
     {gray}# Set threads for Workbench{nc}
     $ export OMP_NUM_THREADS=4
 
-    Use the --init option to specify an initialization script for environment variables, Python activation, etc.
+
 
 
 

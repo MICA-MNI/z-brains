@@ -76,15 +76,6 @@ def parse_args(args):
             else None
         )
 
-    # Check for unknown arguments
-    unknown_args = vars(args)
-    for arg in sys.argv:
-        if arg.startswith("--"):
-            arg = arg[2:]
-            if arg not in unknown_args:
-                # print(f"Unknown option '--{arg}'")
-                raise ProcessingException(f"Unknown option '--{arg}'")
-
     VERBOSE = args.verbose
     tasks = args.run
     if "all" in tasks:
@@ -319,7 +310,6 @@ def create_directories(
             os.makedirs(path, exist_ok=True)
             path = os.path.join(SUBJECT_OUTPUT_DIR, FOLDER_NORM_MODEL, dir)
             os.makedirs(path, exist_ok=True)
-            print(path)
 
     return logs_dir
 
@@ -469,13 +459,13 @@ def main_func(args):
                     tmp_dir,
                     "--verbose",
                     str(VERBOSE),
-                    "--demo",
-                    args.demo,
                     "--column_map",
                     str(args.column_map),
                     "--n_jobs",
                     str(args.n_jobs),
                 ]
+                if args.demo:
+                    args_list.extend(["--demo", args.demo])
 
                 if args.normative:
                     args_list.extend(["--normative", args.normative])
@@ -537,7 +527,19 @@ def create_jobs(args, subs, ses, run_type):
 
 
 def main(args):
-    print("here")
+
+    args.wb_path = os.path.expanduser(args.wb_path) if args.wb_path else None
+    args.dataset = os.path.expanduser(args.dataset) if args.dataset else None
+    args.demo = os.path.expanduser(args.demo) if args.demo else None
+    args.demo_ref = (
+        [os.path.expanduser(d) for d in args.demo_ref] if args.demo_ref else None
+    )
+    args.dataset_ref = (
+        [os.path.expanduser(d) for d in args.dataset_ref] if args.dataset_ref else None
+    )
+    if isinstance(args.run, list):
+        args.run = args.run[0]
+
     WORKBENCH_PATH = args.wb_path
     os.environ["WORKBENCH_PATH"] = WORKBENCH_PATH
     os.environ["OMP_NUM_THREADS"] = str(args.n_jobs_wb)
@@ -561,7 +563,6 @@ def main(args):
             if check_sub(args, sub)
         ]
     )
-    print(args.sub, args.ses)
     if args.ses == ["all"]:
         args.ses = None
     if args.ses and len(args.ses) != len(args.sub):
@@ -569,8 +570,10 @@ def main(args):
         sys.exit()
 
     show_info("zbrains is running with:")
+
     if "proc" in args.run:
         # Get WorkBench version
+
         workbench_version = (
             subprocess.check_output(
                 [os.path.join(os.environ["WORKBENCH_PATH"], "wb_command"), "-version"]
@@ -601,6 +604,15 @@ def main(args):
 
 
 class Parser(argparse.ArgumentParser):
+    def error(self, message):
+        if (
+            message
+            != "the following arguments are required: --sub, --dataset, --zbrains"
+        ):
+            sys.stderr.write("error: %s\n" % message)
+            sys.exit(2)
+        self.print_help()
+        sys.exit(2)
 
     def print_help(self):
         print(help)
@@ -634,7 +646,9 @@ if __name__ == "__main__":
     parser.add_argument("--smooth_ctx", type=str, default=None)
     parser.add_argument("--smooth_hip", type=str, default=None)
     parser.add_argument("--threshold", type=str, default=None)
-    parser.add_argument("--column_map", nargs="*", default=None)
+    parser.add_argument(
+        "--column_map", nargs="*", default={"participant_id": "ID", "session_id": "SES"}
+    )
     parser.add_argument("--init", type=str, default=None)
     parser.add_argument("--delete_temps", type=str, default=None)
     parser.add_argument("--n_jobs", type=int, default=1)
@@ -645,13 +659,18 @@ if __name__ == "__main__":
         default="/data/mica1/01_programs/workbench-1.4.2/bin_linux64",
     )
     parser.add_argument("--patient_prefix", type=str, default="PX")
-
     parser.add_argument("--verbose", type=int, default=-1)
     parser.add_argument("--version", action="version", version="1.0.0")
 
     # Parse the arguments
     args, unknown_args = parser.parse_known_args()
+
+    if not vars(args):
+        parser.print_help()
+        sys.exit(1)
+
     if unknown_args:
         raise ProcessingException(f"Unknown options: {' '.join(unknown_args)}")
 
+    args.test = None
     main(args)

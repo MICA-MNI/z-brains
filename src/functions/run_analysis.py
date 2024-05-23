@@ -106,13 +106,11 @@ def main(
     px_demo = None
     if demo is not None:
         px_demo = load_demo(demo, rename=actual_to_expected, dtypes=col_dtypes, tmp=tmp)
-        print(f"px_demo={px_demo}")
         px_demo = px_demo.loc[
             (px_demo["participant_id"] == px_id) & (px_demo["session_id"] == px_ses)
         ]
 
         # If no such row exists, create an empty DataFrame with the same columns
-        print(px_demo.shape[0])
         if px_demo.empty:
             px_demo = None
             msg = f"Cannot find {bids_id} in demographics file.\nFile: {demo}\n"
@@ -120,7 +118,6 @@ def main(
             msg = f"Provided {bids_id} is not unique in demographics file.\nFile: {demo}\n"
         else:
             msg = None
-        print(cov_normative)
         if msg and (cov_normative is not None or cov_deconfound is not None):
             raise ValueError(msg)
         elif msg:
@@ -328,7 +325,7 @@ if __name__ == "__main__":
     parser.add_argument("--logfile", required=True)
     parser.add_argument("--tmp", required=True)
     parser.add_argument("--verbose", required=True)
-    parser.add_argument("--demo", required=True)
+    parser.add_argument("--demo", default=None)
     parser.add_argument("--normative", default=None)
     parser.add_argument("--deconfound", default=None)
     parser.add_argument("--column_map", required=True)
