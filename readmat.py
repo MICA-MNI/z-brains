@@ -10,9 +10,8 @@ from joblib import Parallel, delayed
 import nibabel as nib
 from joblib import Memory
 
-
-# Create a memory object for caching
-memory = Memory("cache_directory", verbose=0)
+from nii2dcm.run import run_nii2dcm
+from niidcm import convert_nifti_to_dicom
 
 
 # @memory.cache
@@ -56,7 +55,11 @@ def process_cortex(
             "-metric-to-volume-mapping",
             outputmetric,
             f"{boundingpattern}midthickness.surf.gii",
-            f"{rootmicafolder}/maps/{subj}_{ses}_space-nativepro_map-T1map.nii.gz",
+            (
+                f"{rootmicafolder}/maps/{subj}_{ses}_space-nativepro_map-T1map.nii.gz"
+                if feature != "flair"
+                else f"{rootmicafolder}/maps/{subj}_{ses}_space-nativepro_map-flair.nii.gz"
+            ),
             f"{tmp_dir}/temp.nii.gz",
             "-ribbon-constrained",
             f"{boundingpattern}white.surf.gii",
@@ -111,30 +114,22 @@ def process_hippocampus(
         metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{subj}_{ses}_hemi-{hemi}_den-0p5mm_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.func.gii"
         boundingpattern = f"{rootmicafolder}/surf/{subj}_{ses}_hemi-{hemi}_space-T1w_den-0p5mm_label-hipp_"
         micapipefolder = os.path.join(rootfolder, micapipename, subj, ses)
-        # command1 = [
-        #     "wb_command",
-        #     "-metric-resample",
-        #     metricfile,
-        #     metricsphere,
-        #     nativesphere,
-        #     "BARYCENTRIC",
-        #     outputmetric,
-        # ]
 
         command2 = [
             "wb_command",
             "-metric-to-volume-mapping",
             metricfile,
             f"{boundingpattern}midthickness.surf.gii",
-            f"{micapipefolder}/maps/{subj}_{ses}_space-nativepro_map-T1map.nii.gz",
+            (
+                f"{micapipefolder}/maps/{subj}_{ses}_space-nativepro_map-T1map.nii.gz"
+                if feature != "flair"
+                else f"{micapipefolder}/maps/{subj}_{ses}_space-nativepro_map-flair.nii.gz"
+            ),
             f"{tmp_dir}/temp.nii.gz",
             "-ribbon-constrained",
             f"{boundingpattern}inner.surf.gii",
             f"{boundingpattern}outer.surf.gii",
         ]
-
-        # # Run the commands
-        # subprocess.run(command1)
 
         subprocess.run(command2)
 
@@ -252,11 +247,13 @@ def process(
     surf,
     struct,
     micapipename,
+    smooth_ctx,
+    smooth_hipp,
 ):
     outdir = os.path.join(outdir, struct)
     if struct == "cortex":
         subdir = "micapipe"
-        smooth = "5mm"
+        smooth = smooth_ctx
         rootsubdir = os.path.join(rootfolder, subdir, subj, ses)
         process_cortex(
             feature,
@@ -274,7 +271,7 @@ def process(
         )
     elif struct == "hippocampus":
         subdir = "hippunfold/hippunfold"
-        smooth = "2mm"
+        smooth = smooth_hipp
         rootsubdir = os.path.join(rootfolder, subdir, subj, ses)
         process_hippocampus(
             feature,
@@ -310,11 +307,10 @@ def process(
         )
 
 
-def gluetogether(outdir, subj, ses, hemi, feature, smooth_ctx, smooth_hipp, analysis):
-    if analysis == "asymmetry" and hemi == "R":
-        return
-    cort = f"{outdir}/cortex/{subj}_{ses}_hemi-{hemi}_surf-{surf}_label-midthickness_feature-{feature}_smooth-{smooth_ctx}_analysis-{analysis}.nii.gz"
-    hippo = f"{outdir}/hippocampus/{subj}_{ses}_hemi-{hemi}_den-0p5mm_label-midthickness_feature-{feature}_smooth-{smooth_hipp}_analysis-{analysis}.nii.gz"
+def gluetogether(outdir, subj, ses, feature, smooth_ctx, smooth_hipp, analysis):
+
+    cort = f"{outdir}/cortex/{subj}_{ses}_hemi-L_surf-{surf}_label-midthickness_feature-{feature}_smooth-{smooth_ctx}_analysis-{analysis}.nii.gz"
+    hippo = f"{outdir}/hippocampus/{subj}_{ses}_hemi-L_den-0p5mm_label-midthickness_feature-{feature}_smooth-{smooth_hipp}_analysis-{analysis}.nii.gz"
     subcort = (
         f"{outdir}/subcortex/{subj}_{ses}_feature-{feature}_analysis-{analysis}.nii.gz"
     )
@@ -326,27 +322,84 @@ def gluetogether(outdir, subj, ses, hemi, feature, smooth_ctx, smooth_hipp, anal
     cortdata = cortnifti.get_fdata()
     hippodata = hipponifti.get_fdata()
     subcortdata = subcortnifti.get_fdata()
-
+    print(np.average(cortdata), np.average(hippodata), np.average(subcortdata))
     outputnifti = np.zeros_like(cortdata)
     outputnifti[cortdata != 0] = cortdata[cortdata != 0]
     outputnifti[subcortdata != 0] = subcortdata[subcortdata != 0]
     outputnifti[hippodata != 0] = hippodata[hippodata != 0]
+
+    if analysis != "asymmetry":
+        cort = f"{outdir}/cortex/{subj}_{ses}_hemi-R_surf-{surf}_label-midthickness_feature-{feature}_smooth-{smooth_ctx}_analysis-{analysis}.nii.gz"
+        hippo = f"{outdir}/hippocampus/{subj}_{ses}_hemi-R_den-0p5mm_label-midthickness_feature-{feature}_smooth-{smooth_hipp}_analysis-{analysis}.nii.gz"
+        # subcort = f"{outdir}/subcortex/{subj}_{ses}_feature-{feature}_analysis-{analysis}.nii.gz"
+
+        cortnifti = nib.load(cort)
+        hipponifti = nib.load(hippo)
+        # subcortnifti = nib.load(subcort)
+
+        cortdata = cortnifti.get_fdata()
+        hippodata = hipponifti.get_fdata()
+        # subcortdata = subcortnifti.get_fdata()
+        # print(np.average(cortdata), np.average(hippodata), np.average(subcortdata))
+        outputnifti[cortdata != 0] = cortdata[cortdata != 0]
+        # outputnifti[subcortdata != 0] = subcortdata[subcortdata != 0]
+        outputnifti[hippodata != 0] = hippodata[hippodata != 0]
+    else:
+        outputnifti = outputnifti - np.flip(outputnifti, axis=0)
+
     outputnifti = nib.Nifti1Image(outputnifti, cortnifti.affine, cortnifti.header)
     if not os.path.exists(f"{outdir}/full"):
         os.makedirs(f"{outdir}/full")
     outputnifti.to_filename(
-        f"{outdir}/full/{subj}_{ses}_hemi-{hemi}_surf-{surf}_label-midthickness_feature-{feature}_smooth-ctx-{smooth_ctx}_smooth-hipp-{smooth_hipp}_analysis-{analysis}.nii.gz"
+        f"{outdir}/full/{subj}_{ses}_surf-{surf}_label-midthickness_feature-{feature}_smooth-ctx-{smooth_ctx}_smooth-hipp-{smooth_hipp}_analysis-{analysis}.nii.gz"
     )
+
+
+def dicomify(
+    outdir,
+    subj,
+    ses,
+    feature,
+    smooth_ctx,
+    smooth_hipp,
+    analysis,
+):
+    path = f"{outdir}/full/{subj}_{ses}_surf-{surf}_label-midthickness_feature-{feature}_smooth-ctx-{smooth_ctx}_smooth-hipp-{smooth_hipp}_analysis-{analysis}.nii.gz"
+
+    outpath = f"{outdir}/DICOM/{subj}_{ses}_surf-{surf}_label-midthickness_feature-{feature}_smooth-ctx-{smooth_ctx}_smooth-hipp-{smooth_hipp}_analysis-{analysis}"
+    if not os.path.exists(outpath):
+        os.makedirs(outpath)
+    # convert_nifti_to_dicom(path, outpath)
+    with tempdir(f"{outdir}/DICOM", prefix="dicom_temp.") as tmp_dir:
+        tempnii = nib.load(path)
+
+        array = tempnii.get_fdata()
+        # Normalize the array to the range [0, 1]
+        array = (array - np.min(array)) / (np.max(array) - np.min(array))
+
+        # Scale the array to the range [0, sitk.sitkInt16]
+        array = array * np.iinfo(np.int16).max
+
+        tempnii = nib.Nifti1Image(
+            array.astype(np.int16), tempnii.affine, tempnii.header
+        )
+
+        tempnii.to_filename(f"{tmp_dir}/temp.nii.gz")
+        run_nii2dcm(
+            f"{tmp_dir}/temp.nii.gz", outpath, dicom_type="MR", ref_dicom_file=None
+        )
 
 
 # Define the parameters for the loops
 # sourcery skip: avoid-builtin-shadow
+os.environ["OMP_NUM_THREADS"] = "4"
 features = ["ADC", "FA", "flair", "T1map", "volume", "ADC-FA-flair-T1map-volume"]
+# features = ["flair"]
 hemis = ["L", "R"]
 analyses = ["asymmetry", "regional"]
 structs = ["cortex", "hippocampus", "subcortex"]
-smooth_ctx = "5mm"
-smooth_hipp = "2mm"
+smooth_ctx = "10mm"
+smooth_hipp = "5mm"
 zbrainsdir = "Test"
 subj = "sub-PX001"
 ses = "ses-02"
@@ -386,6 +439,8 @@ for struct in structs:
 #         surf,
 #         struct,
 #         micapipename,
+#         smooth_ctx,
+#         smooth_hipp,
 #     )
 #     for feature in features
 #     for hemi in hemis
@@ -393,18 +448,30 @@ for struct in structs:
 #     for struct in structs
 # )
 # Use joblib to parallelize the loops
-Parallel(n_jobs=os.cpu_count())(
-    delayed(gluetogether)(
+# Parallel(n_jobs=os.cpu_count())(
+#     delayed(gluetogether)(
+#         outdir,
+#         subj,
+#         ses,
+#         feature,
+#         smooth_ctx,
+#         smooth_hipp,
+#         analysis,
+#     )
+#     for feature in features
+#     for analysis in analyses
+# )
+
+Parallel(n_jobs=2)(
+    delayed(dicomify)(
         outdir,
         subj,
         ses,
-        hemi,
         feature,
         smooth_ctx,
         smooth_hipp,
         analysis,
     )
     for feature in features
-    for hemi in hemis
     for analysis in analyses
 )
