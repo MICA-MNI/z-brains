@@ -1,13 +1,10 @@
-from ants.registration import apply_transforms
 import os
-from ants import image_read, image_clone
 import subprocess
 import numpy as np
 import pandas as pd
-from .utilities import tempdir
 from joblib import Parallel, delayed
 import nibabel as nib
-from .niidcm import convert_nifti_to_dicom
+from niidcm import convert_nifti_to_dicom
 import matplotlib.pyplot as plt
 import re
 
@@ -15,6 +12,18 @@ hemis = ["L", "R"]
 
 
 def float_array_to_hot(array):
+    """
+    Converts a floating-point array to a "hot" colormap representation.
+
+    This function takes a floating-point array, normalizes it to the range [0, 1],
+    maps the values to colors in the "hot" colormap, and returns the RGB array along with a mask.
+
+    Args:
+        array: A numpy array containing floating-point values.
+
+    Returns:
+        Tuple containing the RGB array representing the "hot" colormap and a mask array.
+    """
     if np.sum(array) == 0:
         dims = array.shape + (3,)
         mask = array != 0.0
@@ -39,6 +48,19 @@ def float_array_to_hot(array):
 
 
 def float_array_to_grayscale(array):
+    """
+    Converts a floating-point array to a grayscale image representation.
+
+    This function takes a floating-point array, normalizes it to the range [0, 1],
+    converts the values to integers in the range [0, 255], and returns a grayscale image.
+
+    Args:
+        array: A numpy array containing floating-point values.
+
+    Returns:
+        A numpy array representing the grayscale image.
+    """
+
     # Normalize the array to the range [0, 1]
     array = (array - np.min(array)) / (np.max(array) - np.min(array))
 
@@ -61,6 +83,29 @@ def savevolume(
     tmp_dir=None,
     vol=None,
 ):
+    """
+    Saves a volume image with specified features and analysis.
+
+    This function processes and saves a volume image based on the provided parameters,
+    including thresholding, color mapping, and saving the resulting image.
+
+    Args:
+        rootmicafolder: The root folder containing MICA data.
+        subj: Subject identifier.
+        ses: Session identifier.
+        feature: Specific feature of the volume image.
+        analysis: Type of analysis to be performed.
+        thresh: Threshold value for the volume image.
+        outdir: Output directory to save the processed image.
+        smooth_ctx: Level of smoothing for the cortex.
+        smooth_hipp: Level of smoothing for the hippocampus.
+        tmp_dir: Temporary directory path (default is None).
+        vol: Volume data (default is None).
+
+    Returns:
+        None
+    """
+
     if vol is None and tmp_dir is not None:
         vol = nib.load(f"{tmp_dir}/temp.nii.gz")
         vol = vol.get_fdata()
@@ -80,7 +125,6 @@ def savevolume(
     )
 
 
-# @memory.cache
 def process_cortex(
     feature,
     hemi,
@@ -92,13 +136,32 @@ def process_cortex(
     subj,
     ses,
     struct,
-    micapipename,
     workbench_path,
     tmp,
-    thresh=2,
-    mni=False,
 ):
+    """
+    Processes cortex data for a specific feature and analysis.
 
+    This function handles the processing of cortex data based on the provided parameters,
+    including resampling, mapping to volume, and saving the processed data.
+
+    Args:
+        feature: Specific feature of the cortex data.
+        hemi: Hemisphere (L or R).
+        analysis: Type of analysis to be performed.
+        smooth: Level of smoothing.
+        rootzbrainfolder: Root folder for z-brain data.
+        rootmicafolder: Root folder for MICA data.
+        outdir: Output directory to save the processed data.
+        subj: Subject identifier.
+        ses: Session identifier.
+        struct: Specific structure for processing.
+        workbench_path: Path to the workbench command.
+        tmp: Temporary directory path.
+
+    Returns:
+        None
+    """
     if analysis == "asymmetry" and hemi == "R":
         return
     metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{subj}_{ses}_hemi-{hemi}_surf-fslr-32k_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.func.gii"
@@ -154,39 +217,13 @@ def process_cortex(
     subprocess.run(command1)
 
     subprocess.run(command2)
-    if mni:
-        Fixed_img = image_read("src/data/templates/MNI152_T1_0.8mm_brain.nii.gz")
 
-        Moving_img = image_read(
-            f"{tmp}/temp.nii.gz",
-        )
-
-        array = Moving_img.numpy()
-        array = threshold(array, thresh)
-        Moving_img = image_clone(Moving_img, array)
-
-        os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = "1"
-        outp = apply_transforms(
-            fixed=Fixed_img,
-            moving=Moving_img,
-            interpolator="linear",
-            transformlist=[
-                f"{rootmicafolder}/xfm/{subj}_{ses}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_1Warp.nii.gz",
-                f"{rootmicafolder}/xfm/{subj}_{ses}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_0GenericAffine.mat",
-            ],
-            verbose=True,
-        )
-        outp.to_filename(
-            f"{outdir}/{subj}_{ses}_hemi-{hemi}_surf-fslr-32k_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.nii.gz"
-        )
-    else:
-        os.replace(
-            f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
-            f"{outdir}/{subj}_{ses}_hemi-{hemi}_surf-fslr-32k_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.nii.gz",
-        )
+    os.replace(
+        f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
+        f"{outdir}/{subj}_{ses}_hemi-{hemi}_surf-fslr-32k_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.nii.gz",
+    )
 
 
-# @memory.cache
 def process_hippocampus(
     feature,
     hemi,
@@ -202,9 +239,32 @@ def process_hippocampus(
     rootfolder,
     workbench_path,
     tmp,
-    thresh=2,
-    mni=False,
 ):
+    """
+    Processes hippocampus data for a specific feature and analysis.
+
+    This function manages the processing of hippocampus data based on the provided parameters,
+    including resampling, mapping to volume, and saving the processed data.
+
+    Args:
+        feature: Specific feature of the hippocampus data.
+        hemi: Hemisphere (L or R).
+        analysis: Type of analysis to be performed.
+        smooth: Level of smoothing.
+        rootzbrainfolder: Root folder for z-brain data.
+        rootmicafolder: Root folder for MICA data.
+        outdir: Output directory to save the processed data.
+        subj: Subject identifier.
+        ses: Session identifier.
+        struct: Specific structure for processing.
+        micapipename: Name of the micapipe.
+        rootfolder: Root folder for data.
+        workbench_path: Path to the workbench command.
+        tmp: Temporary directory path.
+
+    Returns:
+        None
+    """
     if analysis == "asymmetry" and hemi == "R":
         return
     metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{subj}_{ses}_hemi-{hemi}_den-0p5mm_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.func.gii"
@@ -244,57 +304,45 @@ def process_hippocampus(
 
     subprocess.run(command2)
 
-    if mni:
-        Fixed_img = image_read("src/data/templates/MNI152_T1_0.8mm_brain.nii.gz")
-
-        Moving_img = image_read(
-            f"{tmp_dir}/temp.nii.gz",
-        )
-
-        array = Moving_img.numpy()
-        array = threshold(array, thresh)
-        Moving_img = image_clone(Moving_img, array)
-
-        os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = "1"
-        outp = apply_transforms(
-            fixed=Fixed_img,
-            moving=Moving_img,
-            interpolator="linear",
-            transformlist=[
-                f"{micapipefolder}/xfm/{subj}_{ses}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_1Warp.nii.gz",
-                f"{micapipefolder}/xfm/{subj}_{ses}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_0GenericAffine.mat",
-            ],
-            verbose=True,
-        )
-        outp.to_filename(
-            f"{outdir}/{subj}_{ses}_hemi-{hemi}_den-0p5mm_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.nii.gz"
-        )
-    else:
-        os.replace(
-            f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
-            f"{outdir}/{subj}_{ses}_hemi-{hemi}_den-0p5mm_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.nii.gz",
-        )
+    os.replace(
+        f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
+        f"{outdir}/{subj}_{ses}_hemi-{hemi}_den-0p5mm_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.nii.gz",
+    )
 
 
-# @memory.cache
 def process_subcortex(
     feature,
     hemi,
     analysis,
-    smooth,
     rootzbrainfolder,
     rootmicafolder,
     outdir,
     subj,
     ses,
     struct,
-    micapipename,
-    rootfolder,
     tmp,
-    thresh=2,
-    mni=False,
 ):
+    """
+    Processes subcortex data for a specific feature and analysis.
 
+    This function handles the processing of subcortex data based on the provided parameters,
+    including matching data to subcortical structures, creating an output atlas, and saving the processed data.
+
+    Args:
+        feature: Specific feature of the subcortex data.
+        hemi: Hemisphere (L or R).
+        analysis: Type of analysis to be performed.
+        rootzbrainfolder: Root folder for z-brain data.
+        rootmicafolder: Root folder for MICA data.
+        outdir: Output directory to save the processed data.
+        subj: Subject identifier.
+        ses: Session identifier.
+        struct: Specific structure for processing.
+        tmp: Temporary directory path.
+
+    Returns:
+        None
+    """
     if analysis == "asymmetry" and hemi == "R":
         return
     if hemi == "R":
@@ -341,36 +389,10 @@ def process_subcortex(
         f"{tmp}/{feature}_{analysis}_{struct}_temp.nii.gz",
     )
 
-    micapipefolder = os.path.join(rootfolder, micapipename, subj, ses)
-    if mni:
-        Fixed_img = image_read("src/data/templates/MNI152_T1_0.8mm_brain.nii.gz")
-
-        Moving_img = image_read(
-            f"{tmp_dir}/temp.nii.gz",
-        )
-        array = Moving_img.numpy()
-        array = threshold(array, thresh)
-        Moving_img = image_clone(Moving_img, array)
-
-        os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = "1"
-        outp = apply_transforms(
-            fixed=Fixed_img,
-            moving=Moving_img,
-            interpolator="linear",
-            transformlist=[
-                f"{micapipefolder}/xfm/{subj}_{ses}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_1Warp.nii.gz",
-                f"{micapipefolder}/xfm/{subj}_{ses}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_0GenericAffine.mat",
-            ],
-            verbose=True,
-        )
-        outp.to_filename(
-            f"{outdir}/{subj}_{ses}_feature-{feature}_analysis-{analysis}.nii.gz"
-        )
-    else:
-        os.replace(
-            f"{tmp}/{feature}_{analysis}_{struct}_temp.nii.gz",
-            f"{outdir}/{subj}_{ses}_feature-{feature}_analysis-{analysis}.nii.gz",
-        )
+    os.replace(
+        f"{tmp}/{feature}_{analysis}_{struct}_temp.nii.gz",
+        f"{outdir}/{subj}_{ses}_feature-{feature}_analysis-{analysis}.nii.gz",
+    )
 
 
 def process(
@@ -389,8 +411,33 @@ def process(
     smooth_hipp,
     workbench_path,
     tmp,
-    thresh=2,
 ):
+    """
+    Processes different brain structures based on the provided parameters.
+
+    This function orchestrates the processing of various brain structures, such as cortex, hippocampus, and subcortex,
+    by calling specific processing functions based on the structure type and input parameters.
+
+    Args:
+        feature: Specific feature of the brain structure data.
+        hemi: Hemisphere (L or R).
+        analysis: Type of analysis to be performed.
+        rootzbrainfolder: Root folder for z-brain data.
+        rootfolder: Root folder for data.
+        outdir: Output directory to save the processed data.
+        subj: Subject identifier.
+        ses: Session identifier.
+        struct: Specific brain structure for processing.
+        micapipename: Name of the micapipe.
+        hippunfoldname: Name of the hippocampus unfolding.
+        smooth_ctx: Level of smoothing for the cortex.
+        smooth_hipp: Level of smoothing for the hippocampus.
+        workbench_path: Path to the workbench command.
+        tmp: Temporary directory path.
+
+    Returns:
+        None
+    """
     outdir = os.path.join(outdir, struct)
     if struct == "cortex":
         subdir = micapipename
@@ -407,10 +454,8 @@ def process(
             subj,
             ses,
             struct,
-            micapipename,
             workbench_path,
             tmp,
-            thresh=thresh,
         )
     elif struct == "hippocampus":
         subdir = f"{hippunfoldname}/hippunfold"
@@ -431,7 +476,6 @@ def process(
             rootfolder,
             workbench_path,
             tmp,
-            thresh=thresh,
         )
     elif struct == "subcortex":
         subdir = micapipename
@@ -441,17 +485,13 @@ def process(
             feature,
             hemi,
             analysis,
-            smooth,
             rootzbrainfolder,
             rootsubdir,
             outdir,
             subj,
             ses,
             struct,
-            micapipename,
-            rootfolder,
             tmp,
-            thresh=thresh,
         )
 
 
@@ -468,7 +508,28 @@ def gluetogether(
     tmp,
     thresh,
 ):
+    """
+    Combines different brain structure data into a single volume image.
 
+    This function merges cortex, hippocampus, and subcortex data into a unified volume image,
+    handling asymmetry cases and saving the combined data to the specified output directory.
+
+    Args:
+        outdir: Output directory for saving the combined volume image.
+        subj: Subject identifier.
+        ses: Session identifier.
+        feature: Specific feature of the brain structure data.
+        smooth_ctx: Level of smoothing for the cortex.
+        smooth_hipp: Level of smoothing for the hippocampus.
+        analysis: Type of analysis to be performed.
+        rootfolder: Root folder for data.
+        micapipename: Name of the micapipe.
+        tmp: Temporary directory path.
+        thresh: Threshold value for the volume image.
+
+    Returns:
+        None
+    """
     cort = f"{outdir}/cortex/{subj}_{ses}_hemi-L_surf-fslr-32k_label-midthickness_feature-{feature}_smooth-{smooth_ctx}_analysis-{analysis}.nii.gz"
     hippo = f"{outdir}/hippocampus/{subj}_{ses}_hemi-L_den-0p5mm_label-midthickness_feature-{feature}_smooth-{smooth_hipp}_analysis-{analysis}.nii.gz"
     subcort = (
@@ -478,6 +539,7 @@ def gluetogether(
         if not os.path.isfile(each):
             print(f"{feature} is not available for {subj}_{ses}, skipping")
             return
+
     cortnifti = nib.load(cort)
     hipponifti = nib.load(hippo)
     subcortnifti = nib.load(subcort)
@@ -485,7 +547,6 @@ def gluetogether(
     cortdata = cortnifti.get_fdata()
     hippodata = hipponifti.get_fdata()
     subcortdata = subcortnifti.get_fdata()
-    print(np.average(cortdata), np.average(hippodata), np.average(subcortdata))
     outputnifti = np.zeros_like(cortdata)
     outputnifti[cortdata != 0] = cortdata[cortdata != 0]
     outputnifti[subcortdata != 0] = subcortdata[subcortdata != 0]
@@ -494,22 +555,14 @@ def gluetogether(
     if analysis != "asymmetry":
         cort = f"{outdir}/cortex/{subj}_{ses}_hemi-R_surf-fslr-32k_label-midthickness_feature-{feature}_smooth-{smooth_ctx}_analysis-{analysis}.nii.gz"
         hippo = f"{outdir}/hippocampus/{subj}_{ses}_hemi-R_den-0p5mm_label-midthickness_feature-{feature}_smooth-{smooth_hipp}_analysis-{analysis}.nii.gz"
-        # subcort = f"{outdir}/subcortex/{subj}_{ses}_feature-{feature}_analysis-{analysis}.nii.gz"
 
         cortnifti = nib.load(cort)
         hipponifti = nib.load(hippo)
-        # subcortnifti = nib.load(subcort)
 
         cortdata = cortnifti.get_fdata()
         hippodata = hipponifti.get_fdata()
-        # subcortdata = subcortnifti.get_fdata()
-        # print(np.average(cortdata), np.average(hippodata), np.average(subcortdata))
         outputnifti[cortdata != 0] = cortdata[cortdata != 0]
-        # outputnifti[subcortdata != 0] = subcortdata[subcortdata != 0]
         outputnifti[hippodata != 0] = hippodata[hippodata != 0]
-        # else:
-        #     outputnifti = outputnifti - np.flip(outputnifti, axis=0)
-
     micapipefolder = os.path.join(rootfolder, micapipename, subj, ses)
     savevolume(
         micapipefolder,
@@ -526,14 +579,48 @@ def gluetogether(
 
 
 def threshold(array, threshold):
+    """
+    Apply thresholding to an array based on a specified threshold value.
+
+    This function sets array elements to 0 if they fall within the specified threshold range,
+    effectively thresholding the array values.
+
+    Args:
+        array: Input numpy array to be thresholded.
+        threshold: Threshold value for the array.
+
+    Returns:
+        Numpy array with thresholding applied.
+    """
     array = np.where((array < threshold) & (array > 0), 0, array)
     array = np.where((array > -threshold) & (array < 0), 0, array)
     return array
 
 
+@profile
 def dicomify(
     outdir, subj, ses, feature, smooth_ctx, smooth_hipp, analysis, tmp, px_demo=None
 ):
+    """
+    Convert a NIfTI image to DICOM format for a specific subject and session.
+
+    This function converts a NIfTI image to DICOM format based on the provided parameters,
+    creating DICOM files in the specified output directory.
+
+    Args:
+        outdir: Output directory for saving the DICOM files.
+        subj: Subject identifier.
+        ses: Session identifier.
+        feature: Specific feature of the image.
+        smooth_ctx: Level of smoothing for the cortex.
+        smooth_hipp: Level of smoothing for the hippocampus.
+        analysis: Type of analysis performed on the image.
+        tmp: Temporary directory path.
+        px_demo: Path to the participant demographics file (default is None).
+
+    Returns:
+        None
+    """
     path = f"{outdir}/full/{subj}_{ses}_label-midthickness_feature-{feature}_smooth-ctx-{smooth_ctx}_smooth-hipp-{smooth_hipp}_analysis-{analysis}.nii.gz"
 
     if not os.path.isfile(path):
@@ -549,9 +636,17 @@ def dicomify(
     tempnii = nib.load(path)
 
     array = tempnii.get_fdata()
-    tempnii = nib.Nifti1Image(array.astype(np.int16), tempnii.affine, tempnii.header)
+
     convert_nifti_to_dicom(
-        tempnii, outpath, feature, smooth_ctx, smooth_hipp, analysis, px_demo
+        array.astype(np.int16),
+        tempnii.header,
+        tempnii.affine,
+        outpath,
+        feature,
+        smooth_ctx,
+        smooth_hipp,
+        analysis,
+        px_demo,
     )
 
 
@@ -573,42 +668,63 @@ def surface_to_volume(
     n_jobs_wb,
     workbench_path,
 ):
+    """
+    Process surface data to generate volumetric images for specified features and analyses.
 
+    This function orchestrates the conversion of surface data to volumetric images,
+    handling various features, structures, and analyses based on the provided parameters.
+
+    Args:
+        rootfolder: Root folder for data processing.
+        features: List of specific features to process.
+        analyses: List of analysis types to perform.
+        structs: List of brain structures to process.
+        smooth_ctx: Level of smoothing for the cortex.
+        smooth_hipp: Level of smoothing for the hippocampus.
+        zbrainsdir: Directory containing z-brain data.
+        subj: Subject identifier.
+        ses: Session identifier.
+        px_demo: Participant demographics data.
+        micapipename: Name of the micapipe.
+        hippunfoldname: Name of the hippocampus unfolding.
+        tmp: Temporary directory path.
+        n_jobs: Number of parallel jobs to run.
+        n_jobs_wb: Number of parallel jobs for workbench.
+        workbench_path: Path to the workbench command.
+
+    Returns:
+        None
+    """
     rootfolder = os.path.join(rootfolder, "derivatives")
     zbrainsdir = zbrainsdir[0]
-    smooth_ctx = str(smooth_ctx) + "mm"
-    smooth_hipp = str(smooth_hipp) + "mm"
+    smooth_ctx = f"{str(smooth_ctx)}mm"
+    smooth_hipp = f"{str(smooth_hipp)}mm"
 
     os.environ["OMP_NUM_THREADS"] = str(n_jobs_wb)
-    print(px_demo)
-    # px_demo = pd.read_csv(px_demo)
     px_demo = px_demo[px_demo["participant_id"] == subj]
     px_demo = px_demo[px_demo["session_id"] == ses]
-
+    px_demo = px_demo.reset_index(drop=True)
     rootzbrainfolder = os.path.join(rootfolder, zbrainsdir, subj, ses)
     outdir = os.path.join(rootzbrainfolder, "norm-z-volumetric")
     if not os.path.exists(outdir):
         os.makedirs(outdir)
 
-    # Move the definition of Fixed_img outside the loop
-    # Fixed_img = image_read("src/data/templates/MNI152_T1_0.8mm_brain.nii.gz")
-
     for struct in structs:
-        dir = os.path.join(outdir, struct)
-        if not os.path.exists(dir):
-            os.makedirs(dir)
+        structdir = os.path.join(outdir, struct)
+        if not os.path.exists(structdir):
+            os.makedirs(structdir)
 
-    print(features)
     if "qT1" in features:
         features[features.index("qT1")] = "T1map"
     available_features = os.listdir(os.path.join(rootzbrainfolder, "maps", "cortex"))
     feats = []
     for feat in available_features:
+
         # Use re.search() to find the first match of the pattern in the string
         match = re.search(r"feature-([a-zA-Z0-9]+)", feat)
 
         # Extract the matched group
-        feature = match.group(1) if match else None
+        feature = match[1] if match else None
         feats.append(feature)
 
     features = list(set(features).intersection(feats))
@@ -616,51 +732,50 @@ def surface_to_volume(
         features[features.index("thickness")] = "volume"
     features.sort()
     features.append("-".join(features))
-    print(features)
-    # Use joblib to parallelize the loops
-    Parallel(n_jobs=n_jobs)(
-        delayed(process)(
-            feature,
-            hemi,
-            analysis,
-            rootzbrainfolder,
-            rootfolder,
-            outdir,
-            subj,
-            ses,
-            struct,
-            micapipename,
-            hippunfoldname,
-            smooth_ctx,
-            smooth_hipp,
-            workbench_path,
-            tmp,
-        )
-        for feature in features
-        for hemi in hemis
-        for analysis in analyses
-        for struct in structs
-    )
-    # Use joblib to parallelize the loops
-    if not os.path.exists(f"{outdir}/full"):
-        os.makedirs(f"{outdir}/full")
-    Parallel(n_jobs=n_jobs)(
-        delayed(gluetogether)(
-            outdir,
-            subj,
-            ses,
-            feature,
-            smooth_ctx,
-            smooth_hipp,
-            analysis,
-            rootfolder,
-            micapipename,
-            tmp,
-            thresh=2,
-        )
-        for feature in features
-        for analysis in analyses
-    )
+
+    # Parallel(n_jobs=n_jobs)(
+    #     delayed(process)(
+    #         feature,
+    #         hemi,
+    #         analysis,
+    #         rootzbrainfolder,
+    #         rootfolder,
+    #         outdir,
+    #         subj,
+    #         ses,
+    #         struct,
+    #         micapipename,
+    #         hippunfoldname,
+    #         smooth_ctx,
+    #         smooth_hipp,
+    #         workbench_path,
+    #         tmp,
+    #     )
+    #     for feature in features
+    #     for hemi in hemis
+    #     for analysis in analyses
+    #     for struct in structs
+    # )
+
+    # if not os.path.exists(f"{outdir}/full"):
+    #     os.makedirs(f"{outdir}/full")
+    # Parallel(n_jobs=n_jobs)(
+    #     delayed(gluetogether)(
+    #         outdir,
+    #         subj,
+    #         ses,
+    #         feature,
+    #         smooth_ctx,
+    #         smooth_hipp,
+    #         analysis,
+    #         rootfolder,
+    #         micapipename,
+    #         tmp,
+    #         thresh=2,
+    #     )
+    #     for feature in features
+    #     for analysis in analyses
+    # )
 
     Parallel(n_jobs=n_jobs)(
         delayed(dicomify)(
@@ -680,23 +795,26 @@ def surface_to_volume(
 
 
 if __name__ == "__main__":
-    # features = ["ADC", "FA", "flair", "T1map", "volume", "ADC-FA-flair-T1map-volume"]
+    features = ["ADC", "FA", "flair", "T1map", "volume"]
     # features = ["flair"]
     hemis = ["L", "R"]
     analyses = ["asymmetry", "regional"]
     structs = ["cortex", "hippocampus", "subcortex"]
-    smooth_ctx = "10mm"
-    smooth_hipp = "5mm"
-    zbrainsdir = "Test"
+    smooth_ctx = "10"
+    smooth_hipp = "5"
+    zbrainsdir = ["Test"]
     subj = "sub-PX001"
     ses = "ses-02"
-    px_demo = "E:/BIDS_MICS_Test/PX_participants.csv"
+
+    px_demo = pd.read_csv("E:/BIDS_MICS_Test/PX_participants.csv")
     micapipename = "micapipe"
     hippunfoldname = "hippunfold"
-    n_jobs = 4
+    n_jobs = 1
     n_jobs_wb = 1
     # Define the commands
-    rootfolder = "E:/BIDS_MICS_Test/data/derivatives"
+    rootfolder = "E:/BIDS_MICS_Test/data"
+    tmp = "E:/tmp"
+    os.makedirs(tmp, exist_ok=True)
     surface_to_volume(
         rootfolder,
         features,
@@ -710,6 +828,8 @@ if __name__ == "__main__":
         px_demo,
         micapipename,
         hippunfoldname,
+        tmp,
         n_jobs,
         n_jobs_wb,
+        "C:/Users/Ian/Downloads/workbench-windows64-v1.5.0/workbench/bin_windows64",
     )
