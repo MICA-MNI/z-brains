@@ -752,6 +752,59 @@ def test_main_fullrun():
                 )
             )
         ) == 84
+        assert (
+            len(
+                os.listdir(
+                    os.path.join(
+                        tmpdir,
+                        "sub-PX001",
+                        "ses-02",
+                        "norm-z-volumetric",
+                        "cortex",  # 18
+                    )
+                )
+            )
+            + len(
+                os.listdir(
+                    os.path.join(
+                        tmpdir,
+                        "sub-PX001",
+                        "ses-02",
+                        "norm-z-volumetric",
+                        "subcortex",  # 18
+                    )
+                )
+            )
+            + len(
+                os.listdir(
+                    os.path.join(
+                        tmpdir,
+                        "sub-PX001",
+                        "ses-02",
+                        "norm-z-volumetric",
+                        "hippocampus",  # 12
+                    )
+                )
+            )
+            + len(
+                os.listdir(
+                    os.path.join(
+                        tmpdir,
+                        "sub-PX001",
+                        "ses-02",
+                        "norm-z-volumetric",
+                        "DICOM",  # 12
+                    )
+                )
+            )
+            + len(
+                os.listdir(
+                    os.path.join(
+                        tmpdir, "sub-PX001", "ses-02", "norm-z-volumetric", "full"  # 12
+                    )
+                )
+            )
+        ) == 72
 
 
 def print_directory_tree(path):

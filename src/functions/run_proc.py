@@ -4,6 +4,7 @@ from .utilities import (
     show_note,
     show_info,
     show_warning,
+    add_field_to_xml,
 )
 import subprocess
 from .constants import *
@@ -220,10 +221,6 @@ def map_cortex(
             surf_dir,
             f"{bids_id}_hemi-{h}_space-nativepro_surf-fsLR-{resol}_label-{label}.surf.gii",
         )
-        volume_geometry_file = os.path.join(
-            surf_dir,
-            f"{bids_id}_hemi-{h}_surf-fsnative-{resol}_label-midthickness.surf.gii",
-        )
         prefix = f"{bids_id}_hemi-{h}_surf-fsLR-{resol}"
         if feat == "thickness":
             input_file = os.path.join(
@@ -258,6 +255,18 @@ def map_cortex(
         )
         if os.path.isfile(output_file):
             n += 1
+        subprocess.run(
+            os.path.join(workbench_path, "wb_command"),
+            "-set-structure",
+            output_file,
+            "CORTEX_LEFT" if h == "L" else "CORTEX_RIGHT",
+        )
+        # add_field_to_xml(
+        #     output_file,
+        #     "./DataArray/MetaData",
+        #     "AnatomicalStructurePrimary",
+        #     "CORTEX_LEFT" if h == "L" else "CORTEX_RIGHT",
+        # )
 
     if n == 2:
         show_note(
@@ -409,7 +418,12 @@ def map_hippocampus(
 
         if os.path.isfile(output_file):
             n += 1
-
+        subprocess.run(
+            os.path.join(workbench_path, "wb_command"),
+            "-set-structure",
+            output_file,
+            "CORTEX_LEFT" if h == "L" else "CORTEX_RIGHT",
+        )
     if n == 2:
         show_note(
             f"{bids_id}: '{feat}' [label={label}, resolution={resol}] successfully mapped."

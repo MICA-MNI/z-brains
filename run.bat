@@ -1,9 +1,9 @@
 @REM @echo off
 setlocal enabledelayedexpansion
-set "pth_dataset=Z:\data\mica3\BIDS_MICs"
+set "pth_dataset=E:\data"
 
-set "micapipe_dir=micapipe_v0.2.0"
-set "hippunfold_dir=hippunfold_v1.3.0"
+set "micapipe_dir=micapipe"
+set "hippunfold_dir=hippunfold"
 set "zbrains_dir=zbrains_Ian_testing"
 
 set "demo_controls=E:\HC_participants.csv"
@@ -22,10 +22,13 @@ set "demo_patients=E:\PX_participants.csv"
 @REM set "sids=sub-PX070 sub-PX003 sub-PX002 sub-PX001"
 @REM echo "here"
 set "sids=sub-PX001"
-set "sess=all"
+set "sess=ses-01"
+@REM set "sids=all"
+@REM set "sess=all"
 call conda activate zbrains
-call python -m src.zbrains --run proc analysis ^
+call python -m src.zbrains --run analysis ^
                    --sub "%sids%" ^
+                   --ses "%sess%" ^
                    --micapipe %micapipe_dir% ^
                    --hippunfold %hippunfold_dir% ^
                    --dataset %pth_dataset% ^
@@ -34,9 +37,10 @@ call python -m src.zbrains --run proc analysis ^
                    --demo %demo_patients% ^
                    --dataset_ref %pth_dataset% ^
                    --zbrains_ref %zbrains_dir% ^
-                   --smooth_ctx 5 ^
-                   --smooth_hip 2 ^
-                   --n_jobs 5 ^
+                   --smooth_ctx 10 ^
+                   --smooth_hip 5 ^
+                   --n_jobs 4 ^
+                   --n_jobs_wb 4 ^
                    --wb_path "C:/Users/Ian/Downloads/workbench-windows64-v1.5.0/workbench/bin_windows64" ^
                    --column_map participant_id=ID session_id=SES ^
                    --verbose 2

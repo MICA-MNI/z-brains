@@ -4,7 +4,7 @@ import argparse
 import ast
 import numpy as np
 
-
+from .surface_to_volume import surface_to_volume
 from .constants import (
     LIST_ANALYSES,
     Resolution,
@@ -24,6 +24,7 @@ from .clinical_reports import generate_clinical_report
 # Analysis
 ################################################################################
 def main(
+    dataset,
     zbrains_ref,
     demo_ref,
     column_map,
@@ -44,7 +45,11 @@ def main(
     labels_hip,
     tmp,
     logger,
+    micapipename,
+    hippunfoldname,
     n_jobs,
+    n_jobs_wb,
+    workbench_path,
 ):
     # Some checks
     # logger = logging.getLogger(tmp)
@@ -149,6 +154,26 @@ def main(
         tmp=tmp,
         n_jobs=n_jobs,
     )
+    # Generate volumes ----------------------------------------------------------
+    logger.info("\n\nStarting volume generation")
+    surface_to_volume(
+        dataset,
+        feat,
+        LIST_ANALYSES,
+        struct,
+        smooth_ctx,
+        smooth_hip,
+        zbrains_ref,
+        px_id,
+        px_ses,
+        px_demo,
+        micapipename,
+        hippunfoldname,
+        tmp,
+        n_jobs=n_jobs,
+        n_jobs_wb=n_jobs_wb,
+        workbench_path=workbench_path,
+    )
 
     # Generate report ----------------------------------------------------------
     logger.info("\n\nStarting report generation")
@@ -234,6 +259,11 @@ def run(
     filter_warnings=None,
     column_map=None,
     n_jobs=None,
+    micapipename=None,
+    hippunfoldname=None,
+    n_jobs_wb=None,
+    workbench_path=None,
+    dataset=None,
 ):
 
     # Logging settings
@@ -281,6 +311,7 @@ def run(
     sys.excepthook = handle_unhandled_exception
 
     main(
+        dataset,
         zbrains_ref,
         demo_ref,
         column_map,
@@ -301,7 +332,11 @@ def run(
         labels_hip,
         tmp,
         logger,
+        micapipename,
+        hippunfoldname,
         n_jobs,
+        n_jobs_wb,
+        workbench_path,
     )
 
 
@@ -330,6 +365,11 @@ if __name__ == "__main__":
     parser.add_argument("--deconfound", default=None)
     parser.add_argument("--column_map", required=True)
     parser.add_argument("--n_jobs", type=int, required=True)
+    parser.add_argument("--n_jobs_wb", type=int, required=True)
+    parser.add_argument("--micapipe", type=str, required=True)
+    parser.add_argument("--hippunfold", type=str, required=True)
+    parser.add_argument("--workbench_path", type=str, required=True)
+    parser.add_argument("--dataset", type=str, required=True)
 
     # Parse the arguments.
     args = parser.parse_args()
@@ -362,4 +402,9 @@ if __name__ == "__main__":
         filter_warnings=False,
         column_map=ast.literal_eval(args.column_map),
         n_jobs=int(args.n_jobs),
+        n_jobs_wb=int(args.n_jobs_wb),
+        micapipename=args.micapipe,
+        hippunfoldname=args.hippunfold,
+        workbench_path=args.workbench_path,
+        dataset=args.dataset,
     )

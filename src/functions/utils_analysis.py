@@ -12,7 +12,12 @@ import numpy as np
 import pandas as pd
 import nibabel as nib
 import copy
-
+from .utilities import (
+    add_field_to_xml,
+    replace_field_in_xml,
+    edit_root_attributes_in_xml,
+    remove_doctype_from_xml,
+)
 from .constants import ProcessingException
 
 
@@ -548,7 +553,22 @@ def _save(
 
     for i, h in enumerate(["L", "R"]):
         data = x if analysis == "asymmetry" else x[i]
-        data_array = nib.gifti.GiftiDataArray(data=data)  # per hemisphere
+
+        metadata = nib.gifti.GiftiMetaData(
+            {
+                "AnatomicalStructurePrimary": (
+                    "CORTEX_LEFT" if h == "L" else "CORTEX_RIGHT"
+                ),
+            }
+        )
+        header = """<GIFTI xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:noNamespaceSchemaLocation="http://brainvis.wustl.edu/caret6/xml_schemas/GIFTI_Caret.xsd"
+            Version="1"
+            NumberOfDataArrays="1">
+                """
+        data_array = nib.gifti.GiftiDataArray(
+            data=data, meta=metadata
+        )  # per hemisphere
         image = nib.gifti.GiftiImage()
         image.add_gifti_data_array(data_array)
 
@@ -556,6 +576,16 @@ def _save(
             struct, hemi=h, res=resolution, label=label, smooth=smooth, **kwds
         )
         nib.save(image, opth)
+        # edit_root_attributes_in_xml(
+        #     opth,
+        #     {
+        #         "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
+        #         "xsi:noNamespaceSchemaLocation": "http://brainvis.wustl.edu/caret6/xml_schemas/GIFTI_Caret.xsd",
+        #         "Version": "1",
+        #         "NumberOfDataArrays": "1",
+        #     },
+        # )
+        # remove_doctype_from_xml(opth)
 
         if analysis == "asymmetry":
             break

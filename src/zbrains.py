@@ -463,6 +463,16 @@ def main_func(args):
                     str(args.column_map),
                     "--n_jobs",
                     str(args.n_jobs),
+                    "--n_jobs_wb",
+                    str(args.n_jobs_wb),
+                    "--micapipe",
+                    str(args.micapipe),
+                    "--hippunfold",
+                    str(args.hippunfold),
+                    "--workbench_path",
+                    str(os.environ["WORKBENCH_PATH"]),
+                    "--dataset",
+                    str(args.dataset),
                 ]
                 if args.demo:
                     args_list.extend(["--demo", args.demo])
