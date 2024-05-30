@@ -59,3 +59,4 @@ vtk>=9.3.0
 webencodings>=0.5.1
 xhtml2pdf>=0.2.15
 zipp>=3.18.1
+niidcm
