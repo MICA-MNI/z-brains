@@ -8,7 +8,6 @@ from nii2dcm.dcm import DicomMRI
 eps = 0.00000001192093
 
 
-@profile
 def write_slice(ds, img_data, slice_index, output_dir):
     """
     write a single DICOM slice
@@ -203,7 +202,6 @@ def transfer_nii_hdr_instance_tags(ds, nii2dcm_parameters, instance_index):
     ds.add_new(0x00280006, "US", 0)
 
 
-@profile
 def convert_nifti_to_dicom(
     array,
     header,

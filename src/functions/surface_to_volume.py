@@ -597,7 +597,6 @@ def threshold(array, threshold):
     return array
 
 
-@profile
 def dicomify(
     outdir, subj, ses, feature, smooth_ctx, smooth_hipp, analysis, tmp, px_demo=None
 ):
