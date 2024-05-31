@@ -19,6 +19,11 @@ def test_main_mismatched_zbrains_demo_refs(
         match="The number of values provided with --zbrains_ref and --demo_ref must be the same.",
     ):
         main(
+            dataset=None,
+            micapipename=None,
+            hippunfoldname=None,
+            n_jobs_wb=None,
+            workbench_path=None,
             zbrains_ref=["ref1"],
             demo_ref=["ref1", "ref2"],
             column_map={},
@@ -58,6 +63,11 @@ def test_main_unknown_column_names(
         ValueError, match="Unknown column names: {'unknown'}. Allowed options are:"
     ):
         main(
+            dataset=None,
+            micapipename=None,
+            hippunfoldname=None,
+            n_jobs_wb=None,
+            workbench_path=None,
             zbrains_ref=["ref1"],
             demo_ref=["ref1"],
             column_map={"unknown": "known"},
@@ -110,6 +120,11 @@ def test_main_multiple_demo_rows_2(
     demo = MagicMock()
     with pytest.raises(ValueError, match="Cannot find sub-001 in demographics"):
         main(
+            dataset=None,
+            micapipename=None,
+            hippunfoldname=None,
+            n_jobs_wb=None,
+            workbench_path=None,
             zbrains_ref=["ref1"],
             demo_ref=["ref1"],
             column_map={},
@@ -165,6 +180,11 @@ def test_main_multiple_demo_rows(
         ValueError, match="Provided sub-001 is not unique in demographics file."
     ):
         main(
+            dataset=None,
+            micapipename=None,
+            hippunfoldname=None,
+            n_jobs_wb=None,
+            workbench_path=None,
             zbrains_ref=["ref1"],
             demo_ref=["ref1"],
             column_map={},

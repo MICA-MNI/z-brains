@@ -194,8 +194,8 @@ def test_load_data_struct_cortex_asymmetry(mock_nib_load):
         threshold=0.5,
         threshold_alpha=0.5,
     )
-    np.testing.assert_array_equal(data_lh, np.array([0, 0, 1]), strict=False)
-    np.testing.assert_array_equal(data_rh, np.array([-1, 0, 0]), strict=False)
+    np.testing.assert_array_equal(data_lh, np.array([0, 0, 1]))
+    np.testing.assert_array_equal(data_rh, np.array([-1, 0, 0]))
 
 
 @patch("nibabel.load")
