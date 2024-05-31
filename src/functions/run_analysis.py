@@ -378,6 +378,7 @@ if __name__ == "__main__":
     args.demo_ref = args.demo_ref.split("-")
     args.zbrains_ref = args.zbrains_ref.split("-")
     args.resolution = args.resolution.split("-")
+
     run(
         subject_id=args.subject_id,
         zbrains=args.zbrains,

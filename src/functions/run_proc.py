@@ -256,10 +256,12 @@ def map_cortex(
         if os.path.isfile(output_file):
             n += 1
         subprocess.run(
-            os.path.join(workbench_path, "wb_command"),
-            "-set-structure",
-            output_file,
-            "CORTEX_LEFT" if h == "L" else "CORTEX_RIGHT",
+            [
+                os.path.join(workbench_path, "wb_command"),
+                "-set-structure",
+                output_file,
+                "CORTEX_LEFT" if h == "L" else "CORTEX_RIGHT",
+            ]
         )
         # add_field_to_xml(
         #     output_file,
@@ -419,10 +421,12 @@ def map_hippocampus(
         if os.path.isfile(output_file):
             n += 1
         subprocess.run(
-            os.path.join(workbench_path, "wb_command"),
-            "-set-structure",
-            output_file,
-            "CORTEX_LEFT" if h == "L" else "CORTEX_RIGHT",
+            [
+                os.path.join(workbench_path, "wb_command"),
+                "-set-structure",
+                output_file,
+                "CORTEX_LEFT" if h == "L" else "CORTEX_RIGHT",
+            ]
         )
     if n == 2:
         show_note(

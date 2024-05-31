@@ -44,7 +44,6 @@ import copy
 import argparse
 import sys
 from .functions.help import help
-import subprocess
 import gc
 
 
@@ -54,6 +53,7 @@ def _jobloop(args):
     except Exception as e:
         print(e)
         if args.test:
+
             raise e
     gc.collect()
 
@@ -414,6 +414,7 @@ def main_func(args):
 
             # ----------------------------------------------------- Analysis ---------------------------------------------------- #
             if "analysis" in tasks:
+
                 logfile = os.path.join(
                     logs_dir,
                     f"analysis_{datetime.datetime.now().strftime('%d-%m-%Y')}.txt",
@@ -482,7 +483,7 @@ def main_func(args):
 
                 if args.deconfound:
                     args_list.extend(["--deconfound", args.deconfound])
-                out = subprocess.call(
+                subprocess.call(
                     ["python", "-m", "src.functions.run_analysis", *args_list]
                 )
             elapsed = (time.time() - start_time) / 60
@@ -537,7 +538,6 @@ def create_jobs(args, subs, ses, run_type):
 
 
 def main(args):
-
     args.wb_path = os.path.expanduser(args.wb_path) if args.wb_path else None
     args.dataset = os.path.expanduser(args.dataset) if args.dataset else None
     args.demo = os.path.expanduser(args.demo) if args.demo else None
@@ -609,6 +609,7 @@ def main(args):
         procjobs = create_jobs(args, args.sub, args.ses, "proc")
         Parallel(n_jobs=args.n_jobs)(delayed(_jobloop)(job) for job in procjobs)
     if "analysis" in args.run:
+
         analysisjobs = create_jobs(args, args.sub, args.ses, "analysis")
         [_jobloop(job) for job in analysisjobs]
 
