@@ -30,6 +30,7 @@ packaging>=24.0
 pandas>=2.0.3
 pillow>=10.3.0
 pycparser>=2.22
+pydicom>=2.3.0
 pyHanko>=0.24.0
 pyhanko-certvalidator>=0.26.3
 pyparsing>=3.1.2
