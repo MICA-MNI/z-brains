@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 import nibabel as nib
-from niidcm import convert_nifti_to_dicom
+from .niidcm import convert_nifti_to_dicom
 import matplotlib.pyplot as plt
 import re
 
