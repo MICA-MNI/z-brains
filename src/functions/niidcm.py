@@ -3,7 +3,7 @@ import os
 from os.path import abspath
 import numpy as np
 import pydicom as pyd
-from nii2dcm.dcm import DicomMRI
+from .dcmclasses import DicomMRI
 
 eps = 0.00000001192093
 
