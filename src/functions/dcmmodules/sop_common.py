@@ -5,7 +5,7 @@ C.12.1
 https://dicom.nema.org/medical/Dicom/current/output/chtml/part03/sect_C.12.html#sect_C.12.1
 """
 
-from nii2dcm.module import Module
+from .module import Module
 
 
 class SOPCommon(Module):

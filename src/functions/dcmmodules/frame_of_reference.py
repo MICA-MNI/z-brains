@@ -5,7 +5,7 @@ C.7.4.1
 https://dicom.nema.org/medical/Dicom/current/output/chtml/part03/sect_C.7.4.html#sect_C.7.4.1
 """
 
-from nii2dcm.module import Module
+from .module import Module
 
 
 class FrameOfReference(Module):

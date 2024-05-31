@@ -9,7 +9,7 @@ an MRI scanner.
 """
 
 
-from nii2dcm.module import Module
+from .module import Module
 
 
 class MRImage(Module):

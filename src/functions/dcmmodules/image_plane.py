@@ -5,7 +5,7 @@ C.7.6.2
 https://dicom.nema.org/medical/Dicom/current/output/chtml/part03/sect_C.7.6.2.html
 """
 
-from nii2dcm.module import Module
+from .module import Module
 
 
 class ImagePlane(Module):

@@ -5,7 +5,7 @@ C.12.4
 https://dicom.nema.org/medical/Dicom/current/output/chtml/part03/sect_C.12.4.html
 """
 
-from nii2dcm.module import Module
+from .module import Module
 
 
 class GeneralReference(Module):
