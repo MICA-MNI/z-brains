@@ -663,7 +663,7 @@ def test_main_fullrun():
             wb_path=WBPATH,
             sub=sub,
             ses=ses,
-            run=["proc", "analysis"],
+            run="proc analysis",
             dataset=DATASET_DIR,
             zbrains=tmpdir,
             micapipe="micapipe",
@@ -672,9 +672,9 @@ def test_main_fullrun():
             column_map="participant_id=ID session_id=SES",
             verbose=3,
             struct=["all"],
-            dataset_ref=DATASET_DIR,
+            dataset_ref=[DATASET_DIR],
             zbrains_ref=tmpdir,
-            demo_ref=HC_DEMOGRAPHICS,
+            demo_ref=[HC_DEMOGRAPHICS],
             normative=None,
             deconfound=None,
             demo=PX_DEMOGRAPHICS,
@@ -814,4 +814,6 @@ def print_directory_tree(path):
         print("{}{}/".format(indent, os.path.basename(root)))
         subindent = " " * 4 * (level + 1)
         for f in files:
+            if f.endswith(".dcm"):
+                continue
             print("{}{}".format(subindent, f))

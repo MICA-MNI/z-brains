@@ -624,7 +624,7 @@ def dicomify(
 
     if not os.path.isfile(path):
         print(
-            f"{feature} and the {analysis} analysis is not available for {subj}_{ses}, skipping"
+            f"File not found at {path}. {feature} and the {analysis} analysis is not available for {subj}_{ses}, skipping"
         )
         return
 
@@ -729,52 +729,52 @@ def surface_to_volume(
     features = list(set(features).intersection(feats))
     if "thickness" in features:
         features[features.index("thickness")] = "volume"
-    features.sort()
+    features = sorted(features, key=str.lower)
     features.append("-".join(features))
+    print("feats: ", features)
+    Parallel(n_jobs=n_jobs)(
+        delayed(process)(
+            feature,
+            hemi,
+            analysis,
+            rootzbrainfolder,
+            rootfolder,
+            outdir,
+            subj,
+            ses,
+            struct,
+            micapipename,
+            hippunfoldname,
+            smooth_ctx,
+            smooth_hipp,
+            workbench_path,
+            tmp,
+        )
+        for feature in features
+        for hemi in hemis
+        for analysis in analyses
+        for struct in structs
+    )
 
-    # Parallel(n_jobs=n_jobs)(
-    #     delayed(process)(
-    #         feature,
-    #         hemi,
-    #         analysis,
-    #         rootzbrainfolder,
-    #         rootfolder,
-    #         outdir,
-    #         subj,
-    #         ses,
-    #         struct,
-    #         micapipename,
-    #         hippunfoldname,
-    #         smooth_ctx,
-    #         smooth_hipp,
-    #         workbench_path,
-    #         tmp,
-    #     )
-    #     for feature in features
-    #     for hemi in hemis
-    #     for analysis in analyses
-    #     for struct in structs
-    # )
-
-    # if not os.path.exists(f"{outdir}/full"):
-    #     os.makedirs(f"{outdir}/full")
-    # Parallel(n_jobs=n_jobs)(
-    #     delayed(gluetogether)(
-    #         outdir,
-    #         subj,
-    #         ses,
-    #         feature,
-    #         smooth_ctx,
-    #         smooth_hipp,
-    #         analysis,
-    #         rootfolder,
-    #         micapipename,
-    #         tmp,
-    #         thresh=2,
-    #     )
-    #     for feature in features
-    #     for analysis in analyses
-    # )
+    if not os.path.exists(f"{outdir}/full"):
+        os.makedirs(f"{outdir}/full")
+    Parallel(n_jobs=n_jobs)(
+        delayed(gluetogether)(
+            outdir,
+            subj,
+            ses,
+            feature,
+            smooth_ctx,
+            smooth_hipp,
+            analysis,
+            rootfolder,
+            micapipename,
+            tmp,
+            thresh=2,
+        )
+        for feature in features
+        for analysis in analyses
+    )
 
     Parallel(n_jobs=n_jobs)(
         delayed(dicomify)(

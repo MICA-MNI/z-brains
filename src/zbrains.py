@@ -333,7 +333,7 @@ def main_func(args):
         smooth_hip,
         threshold,
     ) = parse_args(args)
-
+    print(f"Processing {sid} {ses} with tasks {tasks}")
     check_workbench_dependency(tasks)
 
     (
@@ -367,6 +367,7 @@ def main_func(args):
 
     # Temporary folder
     with tempdir(SUBJECT_OUTPUT_DIR, prefix="z_brains_temp.") as tmp_dir:
+        print(f"Temporary directory: {structures} {features} {resolutions} {tasks}")
         try:
             os.chmod(SUBJECT_OUTPUT_DIR, 0o770)
 
@@ -580,7 +581,7 @@ def main(args):
         sys.exit()
 
     show_info("zbrains is running with:")
-
+    print(args.run)
     if "proc" in args.run:
         # Get WorkBench version
 
