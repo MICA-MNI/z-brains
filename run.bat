@@ -1,6 +1,6 @@
 @REM @echo off
 setlocal enabledelayedexpansion
-set "pth_dataset=E:\data"
+set "pth_dataset=E:\BIDS_MICS_Test\data"
 
 set "micapipe_dir=micapipe"
 set "hippunfold_dir=hippunfold"
@@ -21,12 +21,12 @@ set "demo_patients=E:\PX_participants.csv"
 
 @REM set "sids=sub-PX070 sub-PX003 sub-PX002 sub-PX001"
 @REM echo "here"
-set "sids=sub-PX001"
-set "sess=ses-01"
+set "sids=all"
+set "sess=all"
 @REM set "sids=all"
 @REM set "sess=all"
 call conda activate zbrains
-call python -m src.zbrains --run analysis ^
+call python -m src.zbrains --run "proc analysis" ^
                    --sub "%sids%" ^
                    --ses "%sess%" ^
                    --micapipe %micapipe_dir% ^

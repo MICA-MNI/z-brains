@@ -4,8 +4,15 @@ from os.path import abspath
 import numpy as np
 import pydicom as pyd
 from .dcmclasses import DicomMRI
+from multiprocessing import Pool
 
 eps = 0.00000001192093
+
+
+def write_slice_wrapper(args):
+    ds, array, instance_index, out_dir, nii2dcm_parameters = args
+    transfer_nii_hdr_instance_tags(ds, nii2dcm_parameters, instance_index)
+    write_slice(ds, array, instance_index, out_dir)
 
 
 def write_slice(ds, img_data, slice_index, output_dir):
@@ -231,12 +238,14 @@ def convert_nifti_to_dicom(
     Returns:
         None
     """
-
+    print("Starting conversion of NIfTI image to DICOM format...")
     nii2dcm_parameters = get_nii2dcm_parameters(header, affine, array)
+    print("NIfTI to DICOM parameters obtained.")
 
     dicom = DicomMRI("nii2dcm_dicom_mri.dcm")
     ds = dicom.ds
     filemeta = dicom.file_meta
+    print("DICOM object initialized.")
     if metadata is not None:
         pc = ""
         metadata = metadata.to_dict()
@@ -263,15 +272,23 @@ def convert_nifti_to_dicom(
             for key, value in metadata.items():
                 pc += f"{key}: {value[0]}\n"
             ds.PatientComments = pc
+    print("Metadata processed and transferred to DICOM object.")
     ds.StudyDescription = f"{feature.upper()}, {analysis}, Smoothing - Cort: {smooth_ctx}, Hipp: {smooth_hipp}"
 
+    print("Study description set.")
+
     transfer_nii_hdr_series_tags(ds, nii2dcm_parameters, filemeta)
-    for instance_index in range(nii2dcm_parameters["NumberOfInstances"]):
+    print("NIfTI header series tags transferred.")
 
-        # Transfer Instance tags
-        transfer_nii_hdr_instance_tags(ds, nii2dcm_parameters, instance_index)
+    with Pool() as p:
+        p.map(
+            write_slice_wrapper,
+            [
+                (ds, array, i, out_dir, nii2dcm_parameters)
+                for i in range(nii2dcm_parameters["NumberOfInstances"])
+            ],
+        )
+    print("DICOM slices written.")
 
-        # Write slice
-        write_slice(ds, array, instance_index, out_dir)
-
-    print(f"nii2dcm: DICOM files written to: {abspath(out_dir)}")  # TODO use logger
+    print(f"nii2dcm: DICOM files written to: {abspath(out_dir)}")
+    print("Conversion complete.")

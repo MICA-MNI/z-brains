@@ -7,6 +7,7 @@ import nibabel as nib
 from .niidcm import convert_nifti_to_dicom
 import matplotlib.pyplot as plt
 import re
+from time import time
 
 hemis = ["L", "R"]
 
@@ -115,7 +116,6 @@ def savevolume(
     )
     template_data = template.get_fdata()
     template_data = float_array_to_grayscale(template_data)
-    print(np.min(vol), np.max(vol))
     vol = threshold(vol, thresh)
     vol, mask = float_array_to_hot(vol)
     template_data[mask] = vol[mask]
@@ -439,10 +439,12 @@ def process(
         None
     """
     outdir = os.path.join(outdir, struct)
+    print(f"Processing structure: {struct}")
     if struct == "cortex":
         subdir = micapipename
         smooth = smooth_ctx
         rootsubdir = os.path.join(rootfolder, subdir, subj, ses)
+        print(f"Processing cortex with smoothing level: {smooth}")
         process_cortex(
             feature,
             hemi,
@@ -461,6 +463,7 @@ def process(
         subdir = f"{hippunfoldname}/hippunfold"
         smooth = smooth_hipp
         rootsubdir = os.path.join(rootfolder, subdir, subj, ses)
+        print(f"Processing hippocampus with smoothing level: {smooth}")
         process_hippocampus(
             feature,
             hemi,
@@ -481,6 +484,7 @@ def process(
         subdir = micapipename
         smooth = None
         rootsubdir = os.path.join(rootfolder, subdir, subj, ses)
+        print("Processing subcortex without smoothing")
         process_subcortex(
             feature,
             hemi,
@@ -493,6 +497,7 @@ def process(
             struct,
             tmp,
         )
+    print("Processing completed.")
 
 
 def gluetogether(
@@ -530,6 +535,7 @@ def gluetogether(
     Returns:
         None
     """
+    print(f"Combining brain structure data for subject {subj}, session {ses}.")
     cort = f"{outdir}/cortex/{subj}_{ses}_hemi-L_surf-fslr-32k_label-midthickness_feature-{feature}_smooth-{smooth_ctx}_analysis-{analysis}.nii.gz"
     hippo = f"{outdir}/hippocampus/{subj}_{ses}_hemi-L_den-0p5mm_label-midthickness_feature-{feature}_smooth-{smooth_hipp}_analysis-{analysis}.nii.gz"
     subcort = (
@@ -539,10 +545,13 @@ def gluetogether(
         if not os.path.isfile(each):
             print(f"{feature} is not available for {subj}_{ses}, skipping")
             return
+        else:
+            print(f"Loading file: {each}")
 
     cortnifti = nib.load(cort)
     hipponifti = nib.load(hippo)
     subcortnifti = nib.load(subcort)
+    print("Data loaded, starting to combine structures.")
 
     cortdata = cortnifti.get_fdata()
     hippodata = hipponifti.get_fdata()
@@ -551,6 +560,8 @@ def gluetogether(
     outputnifti[cortdata != 0] = cortdata[cortdata != 0]
     outputnifti[subcortdata != 0] = subcortdata[subcortdata != 0]
     outputnifti[hippodata != 0] = hippodata[hippodata != 0]
+
+    print("Left hemisphere data combined.")
 
     if analysis != "asymmetry":
         cort = f"{outdir}/cortex/{subj}_{ses}_hemi-R_surf-fslr-32k_label-midthickness_feature-{feature}_smooth-{smooth_ctx}_analysis-{analysis}.nii.gz"
@@ -563,7 +574,10 @@ def gluetogether(
         hippodata = hipponifti.get_fdata()
         outputnifti[cortdata != 0] = cortdata[cortdata != 0]
         outputnifti[hippodata != 0] = hippodata[hippodata != 0]
+        print("Right hemisphere data combined.")
+
     micapipefolder = os.path.join(rootfolder, micapipename, subj, ses)
+    print("Saving combined volume image.")
     savevolume(
         micapipefolder,
         subj,
@@ -576,6 +590,7 @@ def gluetogether(
         smooth_hipp,
         vol=outputnifti,
     )
+    print("Combined volume image saved.")
 
 
 def threshold(array, threshold):
@@ -775,7 +790,8 @@ def surface_to_volume(
         for feature in features
         for analysis in analyses
     )
-
+    print("Converting to DICOM")
+    timepre = time()
     Parallel(n_jobs=n_jobs)(
         delayed(dicomify)(
             outdir,
@@ -791,6 +807,8 @@ def surface_to_volume(
         for feature in features
         for analysis in analyses
     )
+    timepost = time() - timepre
+    print(f"Time taken to convert to DICOM: {timepost}")
 
 
 if __name__ == "__main__":
