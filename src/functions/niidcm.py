@@ -273,7 +273,9 @@ def convert_nifti_to_dicom(
                 pc += f"{key}: {value[0]}\n"
             ds.PatientComments = pc
     print("Metadata processed and transferred to DICOM object.")
-    ds.StudyDescription = f"{feature.upper()}, {analysis}, Smoothing - Cort: {smooth_ctx}, Hipp: {smooth_hipp}"
+    ds.StudyDescription = (
+        f"{feature.upper()}, {analysis}, Smooth-Cort: {smooth_ctx}, Hipp: {smooth_hipp}"
+    )
 
     print("Study description set.")
 
