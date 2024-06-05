@@ -715,9 +715,10 @@ def surface_to_volume(
     smooth_hipp = f"{str(smooth_hipp)}mm"
 
     os.environ["OMP_NUM_THREADS"] = str(n_jobs_wb)
-    px_demo = px_demo[px_demo["participant_id"] == subj]
-    px_demo = px_demo[px_demo["session_id"] == ses]
-    px_demo = px_demo.reset_index(drop=True)
+    if isinstance(px_demo, pd.DataFrame):
+        px_demo = px_demo[px_demo["participant_id"] == subj]
+        px_demo = px_demo[px_demo["session_id"] == ses]
+        px_demo = px_demo.reset_index(drop=True)
     rootzbrainfolder = os.path.join(rootfolder, zbrainsdir, subj, ses)
     outdir = os.path.join(rootzbrainfolder, "norm-z-volumetric")
     if not os.path.exists(outdir):
