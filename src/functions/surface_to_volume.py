@@ -170,7 +170,7 @@ def process_cortex(
     boundingpattern = f"{rootmicafolder}/surf/{subj}_{ses}_hemi-{hemi}_space-nativepro_surf-fsnative_label-"
     if not os.path.isfile(metricfile):
         print(
-            f"{feature} is not available for {subj}_{ses}_{hemi} at {smooth} smoothing in the {struct}, skipping"
+            f"{feature} is not available for {subj}_{ses}_{hemi} at {smooth} smoothing in the {struct}, skipping path: {metricfile}"
         )
         return
 
