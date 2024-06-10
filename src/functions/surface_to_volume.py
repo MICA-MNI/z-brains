@@ -164,7 +164,7 @@ def process_cortex(
     """
     if analysis == "asymmetry" and hemi == "R":
         return
-    metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{subj}_{ses}_hemi-{hemi}_surf-fslr-32k_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.func.gii"
+    metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{subj}_{ses}_hemi-{hemi}_surf-fsLR-32k_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.func.gii"
     metricsphere = "src/data/templates/fsLR-32k.L.sphere.reg.surf.gii"
     nativesphere = f"{rootmicafolder}/surf/{subj}_{ses}_hemi-{hemi}_surf-fsnative_label-sphere.surf.gii"
     boundingpattern = f"{rootmicafolder}/surf/{subj}_{ses}_hemi-{hemi}_space-nativepro_surf-fsnative_label-"
@@ -220,7 +220,7 @@ def process_cortex(
 
     os.replace(
         f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
-        f"{outdir}/{subj}_{ses}_hemi-{hemi}_surf-fslr-32k_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.nii.gz",
+        f"{outdir}/{subj}_{ses}_hemi-{hemi}_surf-fsLR-32k_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.nii.gz",
     )
 
 
@@ -536,7 +536,7 @@ def gluetogether(
         None
     """
     print(f"Combining brain structure data for subject {subj}, session {ses}.")
-    cort = f"{outdir}/cortex/{subj}_{ses}_hemi-L_surf-fslr-32k_label-midthickness_feature-{feature}_smooth-{smooth_ctx}_analysis-{analysis}.nii.gz"
+    cort = f"{outdir}/cortex/{subj}_{ses}_hemi-L_surf-fsLR-32k_label-midthickness_feature-{feature}_smooth-{smooth_ctx}_analysis-{analysis}.nii.gz"
     hippo = f"{outdir}/hippocampus/{subj}_{ses}_hemi-L_den-0p5mm_label-midthickness_feature-{feature}_smooth-{smooth_hipp}_analysis-{analysis}.nii.gz"
     subcort = (
         f"{outdir}/subcortex/{subj}_{ses}_feature-{feature}_analysis-{analysis}.nii.gz"
@@ -564,7 +564,7 @@ def gluetogether(
     print("Left hemisphere data combined.")
 
     if analysis != "asymmetry":
-        cort = f"{outdir}/cortex/{subj}_{ses}_hemi-R_surf-fslr-32k_label-midthickness_feature-{feature}_smooth-{smooth_ctx}_analysis-{analysis}.nii.gz"
+        cort = f"{outdir}/cortex/{subj}_{ses}_hemi-R_surf-fsLR-32k_label-midthickness_feature-{feature}_smooth-{smooth_ctx}_analysis-{analysis}.nii.gz"
         hippo = f"{outdir}/hippocampus/{subj}_{ses}_hemi-R_den-0p5mm_label-midthickness_feature-{feature}_smooth-{smooth_hipp}_analysis-{analysis}.nii.gz"
 
         cortnifti = nib.load(cort)
