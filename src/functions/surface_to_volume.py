@@ -110,11 +110,16 @@ def savevolume(
     if vol is None and tmp_dir is not None:
         vol = nib.load(f"{tmp_dir}/temp.nii.gz")
         vol = vol.get_fdata()
-
-    template = nib.load(
-        f"{rootmicafolder}/anat/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz"
-    )
-    template_data = template.get_fdata()
+    if feature == "flair":
+        template = nib.load(
+            f"{rootmicafolder}/maps/{subj}_{ses}_space-nativepro_map-flair.nii.gz"
+        )
+        template_data = template.get_fdata()
+    else:
+        template = nib.load(
+            f"{rootmicafolder}/anat/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz"
+        )
+        template_data = template.get_fdata()
     template_data = float_array_to_grayscale(template_data)
     vol = threshold(vol, thresh)
     vol, mask = float_array_to_hot(vol)
@@ -165,7 +170,7 @@ def process_cortex(
     if analysis == "asymmetry" and hemi == "R":
         return
     metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{subj}_{ses}_hemi-{hemi}_surf-fsLR-32k_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.func.gii"
-    metricsphere = "src/data/templates/fsLR-32k.L.sphere.reg.surf.gii"
+    metricsphere = f"src/data/templates/fsLR-32k.{hemi}.sphere.reg.surf.gii"
     nativesphere = f"{rootmicafolder}/surf/{subj}_{ses}_hemi-{hemi}_surf-fsnative_label-sphere.surf.gii"
     boundingpattern = f"{rootmicafolder}/surf/{subj}_{ses}_hemi-{hemi}_space-nativepro_surf-fsnative_label-"
     if not os.path.isfile(metricfile):
@@ -786,7 +791,7 @@ def surface_to_volume(
             rootfolder,
             micapipename,
             tmp,
-            thresh=2,
+            thresh=3,
         )
         for feature in features
         for analysis in analyses
