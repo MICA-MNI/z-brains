@@ -170,7 +170,7 @@ def process_cortex(
     if analysis == "asymmetry" and hemi == "R":
         return
     metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{subj}_{ses}_hemi-{hemi}_surf-fsLR-32k_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.func.gii"
-    metricsphere = f"src/data/templates/fsLR-32k.{hemi}.sphere.reg.surf.gii"
+    metricsphere = f"src/data/fsLR-32k.{hemi}.sphere.reg.surf.gii"
     nativesphere = f"{rootmicafolder}/surf/{subj}_{ses}_hemi-{hemi}_surf-fsnative_label-sphere.surf.gii"
     boundingpattern = f"{rootmicafolder}/surf/{subj}_{ses}_hemi-{hemi}_space-nativepro_surf-fsnative_label-"
     if not os.path.isfile(metricfile):
