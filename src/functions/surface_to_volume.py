@@ -8,6 +8,7 @@ from .niidcm import convert_nifti_to_dicom
 import matplotlib.pyplot as plt
 import re
 from time import time
+import shutil
 
 hemis = ["L", "R"]
 
@@ -121,11 +122,18 @@ def savevolume(
         )
         template_data = template.get_fdata()
     template_data = float_array_to_grayscale(template_data)
-    vol = threshold(vol, thresh)
-    vol, mask = float_array_to_hot(vol)
-    template_data[mask] = vol[mask]
+    vol_thresh = threshold(vol, thresh)
+    vol_thresh, mask_thresh = float_array_to_hot(vol_thresh)
+
+    template_data[mask_thresh] = vol_thresh[mask_thresh]
     template = nib.Nifti1Image(template_data, template.affine, template.header)
     template.to_filename(
+        f"{outdir}/full_burned/{subj}_{ses}_label-midthickness_feature-{feature}_smooth-ctx-{smooth_ctx}_smooth-hipp-{smooth_hipp}_analysis-{analysis}_threshold-{thresh}.nii.gz"
+    )
+
+    vol, _ = float_array_to_hot(vol)
+    vol_nifti = nib.Nifti1Image(vol, template.affine, template.header)
+    vol_nifti.to_filename(
         f"{outdir}/full/{subj}_{ses}_label-midthickness_feature-{feature}_smooth-ctx-{smooth_ctx}_smooth-hipp-{smooth_hipp}_analysis-{analysis}.nii.gz"
     )
 
@@ -618,7 +626,16 @@ def threshold(array, threshold):
 
 
 def dicomify(
-    outdir, subj, ses, feature, smooth_ctx, smooth_hipp, analysis, tmp, px_demo=None
+    outdir,
+    subj,
+    ses,
+    feature,
+    smooth_ctx,
+    smooth_hipp,
+    analysis,
+    tmp,
+    thresh,
+    px_demo=None,
 ):
     """
     Convert a NIfTI image to DICOM format for a specific subject and session.
@@ -640,7 +657,7 @@ def dicomify(
     Returns:
         None
     """
-    path = f"{outdir}/full/{subj}_{ses}_label-midthickness_feature-{feature}_smooth-ctx-{smooth_ctx}_smooth-hipp-{smooth_hipp}_analysis-{analysis}.nii.gz"
+    path = f"{outdir}/full_burned/{subj}_{ses}_label-midthickness_feature-{feature}_smooth-ctx-{smooth_ctx}_smooth-hipp-{smooth_hipp}_analysis-{analysis}_threshold-{thresh}.nii.gz"
 
     if not os.path.isfile(path):
         print(
@@ -648,7 +665,7 @@ def dicomify(
         )
         return
 
-    outpath = f"{outdir}/DICOM/{subj}_{ses}_label-midthickness_feature-{feature}_smooth-ctx-{smooth_ctx}_smooth-hipp-{smooth_hipp}_analysis-{analysis}"
+    outpath = f"{outdir}/DICOM/{subj}_{ses}_label-midthickness_feature-{feature}_smooth-ctx-{smooth_ctx}_smooth-hipp-{smooth_hipp}_analysis-{analysis}_threshold-{thresh}"
     if not os.path.exists(outpath):
         os.makedirs(outpath)
 
@@ -686,6 +703,7 @@ def surface_to_volume(
     n_jobs,
     n_jobs_wb,
     workbench_path,
+    thresh=3,
 ):
     """
     Process surface data to generate volumetric images for specified features and analyses.
@@ -753,6 +771,18 @@ def surface_to_volume(
     features = sorted(features, key=str.lower)
     features.append("-".join(features))
     print("feats: ", features)
+    shutil.copyfile(
+        os.path.join(
+            rootfolder,
+            micapipename,
+            subj,
+            ses,
+            "anat",
+            f"{subj}_{ses}_space-nativepro_T1w_brain.nii.gz",
+        ),
+        os.path.join(outdir, "base_T1w.nii.gz"),
+    )
+
     Parallel(n_jobs=n_jobs)(
         delayed(process)(
             feature,
@@ -779,6 +809,8 @@ def surface_to_volume(
 
     if not os.path.exists(f"{outdir}/full"):
         os.makedirs(f"{outdir}/full")
+    if not os.path.exists(f"{outdir}/full_burned"):
+        os.makedirs(f"{outdir}/full_burned")
     Parallel(n_jobs=n_jobs)(
         delayed(gluetogether)(
             outdir,
@@ -791,7 +823,7 @@ def surface_to_volume(
             rootfolder,
             micapipename,
             tmp,
-            thresh=3,
+            thresh=thresh,
         )
         for feature in features
         for analysis in analyses
@@ -808,6 +840,7 @@ def surface_to_volume(
             smooth_hipp,
             analysis,
             tmp,
+            thresh,
             px_demo=px_demo,
         )
         for feature in features
