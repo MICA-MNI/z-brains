@@ -298,7 +298,7 @@ def process_hippocampus(
         "-metric-to-volume-mapping",
         metricfile,
         f"{boundingpattern}midthickness.surf.gii",
-        f"{rootmicafolder}/anat/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz"
+        f"{rootmicafolder}/anat/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz",
         f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
         "-ribbon-constrained",
         f"{boundingpattern}inner.surf.gii",
