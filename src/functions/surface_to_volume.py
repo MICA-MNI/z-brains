@@ -113,7 +113,7 @@ def savevolume(
         vol = vol.get_fdata()
     if feature == "flair":
         template = nib.load(
-            f"{rootmicafolder}/maps/{subj}_{ses}_space-nativepro_map-flair.nii.gz"
+            f"{rootmicafolder}/anat/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz"
         )
         template_data = template.get_fdata()
     else:
@@ -213,11 +213,7 @@ def process_cortex(
         "-metric-to-volume-mapping",
         outputmetric,
         f"{boundingpattern}midthickness.surf.gii",
-        (
-            f"{rootmicafolder}/maps/{subj}_{ses}_space-nativepro_map-T1map.nii.gz"
-            if feature != "flair"
-            else f"{rootmicafolder}/maps/{subj}_{ses}_space-nativepro_map-flair.nii.gz"
-        ),
+        f"{rootmicafolder}/anat/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz"
         f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
         "-ribbon-constrained",
         f"{boundingpattern}white.surf.gii",
@@ -302,11 +298,7 @@ def process_hippocampus(
         "-metric-to-volume-mapping",
         metricfile,
         f"{boundingpattern}midthickness.surf.gii",
-        (
-            f"{micapipefolder}/maps/{subj}_{ses}_space-nativepro_map-T1map.nii.gz"
-            if feature != "flair"
-            else f"{micapipefolder}/maps/{subj}_{ses}_space-nativepro_map-flair.nii.gz"
-        ),
+        f"{rootmicafolder}/anat/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz"
         f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
         "-ribbon-constrained",
         f"{boundingpattern}inner.surf.gii",
