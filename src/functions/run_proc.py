@@ -550,7 +550,11 @@ def run(
             "anat",
             f"{BIDS_ID}_space-nativepro_T1w_brain.nii.gz",
         ),
-        os.path.join(subject_output_dir, "structural", f"{BIDS_ID}_base_T1w.nii.gz"),
+        os.path.join(
+            subject_output_dir,
+            "structural",
+            f"{BIDS_ID}_space-nativepro_T1w_brain.nii.gz",
+        ),
     )
     shutil.copyfile(
         os.path.join(

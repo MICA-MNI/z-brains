@@ -277,7 +277,7 @@ def process_hippocampus(
     if analysis == "asymmetry" and hemi == "R":
         return
     metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{subj}_{ses}_hemi-{hemi}_den-0p5mm_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.func.gii"
-    boundingpattern = f"{rootmicafolder}/surf/{subj}_{ses}_hemi-{hemi}_space-T1w_den-0p5mm_label-hipp_"
+    boundingpattern = f"{rootzbrainfolder}/structural/{subj}_{ses}_hemi-{hemi}_space-T1w_den-0p5mm_label-hipp_"
     micapipefolder = os.path.join(rootfolder, micapipename, subj, ses)
 
     if not os.path.isfile(metricfile):
@@ -298,7 +298,7 @@ def process_hippocampus(
         "-metric-to-volume-mapping",
         metricfile,
         f"{boundingpattern}midthickness.surf.gii",
-        f"{micapipefolder}/anat/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz",
+        f"{rootzbrainfolder}/norm-z/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz",
         f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
         "-ribbon-constrained",
         f"{boundingpattern}inner.surf.gii",
