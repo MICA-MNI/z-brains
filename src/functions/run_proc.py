@@ -15,6 +15,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import nibabel as nib
+import shutil
 
 
 def subcortical_mapping(
@@ -538,6 +539,16 @@ def run(
                         tmp_dir,
                         subject_plugin_dir,  # type: ignore
                     )
+
+    # Copy base T1w to output folder
+    shutil.copyfile(
+        os.path.join(
+            subject_micapipe_dir,
+            "anat",
+            f"{BIDS_ID}_space-nativepro_T1w_brain.nii.gz",
+        ),
+        os.path.join(subject_output_dir, f"{BIDS_ID}_base_T1w.nii.gz"),
+    )
 
     # Wrap up
     elapsed = round((time.time() - start_time) / 60, 2)
