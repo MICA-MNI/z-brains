@@ -763,17 +763,17 @@ def surface_to_volume(
     features = sorted(features, key=str.lower)
     features.append("-".join(features))
     print("feats: ", features)
-    shutil.copyfile(
-        os.path.join(
-            rootfolder,
-            micapipename,
-            subj,
-            ses,
-            "anat",
-            f"{subj}_{ses}_space-nativepro_T1w_brain.nii.gz",
-        ),
-        os.path.join(outdir, "base_T1w.nii.gz"),
-    )
+    # shutil.copyfile(
+    #     os.path.join(
+    #         rootfolder,
+    #         micapipename,
+    #         subj,
+    #         ses,
+    #         "anat",
+    #         f"{subj}_{ses}_space-nativepro_T1w_brain.nii.gz",
+    #     ),
+    #     os.path.join(outdir, "base_T1w.nii.gz"),
+    # )
 
     Parallel(n_jobs=n_jobs)(
         delayed(process)(
