@@ -541,7 +541,7 @@ def run(
                     )
 
     # Copy base T1w to output folder
-    if not os.path.exists(subject_output_dir, "structural"):
+    if not os.path.exists(os.path.join(subject_output_dir, "structural")):
         os.makedirs(os.path.join(subject_output_dir, "structural"))
 
     shutil.copyfile(
