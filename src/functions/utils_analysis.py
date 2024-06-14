@@ -186,7 +186,7 @@ def mahalanobis_distance(x_train: np.ndarray, x_test: np.ndarray) -> np.ndarray:
     cov = np.moveaxis(x_train, 0, -1) @ x_train.swapaxes(0, 1)
     cov /= n_train - 1
     try:
-        cov_inv = np.linalg.inv(cov)
+        cov_inv = np.linalg.pinv(cov)
     except np.linalg.LinAlgError:
         raise ProcessingException(
             "Singular matrix, unable to compute Mahalanobis distance. Check your smoothing kernels, they might be too small."
