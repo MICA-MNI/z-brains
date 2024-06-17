@@ -212,6 +212,10 @@ def map_cortex(
     if feat_lower in map_feat:
         input_feat = map_feat[feat_lower]
         output_feat = map_feat[feat_lower]
+    elif "blur" in feat_lower:
+        feat_base = feat_lower.replace("-blur", "")
+
+        output_feat = feat_lower
     else:
         input_feat = feat
         output_feat = feat

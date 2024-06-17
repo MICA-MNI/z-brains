@@ -2,7 +2,9 @@ from typing import List, Literal
 
 VERSION = "v0.0.2 'reborn'"
 
-Feature = Literal["ADC", "FA", "flair", "qT1", "thickness", "plugin-*"]
+Feature = Literal[
+    "ADC", "FA", "flair", "qT1", "thickness", "qT1-blur", "flair-blur", "plugin-*"
+]
 LIST_FEATURES: List[Feature] = list(Feature.__args__)
 
 map_feature_to_file = dict(

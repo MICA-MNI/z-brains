@@ -82,6 +82,7 @@ def savevolume(
     outdir,
     smooth_ctx,
     smooth_hipp,
+    rootzbrainfolder,
     tmp_dir=None,
     vol=None,
 ):
@@ -111,14 +112,8 @@ def savevolume(
     if vol is None and tmp_dir is not None:
         vol = nib.load(f"{tmp_dir}/temp.nii.gz")
         vol = vol.get_fdata()
-    if feature == "flair":
         template = nib.load(
-            f"{rootmicafolder}/anat/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz"
-        )
-        template_data = template.get_fdata()
-    else:
-        template = nib.load(
-            f"{rootmicafolder}/anat/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz"
+            f"{rootzbrainfolder}/structural/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz"
         )
         template_data = template.get_fdata()
     template_data = float_array_to_grayscale(template_data)
@@ -179,8 +174,8 @@ def process_cortex(
         return
     metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{subj}_{ses}_hemi-{hemi}_surf-fsLR-32k_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.func.gii"
     metricsphere = f"src/data/fsLR-32k.{hemi}.sphere.reg.surf.gii"
-    nativesphere = f"{rootmicafolder}/surf/{subj}_{ses}_hemi-{hemi}_surf-fsnative_label-sphere.surf.gii"
-    boundingpattern = f"{rootmicafolder}/surf/{subj}_{ses}_hemi-{hemi}_space-nativepro_surf-fsnative_label-"
+    nativesphere = f"{rootzbrainfolder}/structural/{subj}_{ses}_hemi-{hemi}_surf-fsnative_label-sphere.surf.gii"
+    boundingpattern = f"{rootzbrainfolder}/structural/{subj}_{ses}_hemi-{hemi}_space-nativepro_surf-fsnative_label-"
     if not os.path.isfile(metricfile):
         print(
             f"{feature} is not available for {subj}_{ses}_{hemi} at {smooth} smoothing in the {struct}, skipping path: {metricfile}"
@@ -213,7 +208,7 @@ def process_cortex(
         "-metric-to-volume-mapping",
         outputmetric,
         f"{boundingpattern}midthickness.surf.gii",
-        f"{rootmicafolder}/anat/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz",
+        f"{rootzbrainfolder}/structural/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz",
         f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
         "-ribbon-constrained",
         f"{boundingpattern}white.surf.gii",
@@ -298,7 +293,7 @@ def process_hippocampus(
         "-metric-to-volume-mapping",
         metricfile,
         f"{boundingpattern}midthickness.surf.gii",
-        f"{rootzbrainfolder}/norm-z/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz",
+        f"{rootzbrainfolder}/structural/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz",
         f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
         "-ribbon-constrained",
         f"{boundingpattern}inner.surf.gii",
@@ -375,7 +370,7 @@ def process_subcortex(
     }
 
     atlas = nib.load(
-        f"{rootmicafolder}/parc/{subj}_{ses}_space-nativepro_T1w_atlas-subcortical.nii.gz"
+        f"{rootzbrainfolder}/structural/{subj}_{ses}_space-nativepro_T1w_atlas-subcortical.nii.gz"
     )
     atlasdata = atlas.get_fdata()
     metricdata = pd.read_csv(metricfile).to_dict()
@@ -516,6 +511,7 @@ def gluetogether(
     rootfolder,
     micapipename,
     tmp,
+    rootzbrainfolder,
     thresh,
 ):
     """
@@ -593,6 +589,7 @@ def gluetogether(
         outdir,
         smooth_ctx,
         smooth_hipp,
+        rootzbrainfolder,
         vol=outputnifti,
     )
     print("Combined volume image saved.")
@@ -815,6 +812,7 @@ def surface_to_volume(
             rootfolder,
             micapipename,
             tmp,
+            rootzbrainfolder,
             thresh=thresh,
         )
         for feature in features
