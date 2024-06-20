@@ -3,7 +3,7 @@ from typing import List, Literal
 VERSION = "v0.0.2 'reborn'"
 
 Feature = Literal[
-    "ADC", "FA", "flair", "qT1", "thickness", "qT1-blur", "flair-blur", "plugin-*"
+    "ADC", "FA", "flair", "qT1", "thickness", "qT1_blur", "flair_blur", "plugin_*"
 ]
 LIST_FEATURES: List[Feature] = list(Feature.__args__)
 

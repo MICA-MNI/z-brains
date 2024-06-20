@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 import nibabel as nib
 import shutil
+from .blurring import compute_blurring
 
 
 def subcortical_mapping(
@@ -102,6 +103,8 @@ def map_subcortex(
     script_dir,
     subject_plugin_dir,
 ):
+    if "blur" in feat:
+        return
     show_info(f"{bids_id}: Mapping '{feat}' to subcortical structures")
     map_input = {
         "flair": "map-flair",
@@ -117,8 +120,8 @@ def map_subcortex(
         f"{bids_id}_space-nativepro_T1w_atlas-subcortical.nii.gz",
     )
     input_dir = os.path.join(subject_micapipe_dir, "maps")
-    # If feat starts with 'plugin-', update input_dir and remove 'plugin-' from feat
-    if feat.startswith("plugin-"):
+    # If feat starts with 'plugin-', update input_dir and remove 'plugin_' from feat
+    if feat.startswith("plugin_"):
         input_dir = os.path.join(subject_plugin_dir, "maps")
         feat = feat[7:]
     feat_lower = feat.lower()
@@ -184,12 +187,13 @@ def map_cortex(
     folder_maps,
     folder_ctx,
     subject_plugin_dir: str,
+    tmp_dir,
 ):
     show_info(
         f"{bids_id}: Mapping '{feat}' to cortex [label={label}, resolution={resol}]"
     )
     root_dir = subject_micapipe_dir
-    if feat.startswith("plugin-"):
+    if feat.startswith("plugin_"):
         root_dir = subject_plugin_dir
         feat = feat[7:]
     # Input & output locations
@@ -213,9 +217,12 @@ def map_cortex(
         input_feat = map_feat[feat_lower]
         output_feat = map_feat[feat_lower]
     elif "blur" in feat_lower:
-        feat_base = feat_lower.replace("-blur", "")
-
-        output_feat = feat_lower
+        feat_base = feat_lower.replace("_blur", "")
+        if feat_base in map_feat:
+            input_feat = map_feat[feat_base]
+            output_feat = map_feat[feat_base]
+        feat_base = input_feat + "_blur"
+        output_feat = output_feat + "_blur"
     else:
         input_feat = feat
         output_feat = feat
@@ -239,6 +246,28 @@ def map_cortex(
             output_dir,
             f"{prefix}_label-{label}_feature-{output_feat}_smooth-{fwhm}mm.func.gii",
         )
+
+        if "_blur" in feat_lower:
+            inter_file = os.path.join(
+                output_dir,
+                f"{prefix}_label-{label}_feature-{input_feat}",
+            )
+
+            output_path = compute_blurring(
+                input_dir,
+                surf_dir,
+                bids_id,
+                h,
+                inter_file,
+                input_feat,
+                workbench_path,
+                resol,
+                fwhm,
+                surf_file,
+                output_file,
+                tmp_dir,
+            )
+            input_file = output_path
         # Check if file exists
         for file in [surf_file, input_file]:
             if not os.path.isfile(file):
@@ -300,6 +329,8 @@ def map_hippocampus(
     tmp_dir,
     subject_plugin_dir: str,
 ):
+    if "blur" in feat:
+        return
     show_info(
         f"{bids_id}: Mapping '{feat}' to hippocampus [label={label}, resolution={resol}]"
     )
@@ -308,7 +339,7 @@ def map_hippocampus(
     surf_dir = os.path.join(subject_hippunfold_dir, "surf")
     input_dir = os.path.join(subject_micapipe_dir, "maps")
     is_surf = False
-    if feat.startswith("plugin-"):
+    if feat.startswith("plugin_"):
         surf_dir = os.path.join(subject_plugin_dir, "surf")
         input_dir = os.path.join(subject_plugin_dir, "maps")
         feat = feat[7:]
@@ -512,6 +543,7 @@ def run(
                         folder_maps,
                         folder_ctx,
                         subject_plugin_dir,  # type: ignore
+                        tmp_dir,
                     )
         elif structure == "subcortex":
             map_subcortex(

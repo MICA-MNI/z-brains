@@ -145,7 +145,7 @@ def parse_args(args):
     if "all" in features:
         features = LIST_FEATURES
     if not args.plugin:
-        features = [f for f in features if not f.startswith("plugin-")]
+        features = [f for f in features if not f.startswith("plugin_")]
     features.sort(key=str.lower)  # case-insensitive sort
 
     resolutions = args.resolution or ["all"]

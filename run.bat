@@ -6,22 +6,10 @@ set "micapipe_dir=micapipe"
 set "hippunfold_dir=hippunfold"
 set "zbrains_dir=zbrains_Ian_testing"
 
-set "demo_controls=E:\HC_participants.csv"
+set "demo_controls=E:\HC_participants_full.csv"
 set "demo_patients=E:\PX_participants.csv"
 
-@REM set "sids="
-@REM for /D %%d in ("%pth_dataset%\derivatives\%micapipe_dir%\*") do (
-@REM    set "part2=%%~nxd"
-@REM    set "sid_part2=!part2:sub-=!"
-@REM    set "sids=!sids! sub-!sid_part2!"
-@REM )
-
-@REM echo "%sid%"
-@REM echo "%sids%"
-
-@REM set "sids=sub-PX070 sub-PX003 sub-PX002 sub-PX001"
-@REM echo "here"
-set "sids=sub-PX103"
+set "sids=all"
 set "sess=all"
 @REM set "sids=all"
 @REM set "sess=all"
