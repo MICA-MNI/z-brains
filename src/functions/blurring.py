@@ -41,19 +41,19 @@ def compute_blurring(
 ):
 
     wmBoundaryDataArr = load_gifti_data(
-        f"{input_dir}\\{bids_id}_hemi-{hemi}_surf-fsnative_label-white_{feat}.func.gii"
+        f"{input_dir}/{bids_id}_hemi-{hemi}_surf-fsnative_label-white_{feat}.func.gii"
     )
     wmBoundarySurfaceArr = load_gifti_data(
-        f"{surf_dir}\\{bids_id}_hemi-{hemi}_space-nativepro_surf-fsnative_label-white.surf.gii"
+        f"{surf_dir}/{bids_id}_hemi-{hemi}_space-nativepro_surf-fsnative_label-white.surf.gii"
     )
 
     modeofboundary = mode(wmBoundaryDataArr, keepdims=True)
 
     midthicknessDataArr = load_gifti_data(
-        f"{input_dir}\\{bids_id}_hemi-{hemi}_surf-fsnative_label-midthickness_{feat}.func.gii"
+        f"{input_dir}/{bids_id}_hemi-{hemi}_surf-fsnative_label-midthickness_{feat}.func.gii"
     )
     midthicknessSurfaceArr = load_gifti_data(
-        f"{surf_dir}\\{bids_id}_hemi-{hemi}_space-nativepro_surf-fsnative_label-midthickness.surf.gii"
+        f"{surf_dir}/{bids_id}_hemi-{hemi}_space-nativepro_surf-fsnative_label-midthickness.surf.gii"
     )
 
     surfarr = [
@@ -62,11 +62,11 @@ def compute_blurring(
     ]
     for dist in ["1", "2", "3"]:
         whiteMatterDataArr = load_gifti_data(
-            f"{input_dir}\\{bids_id}_hemi-{hemi}_surf-fsnative_label-swm{dist}.0mm_{feat}.func.gii"
+            f"{input_dir}/{bids_id}_hemi-{hemi}_surf-fsnative_label-swm{dist}.0mm_{feat}.func.gii"
         )
 
         whiteMatterSurfaceArr = load_gifti_data(
-            f"{surf_dir}\\{bids_id}_hemi-{hemi}_surf-fsnative_label-swm{dist}.0mm.surf.gii"
+            f"{surf_dir}/{bids_id}_hemi-{hemi}_surf-fsnative_label-swm{dist}.0mm.surf.gii"
         )
         surfarr.append(
             [
@@ -147,8 +147,8 @@ if __name__ == "__main__":
     surface = "fsnative"
     micapipe = "micapipe"
     hemi = "L"
-    input_dir = f"E:\\data\\derivatives\\{micapipe}\\{sub}\\{ses}\\maps\\"
-    surf_dir = f"E:\\data\\derivatives\\{micapipe}\\{sub}\\{ses}\\surf\\"
+    input_dir = f"E:/data/derivatives/{micapipe}/{sub}/{ses}/maps/"
+    surf_dir = f"E:/data/derivatives/{micapipe}/{sub}/{ses}/surf/"
     output_dir = "."
     bids_id = f"{sub}_{ses}"
     compute_blurring(
@@ -156,5 +156,5 @@ if __name__ == "__main__":
         surf_dir,
         bids_id,
         hemi,
-        f"{output_dir}\\{bids_id}_hemi-{hemi}_blurring.func.gii",
+        f"{output_dir}/{bids_id}_hemi-{hemi}_blurring.func.gii",
     )
