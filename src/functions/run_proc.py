@@ -252,22 +252,22 @@ def map_cortex(
                 output_dir,
                 f"{prefix}_label-{label}_feature-{input_feat}",
             )
-            wmBoundaryDataPath = f"{input_dir}\\{bids_id}_hemi-{h}_surf-fsnative_label-white_{input_feat}.func.gii"
-            wmBoundarySurfacePath = f"{surf_dir}\\{bids_id}_hemi-{h}_space-nativepro_surf-fsnative_label-white.surf.gii"
-            midthicknessDataPath = f"{input_dir}\\{bids_id}_hemi-{h}_surf-fsnative_label-midthickness_{input_feat}.func.gii"
-            midthicknessSurfacePath = f"{surf_dir}\\{bids_id}_hemi-{h}_space-nativepro_surf-fsnative_label-midthickness.surf.gii"
+            wmBoundaryDataPath = f"{input_dir}/{bids_id}_hemi-{h}_surf-fsnative_label-white_{input_feat}.func.gii"
+            wmBoundarySurfacePath = f"{surf_dir}/{bids_id}_hemi-{h}_space-nativepro_surf-fsnative_label-white.surf.gii"
+            midthicknessDataPath = f"{input_dir}/{bids_id}_hemi-{h}_surf-fsnative_label-midthickness_{input_feat}.func.gii"
+            midthicknessSurfacePath = f"{surf_dir}/{bids_id}_hemi-{h}_space-nativepro_surf-fsnative_label-midthickness.surf.gii"
 
-            sfwm1mmDataPath = f"{input_dir}\\{bids_id}_hemi-{h}_surf-fsnative_label-swm1.0mm_{input_feat}.func.gii"
+            sfwm1mmDataPath = f"{input_dir}/{bids_id}_hemi-{h}_surf-fsnative_label-swm1.0mm_{input_feat}.func.gii"
             sfwm1mmSurfacePath = (
-                f"{surf_dir}\\{bids_id}_hemi-{h}_surf-fsnative_label-swm1.0mm.surf.gii"
+                f"{surf_dir}/{bids_id}_hemi-{h}_surf-fsnative_label-swm1.0mm.surf.gii"
             )
-            sfwm2mmDataPath = f"{input_dir}\\{bids_id}_hemi-{h}_surf-fsnative_label-swm2.0mm_{input_feat}.func.gii"
+            sfwm2mmDataPath = f"{input_dir}/{bids_id}_hemi-{h}_surf-fsnative_label-swm2.0mm_{input_feat}.func.gii"
             sfwm2mmSurfacePath = (
-                f"{surf_dir}\\{bids_id}_hemi-{h}_surf-fsnative_label-swm2.0mm.surf.gii"
+                f"{surf_dir}/{bids_id}_hemi-{h}_surf-fsnative_label-swm2.0mm.surf.gii"
             )
-            sfwm3mmDataPath = f"{input_dir}\\{bids_id}_hemi-{h}_surf-fsnative_label-swm3.0mm_{input_feat}.func.gii"
+            sfwm3mmDataPath = f"{input_dir}/{bids_id}_hemi-{h}_surf-fsnative_label-swm3.0mm_{input_feat}.func.gii"
             sfwm3mmSurfacePath = (
-                f"{surf_dir}\\{bids_id}_hemi-{h}_surf-fsnative_label-swm3.0mm.surf.gii"
+                f"{surf_dir}/{bids_id}_hemi-{h}_surf-fsnative_label-swm3.0mm.surf.gii"
             )
 
             for file in [
