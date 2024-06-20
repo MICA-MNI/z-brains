@@ -3,6 +3,7 @@ import numpy as np
 from scipy.stats import mode
 import subprocess
 import os
+from .utilities import show_warning
 
 
 def load_gifti_data(filepath):
