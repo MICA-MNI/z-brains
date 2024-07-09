@@ -762,7 +762,7 @@ def generate_clinical_report(
     smooth_hip: float = 2,
     res_ctx: Resolution = "high",
     res_hip: Resolution = "high",
-    label_ctx="white",
+    label_ctx="midthickness",
     label_hip="midthickness",
     color_bar="bottom",
     cmap="cmo.balance",
