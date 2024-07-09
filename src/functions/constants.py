@@ -14,6 +14,8 @@ map_feature_to_file = dict(
     ADC="ADC",
     FA="FA",
     qT1="T1map",
+    qT1_blur="T1map_blur",
+    flair_blur="flair_blur",
 )
 
 Structure = Literal["cortex", "subcortex", "hippocampus"]

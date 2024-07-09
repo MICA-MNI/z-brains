@@ -112,10 +112,12 @@ def savevolume(
     if vol is None and tmp_dir is not None:
         vol = nib.load(f"{tmp_dir}/temp.nii.gz")
         vol = vol.get_fdata()
-        template = nib.load(
-            f"{rootzbrainfolder}/structural/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz"
-        )
-        template_data = template.get_fdata()
+
+    template = nib.load(
+        f"{rootzbrainfolder}/structural/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz"
+    )
+    template_data = template.get_fdata()
+
     template_data = float_array_to_grayscale(template_data)
     vol_thresh = threshold(vol, thresh)
     vol_thresh, mask_thresh = float_array_to_hot(vol_thresh)
@@ -542,25 +544,35 @@ def gluetogether(
     subcort = (
         f"{outdir}/subcortex/{subj}_{ses}_feature-{feature}_analysis-{analysis}.nii.gz"
     )
-    for each in [cort, hippo, subcort]:
-        if not os.path.isfile(each):
+    if "blur" in feature:
+        if not os.path.isfile(cort):
             print(f"{feature} is not available for {subj}_{ses}, skipping")
             return
         else:
-            print(f"Loading file: {each}")
+            print(f"Loading file: {cort}")
+    else:
+        for each in [cort, hippo, subcort]:
+            if not os.path.isfile(each):
+                print(f"{feature} is not available for {subj}_{ses}, skipping")
+                return
+            else:
+                print(f"Loading file: {each}")
 
     cortnifti = nib.load(cort)
-    hipponifti = nib.load(hippo)
-    subcortnifti = nib.load(subcort)
+    if not "blur" in feature:
+        hipponifti = nib.load(hippo)
+        subcortnifti = nib.load(subcort)
     print("Data loaded, starting to combine structures.")
 
     cortdata = cortnifti.get_fdata()
-    hippodata = hipponifti.get_fdata()
-    subcortdata = subcortnifti.get_fdata()
+    if not "blur" in feature:
+        hippodata = hipponifti.get_fdata()
+        subcortdata = subcortnifti.get_fdata()
     outputnifti = np.zeros_like(cortdata)
     outputnifti[cortdata != 0] = cortdata[cortdata != 0]
-    outputnifti[subcortdata != 0] = subcortdata[subcortdata != 0]
-    outputnifti[hippodata != 0] = hippodata[hippodata != 0]
+    if not "blur" in feature:
+        outputnifti[subcortdata != 0] = subcortdata[subcortdata != 0]
+        outputnifti[hippodata != 0] = hippodata[hippodata != 0]
 
     print("Left hemisphere data combined.")
 
@@ -569,12 +581,15 @@ def gluetogether(
         hippo = f"{outdir}/hippocampus/{subj}_{ses}_hemi-R_den-0p5mm_label-midthickness_feature-{feature}_smooth-{smooth_hipp}_analysis-{analysis}.nii.gz"
 
         cortnifti = nib.load(cort)
-        hipponifti = nib.load(hippo)
+        if not "blur" in feature:
+            hipponifti = nib.load(hippo)
 
         cortdata = cortnifti.get_fdata()
-        hippodata = hipponifti.get_fdata()
+        if not "blur" in feature:
+            hippodata = hipponifti.get_fdata()
         outputnifti[cortdata != 0] = cortdata[cortdata != 0]
-        outputnifti[hippodata != 0] = hippodata[hippodata != 0]
+        if not "blur" in feature:
+            outputnifti[hippodata != 0] = hippodata[hippodata != 0]
         print("Right hemisphere data combined.")
 
     micapipefolder = os.path.join(rootfolder, micapipename, subj, ses)
@@ -741,14 +756,13 @@ def surface_to_volume(
         if not os.path.exists(structdir):
             os.makedirs(structdir)
 
-    if "qT1" in features:
-        features[features.index("qT1")] = "T1map"
+    features = [f.replace("qT1", "T1map") for f in features]
     available_features = os.listdir(os.path.join(rootzbrainfolder, "maps", "cortex"))
     feats = []
     for feat in available_features:
 
         # Use re.search() to find the first match of the pattern in the string
-        match = re.search(r"feature-([a-zA-Z0-9]+)", feat)
+        match = re.search(r"feature-([a-zA-Z0-9]+(?:_blur)?)(?:_smooth)?", feat)
 
         # Extract the matched group
         feature = match[1] if match else None

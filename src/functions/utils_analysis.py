@@ -158,7 +158,9 @@ def zscore(x_train: np.ndarray, x_test: np.ndarray) -> np.ndarray:
     z = x_test - np.nanmean(x_train, axis=0)
     z = np.divide(z, np.nanstd(x_train, axis=0), out=z, where=mask)
     z[..., ~mask] = 0
-
+    if len(z.shape) > 1:
+        if z.shape[1] != 1:
+            z = np.mean(z, axis=1)
     return z
 
 
@@ -328,8 +330,7 @@ def _load_one(
         None if no data available for at least one hemisphere.
     """
     logger = logging.getLogger(tmp)
-    if feat == "qT1":
-        feat = "T1map"
+    feat = feat.replace("qT1", "T1map")
     bids_id = get_bids_id(sid, ses)
     subject_dir = get_subject_dir(pth_zbrains, sid, ses)
     if not os.path.isdir(subject_dir):
@@ -367,7 +368,10 @@ def _load_one(
             struct, hemi=h, res=resolution, label=label, smooth=smooth, **kwds
         )
         try:
-            x.append(nib.load(ipth).darrays[0].data)
+            nbimage = nib.load(ipth)
+            # arrsize = (len(nbimage.darrays[0].data), len(nbimage.darrays))
+            nbarrs = np.array([i.data for i in nbimage.darrays]).T
+            x.append(nbarrs)
         except FileNotFoundError:
             if raise_error:
                 raise
@@ -543,7 +547,11 @@ def _save(
         "volume" if (k == "thickness" and struct == "subcortex") else k for k in feat
     ]
     feat = [map_feature_to_file[k] for k in feat]
-    feat = "-".join(feat) if is_list else feat[0]
+    if is_list:
+        feat = [z for z in feat if "blur" not in z]
+        feat = "-".join(feat)
+    else:
+        feat = feat[0]
 
     kwds = dict(root_path=folder, bids_id=bids_id, feat=feat, analysis=analysis)
     if struct == "subcortex":
@@ -674,10 +682,20 @@ def _subject_zscore(
         res["regional"] = z
 
     if "asymmetry" in analyses:
-        xh_cn = data_cn.reshape(2, data_cn.shape[0], -1)
+        if data_cn.shape[-1] == 1:
+            xh_cn = data_cn.reshape(2, data_cn.shape[0], -1)
+        elif len(data_cn.shape) > 2:
+            xh_cn = data_cn.reshape(2, data_cn.shape[0], -1, data_cn.shape[-1])
+        else:
+            xh_cn = data_cn.reshape(2, data_cn.shape[0], -1)
         data_cn_asym = compute_asymmetry(xh_cn[0], xh_cn[1])
 
-        xh_px = data_px.reshape(2, -1)
+        if data_cn.shape[-1] == 1:
+            xh_px = data_px.reshape(2, -1)
+        elif len(data_px.shape) > 1:
+            xh_px = data_px.reshape(2, -1, data_cn.shape[-1])
+        else:
+            xh_px = data_px.reshape(2, -1)
         data_px_asym = compute_asymmetry(xh_px[0], xh_px[1])
 
         cols_df = None if cols_df is None else cols_df[: xh_px.shape[1]]
@@ -690,6 +708,23 @@ def _subject_zscore(
         )["regional"]
 
     return res
+
+
+def fixblur(data, px=False):
+    output = []
+    for arr in data:
+        if len(arr.shape) > 1 if px else len(arr.shape) > 2:
+            if arr.shape[-1] > 1:
+                for i in range(arr.shape[-1]):
+                    if len(arr.shape) == 3:
+                        output.append(arr[:, :, i])
+                    elif len(arr.shape) == 2:
+                        output.append(arr[:, i])
+            else:
+                output.append(arr.squeeze())
+        else:
+            output.append(arr.squeeze())
+    return output
 
 
 def _subject_mahalanobis(
@@ -708,8 +743,10 @@ def _subject_mahalanobis(
 
     res = {}
     if "regional" in analyses:
-        data_cn = np.stack(list_data_cn, axis=-1)
-        data_px = np.stack(data["data_px"], axis=-1)
+        data_cn = fixblur(list_data_cn)
+        data_cn = np.stack(data_cn, axis=-1)
+        data_px = fixblur(data["data_px"], px=True)
+        data_px = np.stack(data_px, axis=-1)
 
         md = mahalanobis_distance(data_cn, data_px)
 
@@ -724,13 +761,22 @@ def _subject_mahalanobis(
         list_data_px = [None] * n
         list_cols_df = [None] * n
         for i, x_cn in enumerate(data["data_cn"]):
+            ogdim = x_cn.shape
             xh_cn = x_cn.reshape(2, x_cn.shape[0], -1)
             list_data_cn[i] = compute_asymmetry(xh_cn[0], xh_cn[1])
-
+            if ogdim[-1] > 1 and len(ogdim) > 2:
+                list_data_cn[i] = list_data_cn[i].reshape(
+                    ogdim[0], ogdim[1] // 2, ogdim[2]
+                )
             x_px = data["data_px"][i]
+            ogdim = x_px.shape
             xh_px = x_px.reshape(2, -1)
             list_data_px[i] = compute_asymmetry(xh_px[0], xh_px[1])
-            if data["cols_df"][i] is None:
+            if ogdim[-1] > 1 and len(ogdim) > 1:
+                list_data_px[i] = list_data_px[i].reshape(ogdim[0] // 2, ogdim[1])
+            if i > len(data["cols_df"]) - 1:
+                list_cols_df[i] = data["data_px"][i][: xh_px.shape[1]]
+            elif data["cols_df"][i] is None:
                 list_cols_df[i] = data["data_px"][i][: xh_px.shape[1]]
             else:
                 list_cols_df[i] = data["cols_df"][i][: xh_px.shape[1]]
@@ -981,10 +1027,32 @@ def run_analysis(
 
         # Iterate over the dictionaries and the keys.
         for d in mahalanobis_dicts:
+
             if d is None:
                 continue
+            # if "blur" in d["feat"][0]:
+            #     basestr = d["feat"][0]
+            #     d["feat"] = []
+            #     cols_df = d["cols_df"]
+            #     d["cols_df"] = []
+            #     index_df = d["index_df"]
+            #     d["index_df"] = []
+            #     for i in range(d["data_px"][0].shape[-1]):
+            #         # d["feat"].append(basestr + f"_{i}")
+            #         d["cols_df"].append(cols_df[0])
+            #         d["index_df"].append(index_df[0])
             for key, value in d.items():
                 # Append the values to the result.
+                # if key == "feat":
+                #     if "blur" in d["feat"][0]:
+                #         continue
+                # if key == "data_cn" or key == "data_px":
+
+                #     if len(value[0].shape) == 3:
+                #         if value[0].shape[-1] > 1:
+                #             for i in range(value[0].shape[-1]):
+                #                 data_mahalanobis[key].extend(value[0][:, :, i])
+                # else:
                 data_mahalanobis[key].extend(value)
         # store available features
         if struct == "subcortex":

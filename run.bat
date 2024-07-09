@@ -4,7 +4,7 @@ set "pth_dataset=E:\data"
 
 set "micapipe_dir=micapipe"
 set "hippunfold_dir=hippunfold"
-set "zbrains_dir=zbrains_Ian_testing"
+set "zbrains_dir=zbrains_volumetric"
 
 set "demo_controls=E:\HC_participants_full.csv"
 set "demo_patients=E:\PX_participants.csv"
@@ -24,8 +24,8 @@ call python -m src.zbrains --run "analysis" ^
                    --demo %demo_patients% ^
                    --dataset_ref %pth_dataset% ^
                    --zbrains_ref %zbrains_dir% ^
-                   --smooth_ctx 10 ^
-                   --smooth_hip 5 ^
+                   --smooth_ctx 5 ^
+                   --smooth_hip 2 ^
                    --n_jobs 4 ^
                    --n_jobs_wb 4 ^
                    --wb_path "C:/Users/Ian/Downloads/workbench-windows64-v1.5.0/workbench/bin_windows64" ^
