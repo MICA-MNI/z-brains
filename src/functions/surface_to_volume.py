@@ -129,6 +129,7 @@ def savevolume(
     )
 
     # vol, _ = float_array_to_hot(vol)
+    vol = vol.astype(np.float16)
     vol_nifti = nib.Nifti1Image(vol, template.affine, template.header)
     vol_nifti.to_filename(
         f"{outdir}/full/{subj}_{ses}_label-midthickness_feature-{feature}_smooth-ctx-{smooth_ctx}_smooth-hipp-{smooth_hipp}_analysis-{analysis}.nii.gz"
