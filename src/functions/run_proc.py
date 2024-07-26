@@ -4,6 +4,7 @@ from .utilities import (
     show_note,
     show_info,
     show_warning,
+    add_field_to_xml,
 )
 import subprocess
 from .constants import *
@@ -14,6 +15,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import nibabel as nib
+import shutil
+from .blurring import compute_blurring
 
 
 def subcortical_mapping(
@@ -100,6 +103,8 @@ def map_subcortex(
     script_dir,
     subject_plugin_dir,
 ):
+    if "blur" in feat:
+        return
     show_info(f"{bids_id}: Mapping '{feat}' to subcortical structures")
     map_input = {
         "flair": "map-flair",
@@ -115,8 +120,8 @@ def map_subcortex(
         f"{bids_id}_space-nativepro_T1w_atlas-subcortical.nii.gz",
     )
     input_dir = os.path.join(subject_micapipe_dir, "maps")
-    # If feat starts with 'plugin-', update input_dir and remove 'plugin-' from feat
-    if feat.startswith("plugin-"):
+    # If feat starts with 'plugin-', update input_dir and remove 'plugin_' from feat
+    if feat.startswith("plugin_"):
         input_dir = os.path.join(subject_plugin_dir, "maps")
         feat = feat[7:]
     feat_lower = feat.lower()
@@ -182,12 +187,13 @@ def map_cortex(
     folder_maps,
     folder_ctx,
     subject_plugin_dir: str,
+    tmp_dir,
 ):
     show_info(
         f"{bids_id}: Mapping '{feat}' to cortex [label={label}, resolution={resol}]"
     )
     root_dir = subject_micapipe_dir
-    if feat.startswith("plugin-"):
+    if feat.startswith("plugin_"):
         root_dir = subject_plugin_dir
         feat = feat[7:]
     # Input & output locations
@@ -210,6 +216,13 @@ def map_cortex(
     if feat_lower in map_feat:
         input_feat = map_feat[feat_lower]
         output_feat = map_feat[feat_lower]
+    elif "blur" in feat_lower:
+        feat_base = feat_lower.replace("_blur", "")
+        if feat_base in map_feat:
+            input_feat = map_feat[feat_base]
+            output_feat = map_feat[feat_base]
+        feat_base = input_feat + "_blur"
+        output_feat = output_feat + "_blur"
     else:
         input_feat = feat
         output_feat = feat
@@ -220,7 +233,6 @@ def map_cortex(
             surf_dir,
             f"{bids_id}_hemi-{h}_space-nativepro_surf-fsLR-{resol}_label-{label}.surf.gii",
         )
-
         prefix = f"{bids_id}_hemi-{h}_surf-fsLR-{resol}"
         if feat == "thickness":
             input_file = os.path.join(
@@ -234,6 +246,62 @@ def map_cortex(
             output_dir,
             f"{prefix}_label-{label}_feature-{output_feat}_smooth-{fwhm}mm.func.gii",
         )
+
+        if "_blur" in feat_lower:
+            inter_file = os.path.join(
+                output_dir,
+                f"{prefix}_label-{label}_feature-{input_feat}",
+            )
+            wmBoundaryDataPath = f"{input_dir}/{bids_id}_hemi-{h}_surf-fsnative_label-white_{input_feat}.func.gii"
+            wmBoundarySurfacePath = f"{surf_dir}/{bids_id}_hemi-{h}_space-nativepro_surf-fsnative_label-white.surf.gii"
+            midthicknessDataPath = f"{input_dir}/{bids_id}_hemi-{h}_surf-fsnative_label-midthickness_{input_feat}.func.gii"
+            midthicknessSurfacePath = f"{surf_dir}/{bids_id}_hemi-{h}_space-nativepro_surf-fsnative_label-midthickness.surf.gii"
+
+            sfwm1mmDataPath = f"{input_dir}/{bids_id}_hemi-{h}_surf-fsnative_label-swm1.0mm_{input_feat}.func.gii"
+            sfwm1mmSurfacePath = (
+                f"{surf_dir}/{bids_id}_hemi-{h}_surf-fsnative_label-swm1.0mm.surf.gii"
+            )
+            sfwm2mmDataPath = f"{input_dir}/{bids_id}_hemi-{h}_surf-fsnative_label-swm2.0mm_{input_feat}.func.gii"
+            sfwm2mmSurfacePath = (
+                f"{surf_dir}/{bids_id}_hemi-{h}_surf-fsnative_label-swm2.0mm.surf.gii"
+            )
+            sfwm3mmDataPath = f"{input_dir}/{bids_id}_hemi-{h}_surf-fsnative_label-swm3.0mm_{input_feat}.func.gii"
+            sfwm3mmSurfacePath = (
+                f"{surf_dir}/{bids_id}_hemi-{h}_surf-fsnative_label-swm3.0mm.surf.gii"
+            )
+
+            for file in [
+                wmBoundaryDataPath,
+                wmBoundarySurfacePath,
+                midthicknessDataPath,
+                midthicknessSurfacePath,
+                sfwm1mmDataPath,
+                sfwm1mmSurfacePath,
+                sfwm2mmDataPath,
+                sfwm2mmSurfacePath,
+                sfwm3mmDataPath,
+                sfwm3mmSurfacePath,
+            ]:
+                if not os.path.isfile(file):
+                    show_warning(
+                        f"{bids_id}: cannot map '{feat}' [label={label}, resolution={resol}] to cortex. Missing file: {file}"
+                    )
+                    return
+            output_path = compute_blurring(
+                input_dir,
+                surf_dir,
+                bids_id,
+                h,
+                inter_file,
+                input_feat,
+                workbench_path,
+                resol,
+                fwhm,
+                surf_file,
+                output_file,
+                tmp_dir,
+            )
+            input_file = output_path
         # Check if file exists
         for file in [surf_file, input_file]:
             if not os.path.isfile(file):
@@ -255,6 +323,20 @@ def map_cortex(
         )
         if os.path.isfile(output_file):
             n += 1
+        subprocess.run(
+            [
+                os.path.join(workbench_path, "wb_command"),
+                "-set-structure",
+                output_file,
+                "CORTEX_LEFT" if h == "L" else "CORTEX_RIGHT",
+            ]
+        )
+        # add_field_to_xml(
+        #     output_file,
+        #     "./DataArray/MetaData",
+        #     "AnatomicalStructurePrimary",
+        #     "CORTEX_LEFT" if h == "L" else "CORTEX_RIGHT",
+        # )
 
     if n == 2:
         show_note(
@@ -281,6 +363,8 @@ def map_hippocampus(
     tmp_dir,
     subject_plugin_dir: str,
 ):
+    if "blur" in feat:
+        return
     show_info(
         f"{bids_id}: Mapping '{feat}' to hippocampus [label={label}, resolution={resol}]"
     )
@@ -289,7 +373,7 @@ def map_hippocampus(
     surf_dir = os.path.join(subject_hippunfold_dir, "surf")
     input_dir = os.path.join(subject_micapipe_dir, "maps")
     is_surf = False
-    if feat.startswith("plugin-"):
+    if feat.startswith("plugin_"):
         surf_dir = os.path.join(subject_plugin_dir, "surf")
         input_dir = os.path.join(subject_plugin_dir, "maps")
         feat = feat[7:]
@@ -406,7 +490,14 @@ def map_hippocampus(
 
         if os.path.isfile(output_file):
             n += 1
-
+        subprocess.run(
+            [
+                os.path.join(workbench_path, "wb_command"),
+                "-set-structure",
+                output_file,
+                "CORTEX_LEFT" if h == "L" else "CORTEX_RIGHT",
+            ]
+        )
     if n == 2:
         show_note(
             f"{bids_id}: '{feat}' [label={label}, resolution={resol}] successfully mapped."
@@ -486,6 +577,7 @@ def run(
                         folder_maps,
                         folder_ctx,
                         subject_plugin_dir,  # type: ignore
+                        tmp_dir,
                     )
         elif structure == "subcortex":
             map_subcortex(
@@ -517,6 +609,76 @@ def run(
                         tmp_dir,
                         subject_plugin_dir,  # type: ignore
                     )
+
+    # Copy base T1w to output folder
+    if not os.path.exists(os.path.join(subject_output_dir, "structural")):
+        os.makedirs(os.path.join(subject_output_dir, "structural"))
+
+    shutil.copyfile(
+        os.path.join(
+            subject_micapipe_dir,
+            "anat",
+            f"{BIDS_ID}_space-nativepro_T1w_brain.nii.gz",
+        ),
+        os.path.join(
+            subject_output_dir,
+            "structural",
+            f"{BIDS_ID}_space-nativepro_T1w_brain.nii.gz",
+        ),
+    )
+    shutil.copyfile(
+        os.path.join(
+            subject_micapipe_dir,
+            "parc",
+            f"{BIDS_ID}_space-nativepro_T1w_atlas-subcortical.nii.gz",
+        ),
+        os.path.join(
+            subject_output_dir,
+            "structural",
+            f"{BIDS_ID}_space-nativepro_T1w_atlas-subcortical.nii.gz",
+        ),
+    )
+    for hemi in ["L", "R"]:
+        shutil.copyfile(
+            os.path.join(
+                subject_micapipe_dir,
+                "surf",
+                f"{BIDS_ID}_hemi-{hemi}_surf-fsnative_label-sphere.surf.gii",
+            ),
+            os.path.join(
+                subject_output_dir,
+                "structural",
+                f"{BIDS_ID}_hemi-{hemi}_surf-fsnative_label-sphere.surf.gii",
+            ),
+        )
+
+        for surf in ["white", "pial", "midthickness"]:
+            shutil.copyfile(
+                os.path.join(
+                    subject_micapipe_dir,
+                    "surf",
+                    f"{BIDS_ID}_hemi-{hemi}_space-nativepro_surf-fsnative_label-{surf}.surf.gii",
+                ),
+                os.path.join(
+                    subject_output_dir,
+                    "structural",
+                    f"{BIDS_ID}_hemi-{hemi}_space-nativepro_surf-fsnative_label-{surf}.surf.gii",
+                ),
+            )
+
+        for surf in ["inner", "outer", "midthickness"]:
+            shutil.copyfile(
+                os.path.join(
+                    subject_hippunfold_dir,
+                    "surf",
+                    f"{BIDS_ID}_hemi-{hemi}_space-T1w_den-0p5mm_label-hipp_{surf}.surf.gii",
+                ),
+                os.path.join(
+                    subject_output_dir,
+                    "structural",
+                    f"{BIDS_ID}_hemi-{hemi}_space-T1w_den-0p5mm_label-hipp_{surf}.surf.gii",
+                ),
+            )
 
     # Wrap up
     elapsed = round((time.time() - start_time) / 60, 2)

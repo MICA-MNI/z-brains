@@ -2,7 +2,9 @@ from typing import List, Literal
 
 VERSION = "v0.0.2 'reborn'"
 
-Feature = Literal["ADC", "FA", "flair", "qT1", "thickness", "plugin-*"]
+Feature = Literal[
+    "ADC", "FA", "flair", "qT1", "thickness", "qT1_blur", "flair_blur", "plugin_*"
+]
 LIST_FEATURES: List[Feature] = list(Feature.__args__)
 
 map_feature_to_file = dict(
@@ -12,6 +14,8 @@ map_feature_to_file = dict(
     ADC="ADC",
     FA="FA",
     qT1="T1map",
+    qT1_blur="T1map_blur",
+    flair_blur="flair_blur",
 )
 
 Structure = Literal["cortex", "subcortex", "hippocampus"]

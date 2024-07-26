@@ -748,7 +748,7 @@ def report_struct(
 
 def generate_clinical_report(
     *,
-    zbrains_path: PathType,
+    zbrains_path: PathType = None,
     sid: str,
     ses: Union[str, None] = None,
     age: Union[float, None] = None,
@@ -762,13 +762,16 @@ def generate_clinical_report(
     smooth_hip: float = 2,
     res_ctx: Resolution = "high",
     res_hip: Resolution = "high",
-    label_ctx="white",
+    label_ctx="midthickness",
     label_hip="midthickness",
     color_bar="bottom",
     cmap="cmo.balance",
     color_range=(-2, 2),
     cmap_asymmetry="PRGn",
     tmp_dir: PathType = "/tmp",
+    subject_dir=None,
+    output_dir=None,
+    tag=None,
 ):
     """Zbrains: Clinical report generator
 
@@ -842,8 +845,15 @@ def generate_clinical_report(
     approach_folder = approach_to_folder[approach]
 
     bids_id = get_bids_id(sid, ses)
-    subject_dir = get_subject_dir(zbrains_path, sid, ses)
-    path_analysis = f"{subject_dir}/{approach_folder}"
+    if zbrains_path is None:
+        if subject_dir is not None:
+            path_analysis = f"{subject_dir}/{approach_folder}"
+        else:
+            print("Either zbrains_path or subject_dir must be provided")
+    else:
+        "If zbrains_path is provided, the subject_dir is calculated"
+        subject_dir = get_subject_dir(zbrains_path, sid, ses)
+        path_analysis = f"{subject_dir}/{approach_folder}"
 
     # List all files of norm
     subses_files = glob.glob(f"{path_analysis}/*/*")
@@ -955,7 +965,12 @@ def generate_clinical_report(
         report += '<div style="page-break-after: always;"></div>'
 
     # Report file name
-    file_pdf = f"{subject_dir}/{bids_id}_approach-{approach}_summary-report.pdf"
+    if output_dir and tag:
+        file_pdf = f"{output_dir}/{tag}.pdf"
+        if os.path.exists(file_pdf):
+            os.remove(file_pdf)
+    else:
+        file_pdf = f"{subject_dir}/{bids_id}_approach-{approach}_summary-report.pdf"
 
     # Create the HTML file
     convert_html_to_pdf(report, file_pdf)
@@ -964,3 +979,6 @@ def generate_clinical_report(
     if display_flag:
         display.stop()
         del display
+
+    if output_dir and tag:
+        return os.path.realpath(file_pdf)

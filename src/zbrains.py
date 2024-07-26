@@ -1,7 +1,8 @@
 import os
 import sys
+
+sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 import subprocess
-import tempfile
 from pathlib import Path
 from .functions.utilities import (
     assert_same_size,
@@ -12,6 +13,7 @@ from .functions.utilities import (
     show_note,
     show_title,
     delete_temp_folders,
+    tempdir,
 )
 import shutil
 import glob
@@ -39,25 +41,10 @@ from .functions.constants import (
 from .functions import run_proc, run_analysis
 from joblib import Parallel, delayed
 import copy
-from contextlib import contextmanager
 import argparse
 import sys
 from .functions.help import help
-import subprocess
 import gc
-
-
-@contextmanager
-def tempdir(SUBJECT_OUTPUT_DIR, prefix):
-    path = tempfile.mkdtemp(dir=SUBJECT_OUTPUT_DIR, prefix=prefix)
-    try:
-        yield path
-    finally:
-        print(f"Cleaning up temp dir {path}")
-        try:
-            shutil.rmtree(path)
-        except IOError:
-            sys.stderr.write(f"Failed to clean up temp dir {path}")
 
 
 def _jobloop(args):
@@ -66,6 +53,7 @@ def _jobloop(args):
     except Exception as e:
         print(e)
         if args.test:
+
             raise e
     gc.collect()
 
@@ -157,7 +145,7 @@ def parse_args(args):
     if "all" in features:
         features = LIST_FEATURES
     if not args.plugin:
-        features = [f for f in features if not f.startswith("plugin-")]
+        features = [f for f in features if not f.startswith("plugin_")]
     features.sort(key=str.lower)  # case-insensitive sort
 
     resolutions = args.resolution or ["all"]
@@ -345,7 +333,7 @@ def main_func(args):
         smooth_hip,
         threshold,
     ) = parse_args(args)
-
+    print(f"Processing {sid} {ses} with tasks {tasks}")
     check_workbench_dependency(tasks)
 
     (
@@ -379,6 +367,7 @@ def main_func(args):
 
     # Temporary folder
     with tempdir(SUBJECT_OUTPUT_DIR, prefix="z_brains_temp.") as tmp_dir:
+        print(f"Temporary directory: {structures} {features} {resolutions} {tasks}")
         try:
             os.chmod(SUBJECT_OUTPUT_DIR, 0o770)
 
@@ -426,6 +415,7 @@ def main_func(args):
 
             # ----------------------------------------------------- Analysis ---------------------------------------------------- #
             if "analysis" in tasks:
+
                 logfile = os.path.join(
                     logs_dir,
                     f"analysis_{datetime.datetime.now().strftime('%d-%m-%Y')}.txt",
@@ -475,6 +465,16 @@ def main_func(args):
                     str(args.column_map),
                     "--n_jobs",
                     str(args.n_jobs),
+                    "--n_jobs_wb",
+                    str(args.n_jobs_wb),
+                    "--micapipe",
+                    str(args.micapipe),
+                    "--hippunfold",
+                    str(args.hippunfold),
+                    "--workbench_path",
+                    str(os.environ["WORKBENCH_PATH"]),
+                    "--dataset",
+                    str(args.dataset),
                 ]
                 if args.demo:
                     args_list.extend(["--demo", args.demo])
@@ -484,7 +484,7 @@ def main_func(args):
 
                 if args.deconfound:
                     args_list.extend(["--deconfound", args.deconfound])
-                out = subprocess.call(
+                subprocess.call(
                     ["python", "-m", "src.functions.run_analysis", *args_list]
                 )
             elapsed = (time.time() - start_time) / 60
@@ -539,7 +539,6 @@ def create_jobs(args, subs, ses, run_type):
 
 
 def main(args):
-
     args.wb_path = os.path.expanduser(args.wb_path) if args.wb_path else None
     args.dataset = os.path.expanduser(args.dataset) if args.dataset else None
     args.demo = os.path.expanduser(args.demo) if args.demo else None
@@ -582,7 +581,7 @@ def main(args):
         sys.exit()
 
     show_info("zbrains is running with:")
-
+    print(args.run)
     if "proc" in args.run:
         # Get WorkBench version
 
@@ -611,6 +610,7 @@ def main(args):
         procjobs = create_jobs(args, args.sub, args.ses, "proc")
         Parallel(n_jobs=args.n_jobs)(delayed(_jobloop)(job) for job in procjobs)
     if "analysis" in args.run:
+
         analysisjobs = create_jobs(args, args.sub, args.ses, "analysis")
         [_jobloop(job) for job in analysisjobs]
 
@@ -664,7 +664,7 @@ if __name__ == "__main__":
     parser.add_argument("--init", type=str, default=None)
     parser.add_argument("--delete_temps", type=str, default=None)
     parser.add_argument("--n_jobs", type=int, default=1)
-    parser.add_argument("--n_jobs_wb", type=int, default=8)
+    parser.add_argument("--n_jobs_wb", type=int, default=1)
     parser.add_argument(
         "--wb_path",
         type=str,

@@ -4,6 +4,80 @@ from .constants import ProcessingException
 import fnmatch
 import os
 import shutil
+import sys
+import tempfile
+from contextlib import contextmanager
+import xml.etree.ElementTree as ET
+import re
+
+
+def remove_doctype_from_xml(file_path):
+    # Read the XML file as a string
+    with open(file_path, "r") as file:
+        xml_string = file.read()
+
+    # Remove the !DOCTYPE line
+    xml_string = re.sub(r"<!DOCTYPE[^>]*>", "", xml_string)
+
+    # Parse the modified string back into an XML tree
+    tree = ET.ElementTree(ET.fromstring(xml_string))
+
+    # Write the changes back to the file
+    tree.write(file_path)
+
+
+def edit_root_attributes_in_xml(file_path, new_attributes):
+    # Parse the XML file
+    tree = ET.parse(file_path)
+    root = tree.getroot()
+
+    # Update the root's attributes
+    root.attrib.update(new_attributes)
+
+    # Write the changes back to the file
+    tree.write(file_path)
+
+
+def replace_field_in_xml(file_path, field_path, new_value):
+    # Parse the XML file
+    tree = ET.parse(file_path)
+    root = tree.getroot()
+
+    # Find the field
+    field = root.find(field_path)
+
+    # If the field doesn't exist, raise an error
+    if field is None:
+        raise ValueError(f"No field found at path '{field_path}'")
+
+    # Replace the field's text with the new value
+    field.text = new_value
+
+    # Write the changes back to the file
+    tree.write(file_path)
+
+
+def add_field_to_xml(file_path, parent_field_path, field_name, field_value):
+    # Parse the XML file
+    tree = ET.parse(file_path)
+    root = tree.getroot()
+
+    # Find the parent element
+    parent_element = root.find(parent_field_path)
+
+    # If the parent element doesn't exist, raise an error
+    if parent_element is None:
+        raise ValueError(f"No element found at path '{parent_field_path}'")
+
+    # Create a new element
+    new_element = ET.Element(field_name)
+    new_element.text = field_value
+
+    # Add the new element to the parent element
+    parent_element.append(new_element)
+
+    # Write the changes back to the file
+    tree.write(file_path)
 
 
 def delete_temp_folders(directory):
@@ -126,6 +200,19 @@ def submit_job(scheduler, *args):
     else:
         show_error(f"Unknown scheduler: {scheduler}")
         raise ProcessingException(f"Unknown scheduler: {scheduler}")
+
+
+@contextmanager
+def tempdir(SUBJECT_OUTPUT_DIR, prefix):
+    path = tempfile.mkdtemp(dir=SUBJECT_OUTPUT_DIR, prefix=prefix)
+    try:
+        yield path
+    finally:
+        print(f"Cleaning up temp dir {path}")
+        try:
+            shutil.rmtree(path)
+        except IOError:
+            sys.stderr.write(f"Failed to clean up temp dir {path}")
 
 
 def print_version():
