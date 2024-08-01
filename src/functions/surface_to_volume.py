@@ -189,12 +189,12 @@ def process_cortex(
         f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_fsnative_temp.func.gii"
     )
 
-    # command_struct = [
-    #     os.path.join(workbench_path, "wb_command"),
-    #     "-set-structure",
-    #     metricfile,
-    #     "CORTEX_LEFT" if hemi == "L" else "CORTEX_RIGHT",
-    # ]
+    command_struct = [
+        os.path.join(workbench_path, "wb_command"),
+        "-set-structure",
+        metricfile,
+        "CORTEX_LEFT" if hemi == "L" else "CORTEX_RIGHT",
+    ]
 
     command1 = [
         os.path.join(workbench_path, "wb_command"),
@@ -284,12 +284,12 @@ def process_hippocampus(
         )
         return
 
-    # command_struct = [
-    #     os.path.join(workbench_path, "wb_command"),
-    #     "-set-structure",
-    #     metricfile,
-    #     "CORTEX_LEFT" if hemi == "L" else "CORTEX_RIGHT",
-    # ]
+    command_struct = [
+        os.path.join(workbench_path, "wb_command"),
+        "-set-structure",
+        metricfile,
+        "CORTEX_LEFT" if hemi == "L" else "CORTEX_RIGHT",
+    ]
 
     command2 = [
         os.path.join(workbench_path, "wb_command"),
