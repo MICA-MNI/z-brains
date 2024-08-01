@@ -135,6 +135,15 @@ def compute_blurring(
             ),
         ]
     )
+    subprocess.run([
+        os.path.join(workbench_path, "wb_command"),
+        "-set-structure",
+        os.path.join(
+                tmp_dir,
+                f"{bids_id}-{hemi}-{feat}-{resol}-{fwhm}-surf-fsnative_grad-output.func.gii",
+            ),
+        "CORTEX_LEFT" if hemi == "L" else "CORTEX_RIGHT",
+    ])
     return os.path.join(
         tmp_dir,
         f"{bids_id}-{hemi}-{feat}-{resol}-{fwhm}-surf-fsnative_grad-output.func.gii",

@@ -220,7 +220,7 @@ def process_cortex(
 
     # Run the commands
     # subprocess.run(command_struct)
-
+    subprocess.run(command_struct)
     subprocess.run(command1)
 
     subprocess.run(command2)
@@ -303,7 +303,7 @@ def process_hippocampus(
         f"{boundingpattern}outer.surf.gii",
     ]
 
-    # subprocess.run(command_struct)
+    subprocess.run(command_struct)
 
     subprocess.run(command2)
 
