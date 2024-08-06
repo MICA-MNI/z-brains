@@ -196,6 +196,12 @@ def process_cortex(
         "CORTEX_LEFT" if hemi == "L" else "CORTEX_RIGHT",
     ]
 
+    # command_struct_native = [
+    #     os.path.join(workbench_path, "wb_command"),
+    #     "-set-structure",
+    #     nativesphere,
+    #     "CORTEX_LEFT" if hemi == "L" else "CORTEX_RIGHT",
+    # ]
     command1 = [
         os.path.join(workbench_path, "wb_command"),
         "-metric-resample",
@@ -204,6 +210,13 @@ def process_cortex(
         nativesphere,
         "BARYCENTRIC",
         outputmetric,
+    ]
+
+    command_struct_2 = [
+        os.path.join(workbench_path, "wb_command"),
+        "-set-structure",
+        outputmetric,
+        "CORTEX_LEFT" if hemi == "L" else "CORTEX_RIGHT",
     ]
 
     command2 = [
@@ -219,10 +232,11 @@ def process_cortex(
     ]
 
     # Run the commands
-    # subprocess.run(command_struct)
     subprocess.run(command_struct)
-    subprocess.run(command1)
+    # subprocess.run(command_struct_native)
 
+    subprocess.run(command1)
+    subprocess.run(command_struct_2)
     subprocess.run(command2)
 
     os.replace(
@@ -773,7 +787,7 @@ def surface_to_volume(
     if "thickness" in features:
         features[features.index("thickness")] = "volume"
     features = sorted(features, key=str.lower)
-    features.append("-".join(features))
+    features.append("-".join([x for x in features if "blur" not in x]))
     print("feats: ", features)
     # shutil.copyfile(
     #     os.path.join(

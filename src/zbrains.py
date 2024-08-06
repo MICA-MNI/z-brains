@@ -1,5 +1,6 @@
 import os
 import sys
+import pandas as pd
 
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 import subprocess
@@ -502,18 +503,18 @@ def check_sub(args, sub, ses=None):
     if ses is not None:
         micapipe_path = os.path.join(micapipe_path, ses)
         hippunfold_path = os.path.join(hippunfold_path, ses)
+    if "proc" in args.run:
+        if not os.path.exists(micapipe_path):
+            print(
+                f'No micapipe at {micapipe_path} for {sub}{f"-{ses}" if ses else ""}, skipping'
+            )
+            return False
 
-    if not os.path.exists(micapipe_path):
-        print(
-            f'No micapipe at {micapipe_path} for {sub}{f"-{ses}" if ses else ""}, skipping'
-        )
-        return False
-
-    if not os.path.exists(hippunfold_path):
-        print(
-            f'No hippunfold at {hippunfold_path} for {sub}{f"-{ses}" if ses else ""}, skipping'
-        )
-        return False
+        if not os.path.exists(hippunfold_path):
+            print(
+                f'No hippunfold at {hippunfold_path} for {sub}{f"-{ses}" if ses else ""}, skipping'
+            )
+            return False
 
     return True
 
@@ -524,12 +525,12 @@ def create_jobs(args, subs, ses, run_type):
         s = None
         if args.ses is not None:
             s = args.ses[enum]
-
-        for s in (
-            os.listdir(os.path.join(args.dataset, "derivatives", args.micapipe, sub))
-            if not ses
-            else [s]
-        ):
+        directory = (
+            os.path.join(args.dataset, "derivatives", args.zbrains, sub)
+            if run_type == "analysis"
+            else os.path.join(args.dataset, "derivatives", args.micapipe, sub)
+        )
+        for s in os.listdir(directory) if not ses else [s]:
             if check_sub(args, sub, s):
                 job = copy.copy(args)
                 job.sub, job.ses, job.run = sub, s, run_type
@@ -563,17 +564,34 @@ def main(args):
 
     # Assume args is parsed from command line arguments
     args.ses = args.ses.split(" ") if args.ses else None
-    args.sub = (
-        args.sub.split(" ")
-        if args.sub != "all"
-        else [
+    if args.sub != "all":
+        args.sub = args.sub.split(" ")
+    elif args.demo:
+        print("Running analysis on all subjects specified in the demo file")
+        args.sub = list(pd.read_csv(args.demo)["participant_id"].values)
+    elif "proc" in args.run:
+        print("Running proc on all subjects with micapipe and hippunfold inputs")
+        args.sub = [
             sub
             for sub in os.listdir(
                 os.path.join(args.dataset, "derivatives", args.micapipe)
             )
             if check_sub(args, sub)
         ]
-    )
+    elif "analysis" in args.run:
+        print("Running analysis on all subjects with zbrains-processed inputs")
+        args.sub = [
+            sub
+            for sub in os.listdir(
+                os.path.join(
+                    args.dataset,
+                    "derivatives",
+                    args.zbrains_ref[0] if args.zbrains_ref else args.zbrains,
+                )
+            )
+            if check_sub(args, sub)
+        ]
+
     if args.ses == ["all"]:
         args.ses = None
     if args.ses and len(args.ses) != len(args.sub):
