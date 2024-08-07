@@ -579,21 +579,21 @@ def run(
     for feat in features:
         if structure == "cortex":
             for res in resolutions:
-                for lab in labels:
-                    map_cortex(
-                        BIDS_ID,
-                        feat,
-                        res,
-                        lab,
-                        fwhm,
-                        WORKBENCH_PATH,
-                        subject_micapipe_dir,
-                        subject_output_dir,
-                        folder_maps,
-                        folder_ctx,
-                        subject_plugin_dir,  # type: ignore
-                        tmp_dir,
-                    )
+
+                map_cortex(
+                    BIDS_ID,
+                    feat,
+                    res,
+                    labels,
+                    fwhm,
+                    WORKBENCH_PATH,
+                    subject_micapipe_dir,
+                    subject_output_dir,
+                    folder_maps,
+                    folder_ctx,
+                    subject_plugin_dir,  # type: ignore
+                    tmp_dir,
+                )
         elif structure == "subcortex":
             map_subcortex(
                 BIDS_ID,
@@ -608,22 +608,22 @@ def run(
             )
         elif structure == "hippocampus":
             for res in resolutions:
-                for lab in labels:
-                    map_hippocampus(
-                        BIDS_ID,
-                        feat,
-                        res,
-                        lab,
-                        WORKBENCH_PATH,
-                        subject_hippunfold_dir,
-                        subject_micapipe_dir,
-                        subject_output_dir,
-                        folder_maps,
-                        folder_hip,
-                        fwhm,
-                        tmp_dir,
-                        subject_plugin_dir,  # type: ignore
-                    )
+
+                map_hippocampus(
+                    BIDS_ID,
+                    feat,
+                    res,
+                    labels,
+                    WORKBENCH_PATH,
+                    subject_hippunfold_dir,
+                    subject_micapipe_dir,
+                    subject_output_dir,
+                    folder_maps,
+                    folder_hip,
+                    fwhm,
+                    tmp_dir,
+                    subject_plugin_dir,  # type: ignore
+                )
 
     # Copy base T1w to output folder
     if not os.path.exists(os.path.join(subject_output_dir, "structural")):

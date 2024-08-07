@@ -723,6 +723,7 @@ def surface_to_volume(
     n_jobs_wb,
     workbench_path,
     thresh=3,
+    dicoms=None,
 ):
     """
     Process surface data to generate volumetric images for specified features and analyses.
@@ -847,26 +848,27 @@ def surface_to_volume(
         for feature in features
         for analysis in analyses
     )
-    print("Converting to DICOM")
-    # timepre = time()
-    # Parallel(n_jobs=n_jobs)(
-    #     delayed(dicomify)(
-    #         outdir,
-    #         subj,
-    #         ses,
-    #         feature,
-    #         smooth_ctx,
-    #         smooth_hipp,
-    #         analysis,
-    #         tmp,
-    #         thresh,
-    #         px_demo=px_demo,
-    #     )
-    #     for feature in features
-    #     for analysis in analyses
-    # )
-    # timepost = time() - timepre
-    # print(f"Time taken to convert to DICOM: {timepost}")
+    if dicoms == 1:
+        print("Converting to DICOM")
+        timepre = time()
+        Parallel(n_jobs=n_jobs)(
+            delayed(dicomify)(
+                outdir,
+                subj,
+                ses,
+                feature,
+                smooth_ctx,
+                smooth_hipp,
+                analysis,
+                tmp,
+                thresh,
+                px_demo=px_demo,
+            )
+            for feature in features
+            for analysis in analyses
+        )
+        timepost = time() - timepre
+        print(f"Time taken to convert to DICOM: {timepost}")
 
 
 if __name__ == "__main__":

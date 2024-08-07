@@ -50,6 +50,7 @@ def main(
     n_jobs,
     n_jobs_wb,
     workbench_path,
+    dicoms,
 ):
     # Some checks
     # logger = logging.getLogger(tmp)
@@ -173,6 +174,7 @@ def main(
         n_jobs=n_jobs,
         n_jobs_wb=n_jobs_wb,
         workbench_path=workbench_path,
+        dicoms=dicoms,
     )
 
     # Generate report ----------------------------------------------------------
@@ -267,6 +269,7 @@ def run(
     n_jobs_wb=None,
     workbench_path=None,
     dataset=None,
+    dicoms=None,
 ):
 
     # Logging settings
@@ -340,6 +343,7 @@ def run(
         n_jobs,
         n_jobs_wb,
         workbench_path,
+        dicoms,
     )
 
 
@@ -373,6 +377,7 @@ if __name__ == "__main__":
     parser.add_argument("--hippunfold", type=str, required=True)
     parser.add_argument("--workbench_path", type=str, required=True)
     parser.add_argument("--dataset", type=str, required=True)
+    parser.add_argument("--dicoms", type=int, required=True)
 
     # Parse the arguments.
     args = parser.parse_args()
@@ -381,7 +386,7 @@ if __name__ == "__main__":
     args.demo_ref = args.demo_ref.split("-")
     args.zbrains_ref = args.zbrains_ref.split("-")
     args.resolution = args.resolution.split("-")
-
+    print(args.dicoms)
     run(
         subject_id=args.subject_id,
         zbrains=args.zbrains,
@@ -411,4 +416,5 @@ if __name__ == "__main__":
         hippunfoldname=args.hippunfold,
         workbench_path=args.workbench_path,
         dataset=args.dataset,
+        dicoms=args.dicoms,
     )

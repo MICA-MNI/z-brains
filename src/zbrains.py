@@ -153,8 +153,8 @@ def parse_args(args):
     if "all" in resolutions:
         resolutions = LIST_RESOLUTIONS
 
-    labels_ctx = args.label_ctx or ["midthickness"]
-    labels_hip = args.label_hip or ["midthickness"]
+    label_ctx = args.label_ctx or "midthickness"
+    label_hip = args.label_hip or "midthickness"
 
     smooth_ctx = args.smooth_ctx or DEFAULT_SMOOTH_CTX
     smooth_hip = args.smooth_hip or DEFAULT_SMOOTH_HIP
@@ -171,8 +171,8 @@ def parse_args(args):
         structures,
         features,
         resolutions,
-        labels_ctx,
-        labels_hip,
+        label_ctx,
+        label_hip,
         smooth_ctx,
         smooth_hip,
         threshold,
@@ -328,8 +328,8 @@ def main_func(args):
         structures,
         features,
         resolutions,
-        labels_ctx,
-        labels_hip,
+        label_ctx,
+        label_hip,
         smooth_ctx,
         smooth_hip,
         threshold,
@@ -382,11 +382,11 @@ def main_func(args):
                 for struct in structures:
                     if struct == "hippocampus":
                         list_resolutions = [map_resolution_hip[k] for k in resolutions]
-                        temp_labels = labels_hip
+                        temp_labels = label_hip
                         fwhm = smooth_hip
                     elif struct == "cortex":
                         list_resolutions = [map_resolution_ctx[k] for k in resolutions]
-                        temp_labels = labels_ctx
+                        temp_labels = label_ctx
                         fwhm = smooth_ctx
                     else:
                         list_resolutions = None
@@ -445,9 +445,9 @@ def main_func(args):
                     "--resolution",
                     "-".join(resolutions),
                     "--labels_ctx",
-                    labels_ctx[0],
+                    label_ctx,
                     "--labels_hip",
-                    labels_hip[0],
+                    label_hip,
                     "--smooth_ctx",
                     str(smooth_ctx),
                     "--smooth_hip",
@@ -476,7 +476,10 @@ def main_func(args):
                     str(os.environ["WORKBENCH_PATH"]),
                     "--dataset",
                     str(args.dataset),
+                    "--dicoms",
+                    str(args.dicoms),
                 ]
+                print(args.dicoms)
                 if args.demo:
                     args_list.extend(["--demo", args.demo])
 
@@ -691,10 +694,10 @@ if __name__ == "__main__":
     parser.add_argument("--patient_prefix", type=str, default="PX")
     parser.add_argument("--verbose", type=int, default=-1)
     parser.add_argument("--version", action="version", version="1.0.0")
-
+    parser.add_argument("--dicoms", type=int, default=1)
     # Parse the arguments
     args, unknown_args = parser.parse_known_args()
-
+    print(args.dicoms)
     if not vars(args):
         parser.print_help()
         sys.exit(1)
