@@ -8,10 +8,10 @@ set "zbrains_dir=zbrains_newtest"
 set "demo_controls=E:\participants_mics_hc.csv"
 set "demo_patients=E:\PX_participants.csv"
 
-set "sids=sub-PX103"
+set "sids=all"
 set "sess=all"
 call conda activate zbrains
-call python -m src.zbrains --run "analysis" ^
+call python -m src.zbrains --run "proc" ^
                    --sub "%sids%" ^
                    --micapipe %micapipe_dir% ^
                    --hippunfold %hippunfold_dir% ^

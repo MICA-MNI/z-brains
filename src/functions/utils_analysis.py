@@ -979,6 +979,7 @@ def run_analysis(
 
     # Main loop ----------------------------------------------------------------
     for struct, resol, label in iterables:
+        print(struct, resol, label)
         s = (
             f"[resolution = {resol:<4}\tlabel = {label:<15}]"
             if struct != "subcortex"
@@ -1030,29 +1031,7 @@ def run_analysis(
 
             if d is None:
                 continue
-            # if "blur" in d["feat"][0]:
-            #     basestr = d["feat"][0]
-            #     d["feat"] = []
-            #     cols_df = d["cols_df"]
-            #     d["cols_df"] = []
-            #     index_df = d["index_df"]
-            #     d["index_df"] = []
-            #     for i in range(d["data_px"][0].shape[-1]):
-            #         # d["feat"].append(basestr + f"_{i}")
-            #         d["cols_df"].append(cols_df[0])
-            #         d["index_df"].append(index_df[0])
             for key, value in d.items():
-                # Append the values to the result.
-                # if key == "feat":
-                #     if "blur" in d["feat"][0]:
-                #         continue
-                # if key == "data_cn" or key == "data_px":
-
-                #     if len(value[0].shape) == 3:
-                #         if value[0].shape[-1] > 1:
-                #             for i in range(value[0].shape[-1]):
-                #                 data_mahalanobis[key].extend(value[0][:, :, i])
-                # else:
                 data_mahalanobis[key].extend(value)
         # store available features
         if struct == "subcortex":

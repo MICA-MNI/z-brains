@@ -153,8 +153,13 @@ def parse_args(args):
     if "all" in resolutions:
         resolutions = LIST_RESOLUTIONS
 
-    label_ctx = args.label_ctx or "midthickness"
+    label_ctx = args.label_ctx or ["white", "midthickness"]
     label_hip = args.label_hip or "midthickness"
+    if not isinstance(label_ctx, list):
+        if label_ctx == "white":
+            label_ctx = ["white", "midthickness"]
+        else:
+            label_ctx = [label_ctx]
 
     smooth_ctx = args.smooth_ctx or DEFAULT_SMOOTH_CTX
     smooth_hip = args.smooth_hip or DEFAULT_SMOOTH_HIP
@@ -445,7 +450,7 @@ def main_func(args):
                     "--resolution",
                     "-".join(resolutions),
                     "--labels_ctx",
-                    label_ctx,
+                    str(label_ctx),
                     "--labels_hip",
                     label_hip,
                     "--smooth_ctx",
