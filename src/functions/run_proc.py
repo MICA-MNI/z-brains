@@ -310,14 +310,14 @@ def map_cortex(
                 )
                 return
 
-        subprocess.run(
-            [
-                os.path.join(workbench_path, "wb_command"),
-                "-set-structure",
-                input_file,
-                "CORTEX_LEFT" if h == "L" else "CORTEX_RIGHT",
-            ]
-        )
+        # subprocess.run(
+        #     [
+        #         os.path.join(workbench_path, "wb_command"),
+        #         "-set-structure",
+        #         input_file,
+        #         "CORTEX_LEFT" if h == "L" else "CORTEX_RIGHT",
+        #     ]
+        # )
         # Perform mapping
         subprocess.run(
             [
@@ -484,14 +484,14 @@ def map_hippocampus(
                     "-trilinear",
                 ]
             )
-        subprocess.run(
-            [
-                os.path.join(workbench_path, "wb_command"),
-                "-set-structure",
-                inter_file,
-                "CORTEX_LEFT" if h == "L" else "CORTEX_RIGHT",
-            ]
-        )
+        # subprocess.run(
+        #     [
+        #         os.path.join(workbench_path, "wb_command"),
+        #         "-set-structure",
+        #         inter_file,
+        #         "CORTEX_LEFT" if h == "L" else "CORTEX_RIGHT",
+        #     ]
+        # )
         subprocess.run(
             [
                 os.path.join(workbench_path, "wb_command"),
