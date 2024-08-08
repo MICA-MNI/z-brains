@@ -1,5 +1,9 @@
 Python Conversion Changelog
-- 
+### **Bugs Fixed**
+
+- qT1 was unused in reports due to a filepath bug, but is now fixed with no changes to paths
+- Subcortical assymetry for combined features was broken, but is now fixed.
+
 ### **Functional Changes**
 - "**--sub**" argument now accepts the keyword "**all**", which will attempt to run zbrains on all available subjects while processing, and while performing analysis, it will run on all subjects matching the pattern given in the argument (**--patient_prefix**). 
 - "**--ses**" argument now also accepts the keyword "**all**", as well as now being optional. If the "**--ses**" argument is not given, it is assumed to be "**all**".
