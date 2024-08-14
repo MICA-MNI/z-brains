@@ -130,7 +130,7 @@ def main(
             logger.warning(msg)
             px_demo = None  # Don't use
 
-    # Run analyses -------------------------------------------------------------
+    # # Run analyses -------------------------------------------------------------
     logger.info("\n\nStarting analysis")
     for label in labels_ctx:
         available_features = run_analysis(
@@ -156,27 +156,27 @@ def main(
             tmp=tmp,
             n_jobs=n_jobs,
         )
-    # Generate volumes ----------------------------------------------------------
-    logger.info("\n\nStarting volume generation")
-    surface_to_volume(
-        dataset,
-        feat,
-        LIST_ANALYSES,
-        struct,
-        smooth_ctx,
-        smooth_hip,
-        zbrains_ref,
-        px_id,
-        px_ses,
-        px_demo,
-        micapipename,
-        hippunfoldname,
-        tmp,
-        n_jobs=n_jobs,
-        n_jobs_wb=n_jobs_wb,
-        workbench_path=workbench_path,
-        dicoms=dicoms,
-    )
+    # # Generate volumes ----------------------------------------------------------
+    # logger.info("\n\nStarting volume generation")
+    # surface_to_volume(
+    #     dataset,
+    #     feat,
+    #     LIST_ANALYSES,
+    #     struct,
+    #     smooth_ctx,
+    #     smooth_hip,
+    #     zbrains_ref,
+    #     px_id,
+    #     px_ses,
+    #     px_demo,
+    #     micapipename,
+    #     hippunfoldname,
+    #     tmp,
+    #     n_jobs=n_jobs,
+    #     n_jobs_wb=n_jobs_wb,
+    #     workbench_path=workbench_path,
+    #     dicoms=dicoms,
+    # )
 
     # Generate report ----------------------------------------------------------
     logger.info("\n\nStarting report generation")
@@ -188,9 +188,9 @@ def main(
     if "high" not in resolution:
         res_ctx = res_hip = "low"
 
-    lab_ctx = labels_ctx[0]
+    lab_ctx = labels_ctx[0][0]
     lab_hip = labels_hip[0]
-
+    print(lab_ctx, lab_hip)
     age = None
     sex = None
     if px_demo is not None:

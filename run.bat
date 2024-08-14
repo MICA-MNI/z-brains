@@ -3,15 +3,15 @@ set "pth_dataset=E:\data"
 
 set "micapipe_dir=micapipe"
 set "hippunfold_dir=hippunfold"
-set "zbrains_dir=zbrains_newtest"
+set "zbrains_dir=zbrains_vol2"
 
 set "demo_controls=E:\participants_mics_hc.csv"
 set "demo_patients=E:\PX_participants.csv"
 
-set "sids=all"
+set "sids=sub-PX002"
 set "sess=all"
 call conda activate zbrains
-call python -m src.zbrains --run "proc" ^
+call python -m src.zbrains --run "analysis" ^
                    --sub "%sids%" ^
                    --micapipe %micapipe_dir% ^
                    --hippunfold %hippunfold_dir% ^

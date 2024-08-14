@@ -81,6 +81,171 @@ DATA_PATH = Path(__file__).resolve().parent.parent / "data"
 # logger = logging.getLogger('analysis_logger')
 
 
+def plot_hemisphere_lh(
+    surf_lh,
+    array_name=None,
+    color_bar=False,
+    color_range=None,
+    label_text=None,
+    layout_style="row",
+    cmap="viridis",
+    nan_color=(0, 0, 0, 1),
+    zoom=1,
+    background=(1, 1, 1),
+    size=(400, 400),
+    interactive=True,
+    embed_nb=False,
+    screenshot=False,
+    filename=None,
+    scale=(1, 1),
+    transparent_bg=True,
+    **kwargs,
+):
+    """Plot left hemisphere in lateral and medial views.
+
+    Parameters
+    ----------
+    surf_lh : vtkPolyData or BSPolyData
+        Left hemisphere.
+    array_name : str, list of str, ndarray or list of ndarray, optional
+        Name of point data array to plot. If ndarray, the array is split for
+        the left hemisphere. If list, plot one row per array.
+        If None, plot surfaces without any array data. Default is None.
+    color_bar : bool, optional
+        Plot color bar for each array (row). Default is False.
+    color_range : {'sym'}, tuple or sequence.
+        Range for each array name. If 'sym', uses a symmetric range. Only used
+        if array has positive and negative values. Default is None.
+    label_text : dict[str, array-like], optional
+        Label text for column/row. Possible keys are {'left', 'right',
+        'top', 'bottom'}, which indicate the location. Default is None.
+    layout_style : str
+        Layout style for hemispheres. If 'row', layout is a single row
+        alternating lateral and medial views, from left to right. If 'grid',
+        layout is a 2x2 grid, with lateral views in the top row, medial
+        views in the bottom row. Default is 'row'.
+    nan_color : tuple
+        Color for nan values. Default is (0, 0, 0, 1).
+    zoom : float or sequence of float, optional
+        Zoom applied to the surfaces in each layout entry.
+    background : tuple
+        Background color. Default is (1, 1, 1).
+    cmap : str, optional
+        Color map name (from matplotlib). Default is 'viridis'.
+    size : tuple, optional
+        Window size. Default is (800, 200).
+    interactive : bool, optional
+        Whether to enable interaction. Default is True.
+    embed_nb : bool, optional
+        Whether to embed figure in notebook. Only used if running in a
+        notebook. Default is False.
+    screenshot : bool, optional
+        Take a screenshot instead of rendering. Default is False.
+    filename : str, optional
+        Filename to save the screenshot. Default is None.
+    transparent_bg : bool, optional
+        Whether to us a transparent background. Only used if
+        ``screenshot==True``. Default is False.
+    scale : tuple, optional
+        Scale (magnification). Only used if ``screenshot==True``.
+        Default is None.
+    kwargs : keyword-valued args
+        Additional arguments passed to the plotter.
+
+    Returns
+    -------
+    figure : Ipython Image or None
+        Figure to plot. None if using vtk for rendering (i.e.,
+        ``embed_nb == False``).
+
+    See Also
+    --------
+    :func:`build_plotter`
+    :func:`plot_surf`
+
+    """
+    if color_bar is True:
+        color_bar = "right"
+
+    surfs = {"lh": surf_lh}
+    layout = ["lh", "lh"]
+
+    if isinstance(array_name, np.ndarray):
+        if array_name.ndim == 2:
+            array_name = [a for a in array_name]
+        elif array_name.ndim == 1:
+            array_name = [array_name]
+
+    to_remove = []
+    if isinstance(array_name, list):
+        layout = [layout] * len(array_name)
+        array_name2 = []
+        n_pts_lh = surf_lh.n_points
+        for an in array_name:
+            if isinstance(an, np.ndarray):
+                name = surf_lh.append_array(an[:n_pts_lh], at="p")
+                array_name2.append(name)
+                to_remove.append(name)
+            else:
+                array_name2.append(an)
+        array_name = np.asarray(array_name2)[:, None]
+
+    if layout_style == "grid":
+
+        # create 2x2 grid for each array_name and stack altogether
+        n_arrays = len(array_name)
+        array_names, layouts = [], []
+        for a, l in zip(array_name, layout):
+            array_names.append(np.full((2, 1), fill_value=a[0]))
+            layouts.append(np.array(l).reshape(1, 2).T.tolist())
+        array_name = np.vstack(array_names)
+        layout = np.vstack(layouts)
+
+        view = [["lateral"], ["medial"]] * n_arrays
+        share = "both"
+    else:
+        view = ["lateral", "medial"]
+        share = "r"
+
+    if isinstance(cmap, list):
+        cmap = np.asarray(cmap)[:, None]
+
+    # when embed_nb=True, interactive (with panel) only supports one renderer,
+    # here we have at least 4
+    if embed_nb:
+        interactive = False
+
+    kwds = {"view": view, "share": share}
+    kwds.update(kwargs)
+    res = plot_surf(
+        surfs,
+        layout,
+        array_name=array_name,
+        color_bar=color_bar,
+        color_range=color_range,
+        label_text=label_text,
+        cmap=cmap,
+        nan_color=nan_color,
+        zoom=zoom,
+        background=background,
+        size=size,
+        interactive=interactive,
+        embed_nb=embed_nb,
+        screenshot=screenshot,
+        filename=filename,
+        scale=scale,
+        transparent_bg=transparent_bg,
+        **kwds,
+    )
+
+    # remove arrays added to surfaces if any
+    # cannot do it if return_plotter=True
+    if not kwargs.get("return_plotter", False):
+        surf_lh.remove_array(name=to_remove, at="p")
+
+    return res
+
+
 # -----------------------------------------------------------------------------
 def adjectivize_struct(struct: Structure):
     if struct == "cortex":
@@ -207,11 +372,11 @@ def report_colors(analysis: Analysis = "regional"):
 
     if analysis != "regional":
         report += (
-            f'<p style="{style.format(color="#7532a8")}">'
-            "<b> Purple </b> = <b>right</b> MORE THAN <b>left</b> "
+            f'<p style="{style.format(color="#b31b2c")}">'
+            "<b> Red </b> = <b>right</b> MORE THAN <b>left</b> "
             "</p>"
-            f'<p style="{style.format(color="#32a852")}">'
-            "<b> Green </b> = <b>left</b> MORE THAN <b>right</b> "
+            f'<p style="{style.format(color="#13365d")}">'
+            "<b> Blue </b> = <b>left</b> MORE THAN <b>right</b> "
             "</p>"
         )
     else:
@@ -393,7 +558,8 @@ def _load_data_sctx(
     x = pd.read_csv(sctx_file, header=[0], index_col=0).to_numpy().ravel()
     if threshold is not None:
         x[np.abs(x) < threshold] *= threshold_alpha
-
+    if analysis == "asymmetry":
+        print("e")
     # Array of data
     array_16 = np.full(16, np.nan)
     array_16[0:7] = x[0:7]
@@ -402,8 +568,8 @@ def _load_data_sctx(
     else:
         array_16[8:15] = x[0:7]
         # lest is positive, rights is negative
-        array_16[0:7][(array_16[0:7]) < 0] = 0
-        array_16[8:15][(array_16[8:15]) > 0] = 0
+        # array_16[0:7][(array_16[0:7]) < 0] = 0
+        array_16[8:15] = 0
 
     # Map array to vertices of surfaces
     feat_map = map_subcortical_vertices(array_16)
@@ -436,8 +602,8 @@ def load_data_struct(
     else:
         data_rh = data_lh.copy()
         # left is positive, right is negative
-        data_lh[data_lh < 0] = 0
-        data_rh[data_rh > 0] = 0
+        # data_lh[data_lh < 0] = 0
+        data_rh[:] = 0
 
     if threshold is not None:
         data_lh[np.abs(data_lh) < threshold] *= threshold_alpha
@@ -449,6 +615,7 @@ def load_data_struct(
 # Generate figures -------------------------------------------------------------
 def _make_png_ctx(
     *,
+    analysis,
     data_lh: np.ndarray,
     data_rh: np.ndarray,
     out_png: PathType,
@@ -477,18 +644,31 @@ def _make_png_ctx(
 
     # Plot the mean FEATURE on fsLR-32k
     out_png = Path(out_png)
-    plot_hemispheres(
-        slh,
-        srh,
-        array_name=feat_map,
-        layout_style="grid",
-        label_text={"left": ["Lateral", "Medial"], "top": ["Left", "Right"]},
-        share=None,
-        zoom=1.25,
-        size=(600, 600),
-        filename=out_png,
-        **kwds,
-    )
+    if analysis == "asymmetry":
+        plot_hemisphere_lh(
+            slh,
+            array_name=feat_map,
+            layout_style="grid",
+            label_text={"left": ["Lateral", "Medial"], "top": [""]},
+            share=None,
+            zoom=1.25,
+            size=(600, 600),
+            filename=out_png,
+            **kwds,
+        )
+    else:
+        plot_hemispheres(
+            slh,
+            srh,
+            array_name=feat_map,
+            layout_style="grid",
+            label_text={"left": ["Lateral", "Medial"], "top": ["Left", "Right"]},
+            share=None,
+            zoom=1.25,
+            size=(600, 600),
+            filename=out_png,
+            **kwds,
+        )
 
     # Plot cortex with different views
     out_png2 = os.path.join(
@@ -497,31 +677,53 @@ def _make_png_ctx(
         + "_SI"
         + os.path.splitext(out_png)[1],
     )
-    plot_surfs(
-        surfaces=[slh, srh, srh, slh],
-        values=[data_lh, data_rh, data_rh, data_lh],
-        views=["dorsal", "dorsal", "ventral", "ventral"],
-        label_text={
-            "bottom": [
-                "Left Superior",
-                "Right Superior",
-                "Right Inferior",
-                "Left Inferior",
-            ]
-        },
-        # share='both', zoom=2.95, size=(550, 350),
-        share="both",
-        zoom=2.75,
-        size=(550, 350),
-        filename=out_png2,
-        **kwds,
-    )
+    if analysis == "asymmetry":
+        kwds["text__textproperty"] = {"fontSize": 30}
+        plot_surfs(
+            surfaces=[slh, slh],
+            values=[data_lh, data_lh],
+            views=["dorsal", "ventral"],
+            label_text={
+                "bottom": [
+                    "Left Superior",
+                    "Left Inferior",
+                ]
+            },
+            # share='both', zoom=2.95, size=(550, 350),
+            share="both",
+            zoom=1.25,
+            size=(550, 450),
+            filename=out_png2,
+            **kwds,
+        )
+
+    else:
+        plot_surfs(
+            surfaces=[slh, srh, srh, slh],
+            values=[data_lh, data_rh, data_rh, data_lh],
+            views=["dorsal", "dorsal", "ventral", "ventral"],
+            label_text={
+                "bottom": [
+                    "Left Superior",
+                    "Right Superior",
+                    "Right Inferior",
+                    "Left Inferior",
+                ]
+            },
+            # share='both', zoom=2.95, size=(550, 350),
+            share="both",
+            zoom=2.75,
+            size=(550, 350),
+            filename=out_png2,
+            **kwds,
+        )
 
     return report_1x2_table(fig1=out_png, fig2=out_png2, height=300)
 
 
 def _make_png_sctx(
     *,
+    analysis,
     data_lh: np.ndarray,
     data_rh: np.ndarray,
     out_png: PathType,
@@ -531,26 +733,49 @@ def _make_png_sctx(
 
     slh = read_surface(f"{DATA_PATH}/sctx.L.surf.gii", itype="gii")
     srh = read_surface(f"{DATA_PATH}/sctx.R.surf.gii", itype="gii")
-
     # Plot subcortical structures
-    plot_surfs(
-        surfaces=[slh, slh, srh, srh],
-        values=[data_lh, data_lh, data_rh, data_rh],
-        views=["lateral", "medial", "lateral", "medial"],
-        label_text={"left": ["left"], "right": ["right"]},
-        cmap=cmap,
-        color_bar="bottom",
-        color_range=color_range,
-        share="both",
-        transparent_bg=True,
-        nan_color=(0, 0, 0, 0),
-        zoom=1.4,
-        size=(900, 250),
-        embed_nb=True,
-        interactive=False,
-        screenshot=True,
-        filename=out_png,
-    )
+    if analysis == "asymmetry":
+        kwds = dict()
+        kwds["text__textproperty"] = {"fontSize": 50}
+        plot_surfs(
+            surfaces=[slh, slh],
+            values=[data_lh, data_lh],
+            views=["lateral", "medial"],
+            label_text={"left": ["left"]},
+            cmap=cmap,
+            color_bar="bottom",
+            color_range=color_range,
+            share="both",
+            transparent_bg=True,
+            nan_color=(0, 0, 0, 0),
+            zoom=1.4,
+            size=(900, 250),
+            embed_nb=True,
+            interactive=False,
+            screenshot=True,
+            filename=out_png,
+            **kwds,
+        )
+
+    else:
+        plot_surfs(
+            surfaces=[slh, slh, srh, srh],
+            values=[data_lh, data_lh, data_rh, data_rh],
+            views=["lateral", "medial", "lateral", "medial"],
+            label_text={"left": ["left"], "right": ["right"]},
+            cmap=cmap,
+            color_bar="bottom",
+            color_range=color_range,
+            share="both",
+            transparent_bg=True,
+            nan_color=(0, 0, 0, 0),
+            zoom=1.4,
+            size=(900, 250),
+            embed_nb=True,
+            interactive=False,
+            screenshot=True,
+            filename=out_png,
+        )
 
     return (
         f'<p style="text-align:center;margin-left=0px;"> '
@@ -563,6 +788,7 @@ def _make_png_sctx(
 
 def _make_png_hip(
     *,
+    analysis,
     data_lh: np.ndarray,
     data_rh: np.ndarray,
     out_png: PathType,
@@ -573,19 +799,35 @@ def _make_png_hip(
 ):
 
     lat_lh, mid_lh, unf_lh, unf_rh, mid_rh, lat_rh = _load_surfaces_hip(res=res)
+    if analysis == "asymmetry":
+        kwds = dict()
+        kwds["text__textproperty"] = {"fontSize": 50}
+        plot_surfs(
+            surfaces=[lat_lh, mid_lh, unf_lh],
+            values=[data_lh, data_lh, data_lh],
+            views=["dorsal", "dorsal", "lateral"],
+            color_bar=color_bar,
+            zoom=1.75,
+            cmap=cmap,
+            color_range=color_range,
+            interactive=False,
+            screenshot=True,
+            filename=out_png,
+        )
 
-    plot_surfs(
-        surfaces=[lat_lh, mid_lh, unf_lh, unf_rh, mid_rh, lat_rh],
-        values=[data_lh, data_lh, data_lh, data_rh, data_rh, data_rh],
-        views=["dorsal", "dorsal", "lateral", "lateral", "dorsal", "dorsal"],
-        color_bar=color_bar,
-        zoom=1.75,
-        cmap=cmap,
-        color_range=color_range,
-        interactive=False,
-        screenshot=True,
-        filename=out_png,
-    )
+    else:
+        plot_surfs(
+            surfaces=[lat_lh, mid_lh, unf_lh, unf_rh, mid_rh, lat_rh],
+            values=[data_lh, data_lh, data_lh, data_rh, data_rh, data_rh],
+            views=["dorsal", "dorsal", "lateral", "lateral", "dorsal", "dorsal"],
+            color_bar=color_bar,
+            zoom=1.75,
+            cmap=cmap,
+            color_range=color_range,
+            interactive=False,
+            screenshot=True,
+            filename=out_png,
+        )
 
     return (
         f'<p style="text-align:center;margin-left=0px;"> '
@@ -606,10 +848,12 @@ def make_png(
     cmap="cmo.balance",
     color_range=(-2, 2),
     color_bar="bottom",
+    analysis=None,
 ):
 
     if struct == "cortex":
         return _make_png_ctx(
+            analysis=analysis,
             data_lh=feat_lh,
             data_rh=feat_rh,
             out_png=out_png,
@@ -621,6 +865,7 @@ def make_png(
 
     if struct == "hippocampus":
         return _make_png_hip(
+            analysis=analysis,
             data_lh=feat_lh,
             data_rh=feat_rh,
             out_png=out_png,
@@ -631,6 +876,7 @@ def make_png(
         )
 
     return _make_png_sctx(
+        analysis=analysis,
         data_lh=feat_lh,
         data_rh=feat_rh,
         out_png=out_png,
@@ -731,6 +977,8 @@ def report_struct(
         f"{tmp_dir}/{bids_id}_{struct}_feature-{feat}_"
         f"analysis-{analysis}{thr}_{uuid.uuid4()}.png"
     )
+    # if analysis == "asymmetry":
+    #     feat_lh = feat_lh + feat_rh
     png_block = make_png(
         struct,
         feat_lh=feat_lh,
@@ -740,6 +988,7 @@ def report_struct(
         cmap=cmap,
         color_range=color_range,
         color_bar=color_bar,
+        analysis=analysis,
     )
 
     html += png_block
@@ -767,7 +1016,7 @@ def generate_clinical_report(
     color_bar="bottom",
     cmap="cmo.balance",
     color_range=(-2, 2),
-    cmap_asymmetry="PRGn",
+    cmap_asymmetry="cmo.balance_r",
     tmp_dir: PathType = "/tmp",
     subject_dir=None,
     output_dir=None,
