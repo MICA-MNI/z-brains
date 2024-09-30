@@ -124,6 +124,7 @@ Core development team 🧠
 `z-brains` is developed by members of the MICA-lab (https://mica-mni.github.io) and collaborators
 at the McConnell Brain Imaging Centre of the Montreal Neurological Institute and Harvard Medical School.
 
+- **Ian Goodall-Halliwell**, *MICA Lab - Montreal Neurological Institute*
 - **Jessica Royer**, *MICA Lab - Montreal Neurological Institute*
 - **Sara Larivière**, *Brigham and Women's Hospital | Harvard Medical School*
 - **Raúl Rodríguez-Cruces**, *MICA Lab - Montreal Neurological Institute*
