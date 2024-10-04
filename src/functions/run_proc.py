@@ -310,6 +310,14 @@ def map_cortex(
                 )
                 return
 
+        # subprocess.run(
+        #     [
+        #         os.path.join(workbench_path, "wb_command"),
+        #         "-set-structure",
+        #         input_file,
+        #         "CORTEX_LEFT" if h == "L" else "CORTEX_RIGHT",
+        #     ]
+        # )
         # Perform mapping
         subprocess.run(
             [
@@ -476,7 +484,14 @@ def map_hippocampus(
                     "-trilinear",
                 ]
             )
-
+        # subprocess.run(
+        #     [
+        #         os.path.join(workbench_path, "wb_command"),
+        #         "-set-structure",
+        #         inter_file,
+        #         "CORTEX_LEFT" if h == "L" else "CORTEX_RIGHT",
+        #     ]
+        # )
         subprocess.run(
             [
                 os.path.join(workbench_path, "wb_command"),
@@ -564,12 +579,12 @@ def run(
     for feat in features:
         if structure == "cortex":
             for res in resolutions:
-                for lab in labels:
+                for label in labels:
                     map_cortex(
                         BIDS_ID,
                         feat,
                         res,
-                        lab,
+                        label,
                         fwhm,
                         WORKBENCH_PATH,
                         subject_micapipe_dir,
@@ -593,22 +608,21 @@ def run(
             )
         elif structure == "hippocampus":
             for res in resolutions:
-                for lab in labels:
-                    map_hippocampus(
-                        BIDS_ID,
-                        feat,
-                        res,
-                        lab,
-                        WORKBENCH_PATH,
-                        subject_hippunfold_dir,
-                        subject_micapipe_dir,
-                        subject_output_dir,
-                        folder_maps,
-                        folder_hip,
-                        fwhm,
-                        tmp_dir,
-                        subject_plugin_dir,  # type: ignore
-                    )
+                map_hippocampus(
+                    BIDS_ID,
+                    feat,
+                    res,
+                    labels,
+                    WORKBENCH_PATH,
+                    subject_hippunfold_dir,
+                    subject_micapipe_dir,
+                    subject_output_dir,
+                    folder_maps,
+                    folder_hip,
+                    fwhm,
+                    tmp_dir,
+                    subject_plugin_dir,  # type: ignore
+                )
 
     # Copy base T1w to output folder
     if not os.path.exists(os.path.join(subject_output_dir, "structural")):

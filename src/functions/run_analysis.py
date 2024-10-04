@@ -50,6 +50,7 @@ def main(
     n_jobs,
     n_jobs_wb,
     workbench_path,
+    dicoms,
 ):
     # Some checks
     # logger = logging.getLogger(tmp)
@@ -129,51 +130,53 @@ def main(
             logger.warning(msg)
             px_demo = None  # Don't use
 
-    # Run analyses -------------------------------------------------------------
+    # # Run analyses -------------------------------------------------------------
     logger.info("\n\nStarting analysis")
-    available_features = run_analysis(
-        px_sid=px_id,
-        px_ses=px_ses,
-        cn_zbrains=zbrains_ref,
-        cn_demo_paths=demo_ref,
-        px_zbrains=zbrains,
-        px_demo=px_demo,
-        structures=struct,
-        features=feat,
-        cov_normative=cov_normative,
-        cov_deconfound=cov_deconfound,
-        smooth_ctx=smooth_ctx,
-        smooth_hip=smooth_hip,
-        resolutions=resolution,
-        labels_ctx=labels_ctx,
-        labels_hip=labels_hip,
-        actual_to_expected=actual_to_expected,
-        analyses=LIST_ANALYSES,
-        approach=approach,
-        col_dtypes=col_dtypes,
-        tmp=tmp,
-        n_jobs=n_jobs,
-    )
-    # Generate volumes ----------------------------------------------------------
-    logger.info("\n\nStarting volume generation")
-    surface_to_volume(
-        dataset,
-        feat,
-        LIST_ANALYSES,
-        struct,
-        smooth_ctx,
-        smooth_hip,
-        zbrains_ref,
-        px_id,
-        px_ses,
-        px_demo,
-        micapipename,
-        hippunfoldname,
-        tmp,
-        n_jobs=n_jobs,
-        n_jobs_wb=n_jobs_wb,
-        workbench_path=workbench_path,
-    )
+    for label in labels_ctx:
+        available_features = run_analysis(
+            px_sid=px_id,
+            px_ses=px_ses,
+            cn_zbrains=zbrains_ref,
+            cn_demo_paths=demo_ref,
+            px_zbrains=zbrains,
+            px_demo=px_demo,
+            structures=struct,
+            features=feat,
+            cov_normative=cov_normative,
+            cov_deconfound=cov_deconfound,
+            smooth_ctx=smooth_ctx,
+            smooth_hip=smooth_hip,
+            resolutions=resolution,
+            labels_ctx=label,
+            labels_hip=labels_hip,
+            actual_to_expected=actual_to_expected,
+            analyses=LIST_ANALYSES,
+            approach=approach,
+            col_dtypes=col_dtypes,
+            tmp=tmp,
+            n_jobs=n_jobs,
+        )
+    # # Generate volumes ----------------------------------------------------------
+    # logger.info("\n\nStarting volume generation")
+    # surface_to_volume(
+    #     dataset,
+    #     feat,
+    #     LIST_ANALYSES,
+    #     struct,
+    #     smooth_ctx,
+    #     smooth_hip,
+    #     zbrains_ref,
+    #     px_id,
+    #     px_ses,
+    #     px_demo,
+    #     micapipename,
+    #     hippunfoldname,
+    #     tmp,
+    #     n_jobs=n_jobs,
+    #     n_jobs_wb=n_jobs_wb,
+    #     workbench_path=workbench_path,
+    #     dicoms=dicoms,
+    # )
 
     # Generate report ----------------------------------------------------------
     logger.info("\n\nStarting report generation")
@@ -185,9 +188,9 @@ def main(
     if "high" not in resolution:
         res_ctx = res_hip = "low"
 
-    lab_ctx = labels_ctx[0]
+    lab_ctx = labels_ctx[0][0]
     lab_hip = labels_hip[0]
-
+    print(lab_ctx, lab_hip)
     age = None
     sex = None
     if px_demo is not None:
@@ -199,8 +202,11 @@ def main(
     feat_hip = available_features["hippocampus"][res_hip][lab_hip]
 
     feat_report = list(np.union1d(np.union1d(feat_ctx, feat_sctx), feat_hip))
+    # feat_report = [feat for feat in feat_report if "blur" not in feat]
+    feat_ctx = [feat for feat in feat_ctx if "blur" not in feat]
     multi = None
     for feat in [feat_ctx, feat_sctx, feat_hip]:
+        print("multi: ", feat)
         if multi is None:
             multi = feat
         elif len(feat) > 1 and multi is not None and len(feat) > len(multi):
@@ -264,6 +270,7 @@ def run(
     n_jobs_wb=None,
     workbench_path=None,
     dataset=None,
+    dicoms=None,
 ):
 
     # Logging settings
@@ -337,6 +344,7 @@ def run(
         n_jobs,
         n_jobs_wb,
         workbench_path,
+        dicoms,
     )
 
 
@@ -370,15 +378,17 @@ if __name__ == "__main__":
     parser.add_argument("--hippunfold", type=str, required=True)
     parser.add_argument("--workbench_path", type=str, required=True)
     parser.add_argument("--dataset", type=str, required=True)
+    parser.add_argument("--dicoms", type=int, required=True)
 
     # Parse the arguments.
     args = parser.parse_args()
+    args.labels_ctx = eval(args.labels_ctx)
     args.struct = args.struct.split("-")
     args.feat = args.feat.split("-")
     args.demo_ref = args.demo_ref.split("-")
     args.zbrains_ref = args.zbrains_ref.split("-")
     args.resolution = args.resolution.split("-")
-
+    print(args.labels_ctx)
     run(
         subject_id=args.subject_id,
         zbrains=args.zbrains,
@@ -408,4 +418,5 @@ if __name__ == "__main__":
         hippunfoldname=args.hippunfold,
         workbench_path=args.workbench_path,
         dataset=args.dataset,
+        dicoms=args.dicoms,
     )

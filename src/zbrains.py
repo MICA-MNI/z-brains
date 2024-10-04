@@ -1,5 +1,6 @@
 import os
 import sys
+import pandas as pd
 
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 import subprocess
@@ -152,8 +153,13 @@ def parse_args(args):
     if "all" in resolutions:
         resolutions = LIST_RESOLUTIONS
 
-    labels_ctx = args.label_ctx or ["midthickness"]
-    labels_hip = args.label_hip or ["midthickness"]
+    label_ctx = args.label_ctx or ["white", "midthickness"]
+    label_hip = args.label_hip or "midthickness"
+    if not isinstance(label_ctx, list):
+        if label_ctx == "white":
+            label_ctx = ["white", "midthickness"]
+        else:
+            label_ctx = [label_ctx]
 
     smooth_ctx = args.smooth_ctx or DEFAULT_SMOOTH_CTX
     smooth_hip = args.smooth_hip or DEFAULT_SMOOTH_HIP
@@ -170,8 +176,8 @@ def parse_args(args):
         structures,
         features,
         resolutions,
-        labels_ctx,
-        labels_hip,
+        label_ctx,
+        label_hip,
         smooth_ctx,
         smooth_hip,
         threshold,
@@ -327,8 +333,8 @@ def main_func(args):
         structures,
         features,
         resolutions,
-        labels_ctx,
-        labels_hip,
+        label_ctx,
+        label_hip,
         smooth_ctx,
         smooth_hip,
         threshold,
@@ -381,11 +387,11 @@ def main_func(args):
                 for struct in structures:
                     if struct == "hippocampus":
                         list_resolutions = [map_resolution_hip[k] for k in resolutions]
-                        temp_labels = labels_hip
+                        temp_labels = label_hip
                         fwhm = smooth_hip
                     elif struct == "cortex":
                         list_resolutions = [map_resolution_ctx[k] for k in resolutions]
-                        temp_labels = labels_ctx
+                        temp_labels = label_ctx
                         fwhm = smooth_ctx
                     else:
                         list_resolutions = None
@@ -444,9 +450,9 @@ def main_func(args):
                     "--resolution",
                     "-".join(resolutions),
                     "--labels_ctx",
-                    labels_ctx[0],
+                    str(label_ctx),
                     "--labels_hip",
-                    labels_hip[0],
+                    label_hip,
                     "--smooth_ctx",
                     str(smooth_ctx),
                     "--smooth_hip",
@@ -475,7 +481,10 @@ def main_func(args):
                     str(os.environ["WORKBENCH_PATH"]),
                     "--dataset",
                     str(args.dataset),
+                    "--dicoms",
+                    str(args.dicoms),
                 ]
+                print(args.dicoms)
                 if args.demo:
                     args_list.extend(["--demo", args.demo])
 
@@ -502,18 +511,18 @@ def check_sub(args, sub, ses=None):
     if ses is not None:
         micapipe_path = os.path.join(micapipe_path, ses)
         hippunfold_path = os.path.join(hippunfold_path, ses)
+    if "proc" in args.run:
+        if not os.path.exists(micapipe_path):
+            print(
+                f'No micapipe at {micapipe_path} for {sub}{f"-{ses}" if ses else ""}, skipping'
+            )
+            return False
 
-    if not os.path.exists(micapipe_path):
-        print(
-            f'No micapipe at {micapipe_path} for {sub}{f"-{ses}" if ses else ""}, skipping'
-        )
-        return False
-
-    if not os.path.exists(hippunfold_path):
-        print(
-            f'No hippunfold at {hippunfold_path} for {sub}{f"-{ses}" if ses else ""}, skipping'
-        )
-        return False
+        if not os.path.exists(hippunfold_path):
+            print(
+                f'No hippunfold at {hippunfold_path} for {sub}{f"-{ses}" if ses else ""}, skipping'
+            )
+            return False
 
     return True
 
@@ -524,12 +533,12 @@ def create_jobs(args, subs, ses, run_type):
         s = None
         if args.ses is not None:
             s = args.ses[enum]
-
-        for s in (
-            os.listdir(os.path.join(args.dataset, "derivatives", args.micapipe, sub))
-            if not ses
-            else [s]
-        ):
+        directory = (
+            os.path.join(args.dataset, "derivatives", args.zbrains, sub)
+            if run_type == "analysis"
+            else os.path.join(args.dataset, "derivatives", args.micapipe, sub)
+        )
+        for s in os.listdir(directory) if not ses else [s]:
             if check_sub(args, sub, s):
                 job = copy.copy(args)
                 job.sub, job.ses, job.run = sub, s, run_type
@@ -563,17 +572,34 @@ def main(args):
 
     # Assume args is parsed from command line arguments
     args.ses = args.ses.split(" ") if args.ses else None
-    args.sub = (
-        args.sub.split(" ")
-        if args.sub != "all"
-        else [
+    if args.sub != "all":
+        args.sub = args.sub.split(" ")
+    elif args.demo:
+        print("Running analysis on all subjects specified in the demo file")
+        args.sub = list(pd.read_csv(args.demo)["participant_id"].values)
+    elif "proc" in args.run:
+        print("Running proc on all subjects with micapipe and hippunfold inputs")
+        args.sub = [
             sub
             for sub in os.listdir(
                 os.path.join(args.dataset, "derivatives", args.micapipe)
             )
             if check_sub(args, sub)
         ]
-    )
+    elif "analysis" in args.run:
+        print("Running analysis on all subjects with zbrains-processed inputs")
+        args.sub = [
+            sub
+            for sub in os.listdir(
+                os.path.join(
+                    args.dataset,
+                    "derivatives",
+                    args.zbrains_ref[0] if args.zbrains_ref else args.zbrains,
+                )
+            )
+            if check_sub(args, sub)
+        ]
+
     if args.ses == ["all"]:
         args.ses = None
     if args.ses and len(args.ses) != len(args.sub):
@@ -673,10 +699,10 @@ if __name__ == "__main__":
     parser.add_argument("--patient_prefix", type=str, default="PX")
     parser.add_argument("--verbose", type=int, default=-1)
     parser.add_argument("--version", action="version", version="1.0.0")
-
+    parser.add_argument("--dicoms", type=int, default=1)
     # Parse the arguments
     args, unknown_args = parser.parse_known_args()
-
+    print(args.dicoms)
     if not vars(args):
         parser.print_help()
         sys.exit(1)

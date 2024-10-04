@@ -117,6 +117,17 @@ def compute_blurring(
     subprocess.run(
         [
             os.path.join(workbench_path, "wb_command"),
+            "-set-structure",
+            os.path.join(
+                tmp_dir,
+                f"{bids_id}-{hemi}-{feat}-{resol}-{fwhm}-surf-fsnative_grad.func.gii",
+            ),
+            "CORTEX_LEFT" if hemi == "L" else "CORTEX_RIGHT",
+        ]
+    )
+    subprocess.run(
+        [
+            os.path.join(workbench_path, "wb_command"),
             "-metric-resample",
             os.path.join(
                 tmp_dir,
@@ -133,6 +144,17 @@ def compute_blurring(
                 tmp_dir,
                 f"{bids_id}-{hemi}-{feat}-{resol}-{fwhm}-surf-fsnative_grad-output.func.gii",
             ),
+        ]
+    )
+    subprocess.run(
+        [
+            os.path.join(workbench_path, "wb_command"),
+            "-set-structure",
+            os.path.join(
+                tmp_dir,
+                f"{bids_id}-{hemi}-{feat}-{resol}-{fwhm}-surf-fsnative_grad-output.func.gii",
+            ),
+            "CORTEX_LEFT" if hemi == "L" else "CORTEX_RIGHT",
         ]
     )
     return os.path.join(

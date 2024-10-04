@@ -189,13 +189,19 @@ def process_cortex(
         f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_fsnative_temp.func.gii"
     )
 
-    # command_struct = [
+    command_struct = [
+        os.path.join(workbench_path, "wb_command"),
+        "-set-structure",
+        metricfile,
+        "CORTEX_LEFT" if hemi == "L" else "CORTEX_RIGHT",
+    ]
+
+    # command_struct_native = [
     #     os.path.join(workbench_path, "wb_command"),
     #     "-set-structure",
-    #     metricfile,
+    #     nativesphere,
     #     "CORTEX_LEFT" if hemi == "L" else "CORTEX_RIGHT",
     # ]
-
     command1 = [
         os.path.join(workbench_path, "wb_command"),
         "-metric-resample",
@@ -204,6 +210,13 @@ def process_cortex(
         nativesphere,
         "BARYCENTRIC",
         outputmetric,
+    ]
+
+    command_struct_2 = [
+        os.path.join(workbench_path, "wb_command"),
+        "-set-structure",
+        outputmetric,
+        "CORTEX_LEFT" if hemi == "L" else "CORTEX_RIGHT",
     ]
 
     command2 = [
@@ -219,10 +232,11 @@ def process_cortex(
     ]
 
     # Run the commands
-    # subprocess.run(command_struct)
+    subprocess.run(command_struct)
+    # subprocess.run(command_struct_native)
 
     subprocess.run(command1)
-
+    subprocess.run(command_struct_2)
     subprocess.run(command2)
 
     os.replace(
@@ -284,12 +298,12 @@ def process_hippocampus(
         )
         return
 
-    # command_struct = [
-    #     os.path.join(workbench_path, "wb_command"),
-    #     "-set-structure",
-    #     metricfile,
-    #     "CORTEX_LEFT" if hemi == "L" else "CORTEX_RIGHT",
-    # ]
+    command_struct = [
+        os.path.join(workbench_path, "wb_command"),
+        "-set-structure",
+        metricfile,
+        "CORTEX_LEFT" if hemi == "L" else "CORTEX_RIGHT",
+    ]
 
     command2 = [
         os.path.join(workbench_path, "wb_command"),
@@ -303,7 +317,7 @@ def process_hippocampus(
         f"{boundingpattern}outer.surf.gii",
     ]
 
-    # subprocess.run(command_struct)
+    subprocess.run(command_struct)
 
     subprocess.run(command2)
 
@@ -709,6 +723,7 @@ def surface_to_volume(
     n_jobs_wb,
     workbench_path,
     thresh=3,
+    dicoms=None,
 ):
     """
     Process surface data to generate volumetric images for specified features and analyses.
@@ -773,7 +788,7 @@ def surface_to_volume(
     if "thickness" in features:
         features[features.index("thickness")] = "volume"
     features = sorted(features, key=str.lower)
-    features.append("-".join(features))
+    features.append("-".join([x for x in features if "blur" not in x]))
     print("feats: ", features)
     # shutil.copyfile(
     #     os.path.join(
@@ -833,26 +848,27 @@ def surface_to_volume(
         for feature in features
         for analysis in analyses
     )
-    print("Converting to DICOM")
-    timepre = time()
-    Parallel(n_jobs=n_jobs)(
-        delayed(dicomify)(
-            outdir,
-            subj,
-            ses,
-            feature,
-            smooth_ctx,
-            smooth_hipp,
-            analysis,
-            tmp,
-            thresh,
-            px_demo=px_demo,
+    if dicoms == 1:
+        print("Converting to DICOM")
+        timepre = time()
+        Parallel(n_jobs=n_jobs)(
+            delayed(dicomify)(
+                outdir,
+                subj,
+                ses,
+                feature,
+                smooth_ctx,
+                smooth_hipp,
+                analysis,
+                tmp,
+                thresh,
+                px_demo=px_demo,
+            )
+            for feature in features
+            for analysis in analyses
         )
-        for feature in features
-        for analysis in analyses
-    )
-    timepost = time() - timepre
-    print(f"Time taken to convert to DICOM: {timepost}")
+        timepost = time() - timepre
+        print(f"Time taken to convert to DICOM: {timepost}")
 
 
 if __name__ == "__main__":
