@@ -224,11 +224,11 @@ def process_cortex(
         "-metric-to-volume-mapping",
         outputmetric,
         f"{boundingpattern}midthickness.surf.gii",
-        f"{rootzbrainfolder}/structural/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz",
-        f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
+        f"{rootzbrainfolder}/structural/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz",  # the structural image that the metric map is based off
+        f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",  # the output file (mine gets renamed later)
         "-ribbon-constrained",
-        f"{boundingpattern}white.surf.gii",
-        f"{boundingpattern}pial.surf.gii",
+        f"{boundingpattern}white.surf.gii",  # white surf
+        f"{boundingpattern}pial.surf.gii",  # pial surf
     ]
 
     # Run the commands
