@@ -143,6 +143,7 @@ def parse_args(args):
         args.struct = LIST_STRUCTURES
     args.struct.sort(key=str.lower)  # case-insensitive sort
     structures = args.struct
+
     features = args.feat or ["all"]
     if "all" in features:
         features = LIST_FEATURES
@@ -214,15 +215,16 @@ def check_files_and_directories(args, tasks, structures, sid, ses):
     )
 
     if "proc" in tasks:
-        SUBJECT_MICAPIPE_DIR = (
-            os.path.join(dataset_path, args.micapipe, sid, ses)
-            if ses
-            else os.path.join(dataset_path, args.micapipe, sid)
-        )
-        # print(SUBJECT_MICAPIPE_DIR)
-        assert_exists(
-            SUBJECT_MICAPIPE_DIR, f"{BIDS_ID} micapipe directory does not exist."
-        )
+        if "cortex" in structures or "subcortex" in structures:
+            SUBJECT_MICAPIPE_DIR = (
+                os.path.join(dataset_path, args.micapipe, sid, ses)
+                if ses
+                else os.path.join(dataset_path, args.micapipe, sid)
+            )
+            # print(SUBJECT_MICAPIPE_DIR)
+            assert_exists(
+                SUBJECT_MICAPIPE_DIR, f"{BIDS_ID} micapipe directory does not exist."
+            )
 
         if "hippocampus" in structures:
             SUBJECT_HIPPUNFOLD_DIR = (
@@ -513,14 +515,16 @@ def check_sub(args, sub, ses=None):
         micapipe_path = os.path.join(micapipe_path, ses)
         hippunfold_path = os.path.join(hippunfold_path, ses)
     if "proc" in args.run:
-        if "cortex" or "subcortex" in args.struct:
-            if not os.path.exists(micapipe_path):
+        if "cortex" in args.struct or "subcortex" in args.struct:
+            if not os.path.exists(micapipe_path) or not os.path.isdir(micapipe_path):
                 print(
                     f'No micapipe at {micapipe_path} for {sub}{f"-{ses}" if ses else ""}, skipping'
                 )
                 return False
         if "hippocampus" in args.struct:
-            if not os.path.exists(hippunfold_path):
+            if not os.path.exists(hippunfold_path) or not os.path.isdir(
+                hippunfold_path
+            ):
                 print(
                     f'No hippunfold at {hippunfold_path} for {sub}{f"-{ses}" if ses else ""}, skipping'
                 )
