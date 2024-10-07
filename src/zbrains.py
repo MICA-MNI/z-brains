@@ -137,11 +137,12 @@ def parse_args(args):
     sid = f"sub-{args.sub.replace('sub-', '')}"
     ses = f"ses-{args.ses.replace('ses-', '')}" if args.ses else None
 
-    structures = args.struct or ["all"]
-    if "all" in structures:
-        structures = LIST_STRUCTURES
-    structures.sort(key=str.lower)  # case-insensitive sort
-
+    if not args.struct:
+        args.struct = ["all"]
+    if "all" in args.struct:
+        args.struct = LIST_STRUCTURES
+    args.struct.sort(key=str.lower)  # case-insensitive sort
+    structures = args.struct
     features = args.feat or ["all"]
     if "all" in features:
         features = LIST_FEATURES
@@ -512,17 +513,18 @@ def check_sub(args, sub, ses=None):
         micapipe_path = os.path.join(micapipe_path, ses)
         hippunfold_path = os.path.join(hippunfold_path, ses)
     if "proc" in args.run:
-        if not os.path.exists(micapipe_path):
-            print(
-                f'No micapipe at {micapipe_path} for {sub}{f"-{ses}" if ses else ""}, skipping'
-            )
-            return False
-
-        if not os.path.exists(hippunfold_path):
-            print(
-                f'No hippunfold at {hippunfold_path} for {sub}{f"-{ses}" if ses else ""}, skipping'
-            )
-            return False
+        if "cortex" or "subcortex" in args.struct:
+            if not os.path.exists(micapipe_path):
+                print(
+                    f'No micapipe at {micapipe_path} for {sub}{f"-{ses}" if ses else ""}, skipping'
+                )
+                return False
+        if "hippocampus" in args.struct:
+            if not os.path.exists(hippunfold_path):
+                print(
+                    f'No hippunfold at {hippunfold_path} for {sub}{f"-{ses}" if ses else ""}, skipping'
+                )
+                return False
 
     return True
 
