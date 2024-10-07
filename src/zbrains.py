@@ -213,6 +213,8 @@ def check_files_and_directories(args, tasks, structures, sid, ses):
         if ses
         else os.path.join(px_zbrains_path, sid)
     )
+    SUBJECT_MICAPIPE_DIR = None
+    SUBJECT_HIPPUNFOLD_DIR = None
 
     if "proc" in tasks:
         if "cortex" in structures or "subcortex" in structures:
