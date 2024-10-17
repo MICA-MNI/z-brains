@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import re
 from time import time
 import shutil
+import cmocean as cmo
 
 hemis = ["L", "R"]
 
@@ -38,8 +39,8 @@ def float_array_to_hot(array):
     array = (array - -4) / (4 - -4)
 
     # Get the "hot" colormap
-    cmap = plt.get_cmap("hot")
-
+    # cmap = plt.get_cmap("hot")
+    cmap = cmo.cm.balance
     # Convert the normalized values to colors in the "hot" colormap
     rgb_array = cmap(array)
 
@@ -229,6 +230,7 @@ def process_cortex(
         "-ribbon-constrained",
         f"{boundingpattern}white.surf.gii",  # white surf
         f"{boundingpattern}pial.surf.gii",  # pial surf
+        "-greedy",
     ]
 
     # Run the commands
@@ -315,6 +317,7 @@ def process_hippocampus(
         "-ribbon-constrained",
         f"{boundingpattern}inner.surf.gii",
         f"{boundingpattern}outer.surf.gii",
+        "-greedy",
     ]
 
     subprocess.run(command_struct)
@@ -760,7 +763,7 @@ def surface_to_volume(
     os.environ["OMP_NUM_THREADS"] = str(n_jobs_wb)
     if isinstance(px_demo, pd.DataFrame):
         px_demo = px_demo[px_demo["participant_id"] == subj]
-        px_demo = px_demo[px_demo["session_id"] == ses]
+        # px_demo = px_demo[px_demo["session_id"] == ses]
         px_demo = px_demo.reset_index(drop=True)
     rootzbrainfolder = os.path.join(rootfolder, zbrainsdir, subj, ses)
     outdir = os.path.join(rootzbrainfolder, "norm-z-volumetric")

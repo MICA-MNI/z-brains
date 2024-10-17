@@ -115,6 +115,8 @@ zbrains.py
                                     Default is {bcolor}1.96{nc}.
 \t{gcolor}--dicoms{nc} [bool]            : If set to 1, will convert NIfTI files to DICOMs during analysis. This can be time-intensive. 
                                     Default is {bcolor}1{nc}.
+\t{gcolor}--volumetric{nc} [bool]            : If set to 1, will convert surface maps to volume space using ribbon-constrained mapping. 
+                                    Default is {bcolor}1{nc}.
 \t{gcolor}--column_map{nc} [VAR=col ...]: Map expected to actual column names in the CSV/TSV files:
                                     - participant_id: Subject ID is assumed to be provided by the 'participant_id'
                                                         column, unless indicated otherwise. For example, if subject ID

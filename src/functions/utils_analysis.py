@@ -616,9 +616,10 @@ def load_demo(
     for p in path:
         sep = "\t" if p.suffix == ".tsv" else ","
         df = pd.read_csv(p, header=[0], dtype=dtypes, sep=sep)
+
         if rename is not None:
             df.rename(columns=rename, inplace=True)
-
+            df = df.dropna(subset=["participant_id"])
             if "participant_id" in df:
                 pids = df["participant_id"].tolist()
                 for v in pids:
