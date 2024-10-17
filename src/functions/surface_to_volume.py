@@ -10,8 +10,73 @@ import re
 from time import time
 import shutil
 import cmocean as cmo
+import scipy
 
 hemis = ["L", "R"]
+
+
+def fixmatrix(path, subject, session, temppath, wb_path, rootzbrainfolder):
+    # Load the .mat file
+    mat = scipy.io.loadmat(
+        os.path.join(
+            path,
+            "xfm",
+            f"{subject}_{session}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_0GenericAffine.mat",
+        )
+    )
+
+    # Extract variables from the .mat file
+    affine_transform = mat["AffineTransform_double_3_3"].flatten()
+    fixed = mat["fixed"].flatten()
+
+    temp = np.identity(4)
+    for i in range(3):
+        temp[i, 3] = affine_transform[9 + i] + fixed[i]
+        for j in range(3):
+            temp[i, j] = affine_transform[i * 3 + j]
+            temp[i, 3] -= temp[i, j] * fixed[j]
+
+    flips = np.identity(4)
+    flips[0, 0] = -1
+    flips[1, 1] = -1
+
+    m_matrix = np.linalg.inv(flips @ temp @ flips)
+
+    print(m_matrix)
+    with open(
+        os.path.join(temppath, "real_world_affine.txt"),
+        "w",
+    ) as f:
+        for row in m_matrix:
+            f.write(" ".join(map(str, row)) + "\n")
+
+    command = [
+        os.path.join(wb_path, "wb_command"),
+        "-convert-warpfield",
+        "-from-itk",
+        os.path.join(
+            path,
+            "xfm",
+            f"{subject}_{session}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_1Warp.nii.gz",
+        ),
+        "-to-world",
+        os.path.join(temppath, "real_warp.nii.gz"),
+    ]
+    subprocess.run(command)
+    command3 = [
+        os.path.join(wb_path, "wb_command"),
+        "-volume-resample",
+        f"{rootzbrainfolder}/structural/{subject}_{session}_space-nativepro_T1w_brain.nii.gz",
+        "src/data/MNI152_T1_0.8mm_brain.nii.gz",
+        "ENCLOSING_VOXEL",
+        f"{rootzbrainfolder}/structural/{subject}_{session}_space-nativepro_T1w_brain_MNI152.nii.gz",
+        "-affine",
+        os.path.join(temppath, "real_world_affine.txt"),
+        "-warp",
+        os.path.join(temppath, "real_warp.nii.gz"),
+    ]
+
+    subprocess.run(command3)
 
 
 def float_array_to_hot(array):
@@ -115,7 +180,7 @@ def savevolume(
         vol = vol.get_fdata()
 
     template = nib.load(
-        f"{rootzbrainfolder}/structural/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz"
+        f"{rootzbrainfolder}/structural/{subj}_{ses}_space-nativepro_T1w_brain_MNI152.nii.gz",
     )
     template_data = template.get_fdata()
 
@@ -226,11 +291,24 @@ def process_cortex(
         outputmetric,
         f"{boundingpattern}midthickness.surf.gii",
         f"{rootzbrainfolder}/structural/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz",  # the structural image that the metric map is based off
-        f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",  # the output file (mine gets renamed later)
+        f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp_pretransform.nii.gz",  # the output file (mine gets renamed later)
         "-ribbon-constrained",
         f"{boundingpattern}white.surf.gii",  # white surf
         f"{boundingpattern}pial.surf.gii",  # pial surf
         "-greedy",
+    ]
+
+    command3 = [
+        os.path.join(workbench_path, "wb_command"),
+        "-volume-resample",
+        f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp_pretransform.nii.gz",
+        "src/data/MNI152_T1_0.8mm_brain.nii.gz",
+        "ENCLOSING_VOXEL",
+        f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
+        "-affine",
+        os.path.join(tmp, "real_world_affine.txt"),
+        "-warp",
+        os.path.join(tmp, "real_warp.nii.gz"),
     ]
 
     # Run the commands
@@ -240,7 +318,7 @@ def process_cortex(
     subprocess.run(command1)
     subprocess.run(command_struct_2)
     subprocess.run(command2)
-
+    subprocess.run(command3)
     os.replace(
         f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
         f"{outdir}/{subj}_{ses}_hemi-{hemi}_surf-fsLR-32k_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.nii.gz",
@@ -313,16 +391,30 @@ def process_hippocampus(
         metricfile,
         f"{boundingpattern}midthickness.surf.gii",
         f"{rootzbrainfolder}/structural/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz",
-        f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
+        f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp_pretransform.nii.gz",
         "-ribbon-constrained",
         f"{boundingpattern}inner.surf.gii",
         f"{boundingpattern}outer.surf.gii",
         "-greedy",
     ]
+    command3 = [
+        os.path.join(workbench_path, "wb_command"),
+        "-volume-resample",
+        f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp_pretransform.nii.gz",
+        "src/data/MNI152_T1_0.8mm_brain.nii.gz",
+        "ENCLOSING_VOXEL",
+        f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
+        "-affine",
+        os.path.join(tmp, "real_world_affine.txt"),
+        "-warp",
+        os.path.join(tmp, "real_warp.nii.gz"),
+    ]
 
     subprocess.run(command_struct)
 
     subprocess.run(command2)
+
+    subprocess.run(command3)
 
     os.replace(
         f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
@@ -340,6 +432,7 @@ def process_subcortex(
     subj,
     ses,
     struct,
+    workbench_path,
     tmp,
 ):
     """
@@ -406,9 +499,21 @@ def process_subcortex(
         outputatlas, atlas.affine, atlas.header, dtype=np.float64
     )
     output_img.to_filename(
-        f"{tmp}/{feature}_{analysis}_{struct}_temp.nii.gz",
+        f"{tmp}/{feature}_{analysis}_{struct}_temp_pretransform.nii.gz",
     )
-
+    command3 = [
+        os.path.join(workbench_path, "wb_command"),
+        "-volume-resample",
+        f"{tmp}/{feature}_{analysis}_{struct}_temp_pretransform.nii.gz",
+        "src/data/MNI152_T1_0.8mm_brain.nii.gz",
+        "ENCLOSING_VOXEL",
+        f"{tmp}/{feature}_{analysis}_{struct}_temp.nii.gz",
+        "-affine",
+        os.path.join(tmp, "real_world_affine.txt"),
+        "-warp",
+        os.path.join(tmp, "real_warp.nii.gz"),
+    ]
+    subprocess.run(command3)
     os.replace(
         f"{tmp}/{feature}_{analysis}_{struct}_temp.nii.gz",
         f"{outdir}/{subj}_{ses}_feature-{feature}_analysis-{analysis}.nii.gz",
@@ -459,6 +564,7 @@ def process(
         None
     """
     outdir = os.path.join(outdir, struct)
+
     print(f"Processing structure: {struct}")
     if struct == "cortex":
         subdir = micapipename
@@ -515,6 +621,7 @@ def process(
             subj,
             ses,
             struct,
+            workbench_path,
             tmp,
         )
     print("Processing completed.")
@@ -804,6 +911,8 @@ def surface_to_volume(
     #     ),
     #     os.path.join(outdir, "base_T1w.nii.gz"),
     # )
+    micapiperootfolder = os.path.join(rootfolder, micapipename, subj, ses)
+    fixmatrix(micapiperootfolder, subj, ses, tmp, workbench_path, rootzbrainfolder)
 
     Parallel(n_jobs=n_jobs)(
         delayed(process)(
