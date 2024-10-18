@@ -13,6 +13,7 @@ import cmocean as cmo
 import scipy
 
 hemis = ["L", "R"]
+settozero = True
 
 
 def fixmatrix(path, subject, session, temppath, wb_path, rootzbrainfolder):
@@ -77,6 +78,59 @@ def fixmatrix(path, subject, session, temppath, wb_path, rootzbrainfolder):
     ]
 
     subprocess.run(command3)
+
+
+def float_array_to_hot_nonrgb(array):
+    """
+    Converts a floating-point array to a "hot" colormap representation.
+
+    This function takes a floating-point array, normalizes it to the range [0, 1],
+    maps the values to colors in the "hot" colormap, and returns the RGB array along with a mask.
+
+    Args:
+        array: A numpy array containing floating-point values.
+
+    Returns:
+        Tuple containing the RGB array representing the "hot" colormap and a mask array.
+    """
+    if np.sum(array) == 0:
+        dims = array.shape + (3,)
+        mask = array != 0.0
+        return np.zeros(dims, dtype=np.uint8), mask
+    # Normalize the array to the range [0, 1]
+
+    array = np.clip(array, -4, 4)
+    mask = array != 0.0
+    # Normalize the clipped array to the range [0, 1]
+    array = (array - -4) / (4 - -4)
+
+    # Convert the colors to integers in the range [0, 255]
+    rgb_array = (array * 255).astype(float)
+
+    return rgb_array, mask
+
+
+def float_array_to_grayscale_nonrgb(array):
+    """
+    Converts a floating-point array to a grayscale image representation.
+
+    This function takes a floating-point array, normalizes it to the range [0, 1],
+    converts the values to integers in the range [0, 255], and returns a grayscale image.
+
+    Args:
+        array: A numpy array containing floating-point values.
+
+    Returns:
+        A numpy array representing the grayscale image.
+    """
+
+    # Normalize the array to the range [0, 1]
+    array = (array - np.min(array)) / (np.max(array) - np.min(array))
+
+    # Convert the values to integers in the range [0, 255]
+    int_array = (array * 255).astype(float)
+
+    return int_array
 
 
 def float_array_to_hot(array):
@@ -376,7 +430,10 @@ def process_hippocampus(
         print(
             f"{feature} is not available for {subj}_{ses}_{hemi} at {smooth} smoothing in the {struct}, skipping"
         )
-        return
+        if not settozero:
+            return
+        else:
+            metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{subj}_{ses}_hemi-{hemi}_den-0p5mm_label-midthickness_feature-T1map_smooth-{smooth}_analysis-{analysis}.func.gii"
 
     command_struct = [
         os.path.join(workbench_path, "wb_command"),
@@ -464,7 +521,10 @@ def process_subcortex(
     metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{subj}_{ses}_feature-{feature}_analysis-{analysis}.csv"
     if not os.path.isfile(metricfile):
         print(f"{feature} is not available for {subj}_{ses} in the {struct}, skipping")
-        return
+        if not settozero:
+            return
+        else:
+            metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{subj}_{ses}_feature-T1map_analysis-{analysis}.csv"
     STRUCTURES = {
         "Laccumb": 26,
         "Lamyg": 18,
@@ -675,6 +735,7 @@ def gluetogether(
             return
         else:
             print(f"Loading file: {cort}")
+
     else:
         for each in [cort, hippo, subcort]:
             if not os.path.isfile(each):
@@ -687,17 +748,26 @@ def gluetogether(
     if not "blur" in feature:
         hipponifti = nib.load(hippo)
         subcortnifti = nib.load(subcort)
+    elif settozero:
+        subcortnifti = nib.load(subcort)
+        hipponifti = nib.load(hippo)
     print("Data loaded, starting to combine structures.")
 
     cortdata = cortnifti.get_fdata()
     if not "blur" in feature:
         hippodata = hipponifti.get_fdata()
         subcortdata = subcortnifti.get_fdata()
+    elif settozero:
+        subcortdata = subcortnifti.get_fdata()
+        hippodata = hipponifti.get_fdata()
     outputnifti = np.zeros_like(cortdata)
     outputnifti[cortdata != 0] = cortdata[cortdata != 0]
     if not "blur" in feature:
         outputnifti[subcortdata != 0] = subcortdata[subcortdata != 0]
         outputnifti[hippodata != 0] = hippodata[hippodata != 0]
+    elif settozero:
+        outputnifti[subcortdata != 0] = 0.0001
+        outputnifti[hippodata != 0] = 0.0001
 
     print("Left hemisphere data combined.")
 
@@ -706,15 +776,23 @@ def gluetogether(
         hippo = f"{outdir}/hippocampus/{subj}_{ses}_hemi-R_den-0p5mm_label-midthickness_feature-{feature}_smooth-{smooth_hipp}_analysis-{analysis}.nii.gz"
 
         cortnifti = nib.load(cort)
+
         if not "blur" in feature:
+            hipponifti = nib.load(hippo)
+        elif settozero:
             hipponifti = nib.load(hippo)
 
         cortdata = cortnifti.get_fdata()
         if not "blur" in feature:
             hippodata = hipponifti.get_fdata()
+        elif settozero:
+            hippodata = hipponifti.get_fdata()
+
         outputnifti[cortdata != 0] = cortdata[cortdata != 0]
         if not "blur" in feature:
             outputnifti[hippodata != 0] = hippodata[hippodata != 0]
+        elif settozero:
+            outputnifti[hippodata != 0] = 0.0001
         print("Right hemisphere data combined.")
 
     micapipefolder = os.path.join(rootfolder, micapipename, subj, ses)
