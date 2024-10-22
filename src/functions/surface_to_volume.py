@@ -873,8 +873,8 @@ def dicomify(
         return
 
     outpath = f"{outdir}/DICOM/{subj}_{ses}_label-midthickness_feature-{feature}_smooth-ctx-{smooth_ctx}_smooth-hipp-{smooth_hipp}_analysis-{analysis}_threshold-{thresh}"
-    if not os.path.exists(outpath):
-        os.makedirs(outpath)
+    # if not os.path.exists(outpath):
+    #     os.makedirs(outpath)
 
     tempnii = nib.load(path)
 
@@ -992,52 +992,52 @@ def surface_to_volume(
     micapiperootfolder = os.path.join(rootfolder, micapipename, subj, ses)
     fixmatrix(micapiperootfolder, subj, ses, tmp, workbench_path, rootzbrainfolder)
 
-    Parallel(n_jobs=n_jobs)(
-        delayed(process)(
-            feature,
-            hemi,
-            analysis,
-            rootzbrainfolder,
-            rootfolder,
-            outdir,
-            subj,
-            ses,
-            struct,
-            micapipename,
-            hippunfoldname,
-            smooth_ctx,
-            smooth_hipp,
-            workbench_path,
-            tmp,
-        )
-        for feature in features
-        for hemi in hemis
-        for analysis in analyses
-        for struct in structs
-    )
+    # Parallel(n_jobs=n_jobs)(
+    #     delayed(process)(
+    #         feature,
+    #         hemi,
+    #         analysis,
+    #         rootzbrainfolder,
+    #         rootfolder,
+    #         outdir,
+    #         subj,
+    #         ses,
+    #         struct,
+    #         micapipename,
+    #         hippunfoldname,
+    #         smooth_ctx,
+    #         smooth_hipp,
+    #         workbench_path,
+    #         tmp,
+    #     )
+    #     for feature in features
+    #     for hemi in hemis
+    #     for analysis in analyses
+    #     for struct in structs
+    # )
 
-    if not os.path.exists(f"{outdir}/full"):
-        os.makedirs(f"{outdir}/full")
-    if not os.path.exists(f"{outdir}/full_burned"):
-        os.makedirs(f"{outdir}/full_burned")
-    Parallel(n_jobs=n_jobs)(
-        delayed(gluetogether)(
-            outdir,
-            subj,
-            ses,
-            feature,
-            smooth_ctx,
-            smooth_hipp,
-            analysis,
-            rootfolder,
-            micapipename,
-            tmp,
-            rootzbrainfolder,
-            thresh=thresh,
-        )
-        for feature in features
-        for analysis in analyses
-    )
+    # if not os.path.exists(f"{outdir}/full"):
+    #     os.makedirs(f"{outdir}/full")
+    # if not os.path.exists(f"{outdir}/full_burned"):
+    #     os.makedirs(f"{outdir}/full_burned")
+    # Parallel(n_jobs=n_jobs)(
+    #     delayed(gluetogether)(
+    #         outdir,
+    #         subj,
+    #         ses,
+    #         feature,
+    #         smooth_ctx,
+    #         smooth_hipp,
+    #         analysis,
+    #         rootfolder,
+    #         micapipename,
+    #         tmp,
+    #         rootzbrainfolder,
+    #         thresh=thresh,
+    #     )
+    #     for feature in features
+    #     for analysis in analyses
+    # )
     if dicoms == 1:
         print("Converting to DICOM")
         timepre = time()
