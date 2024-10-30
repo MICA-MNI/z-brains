@@ -1036,7 +1036,7 @@ def surface_to_volume(
     features = sorted(features, key=str.lower)
     features.append("-".join([x for x in features if "blur" not in x]))
     print("feats: ", features)
-    dicomify_base(outdir,rootzbrainfolder,subj=subj,ses=ses,tmp=tmp,px_demo=px_demo)
+    dicomify_base(outdir,rootzbrainfolder,subj=subj,ses=ses,px_demo=px_demo)
 
 
     # shutil.copyfile(
