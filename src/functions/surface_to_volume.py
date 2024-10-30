@@ -831,6 +831,64 @@ def threshold(array, threshold):
     array = np.where((array > -threshold) & (array < 0), 0, array)
     return array
 
+def dicomify_base(
+    outdir,
+    path,
+    subj,
+    ses,
+    px_demo=None,
+):
+    """
+    Convert a NIfTI image to DICOM format for a specific subject and session.
+
+    This function converts a NIfTI image to DICOM format based on the provided parameters,
+    creating DICOM files in the specified output directory.
+
+    Args:
+        outdir: Output directory for saving the DICOM files.
+        subj: Subject identifier.
+        ses: Session identifier.
+        feature: Specific feature of the image.
+        smooth_ctx: Level of smoothing for the cortex.
+        smooth_hipp: Level of smoothing for the hippocampus.
+        analysis: Type of analysis performed on the image.
+        tmp: Temporary directory path.
+        px_demo: Path to the participant demographics file (default is None).
+
+    Returns:
+        None
+    """
+    feature="T1w_brain_MNI152"
+    smooth_ctx="NA"
+    smooth_hipp="NA"
+    analysis="Base"
+    path = f"{outdir}/structural/{subj}_{ses}_space-nativepro_T1w_brain_MNI152.nii.gz"
+
+    if not os.path.isfile(path):
+        print(
+            f"File not found at {path}. {feature} and the {analysis} analysis is not available for {subj}_{ses}, skipping"
+        )
+        return
+
+    outpath = f"{outdir}/DICOM/{subj}_{ses}_space-nativepro_T1w_brain_MNI152"
+    # if not os.path.exists(outpath):
+    #     os.makedirs(outpath)
+
+    tempnii = nib.load(path)
+
+    array = tempnii.get_fdata()
+
+    convert_nifti_to_dicom(
+        array.astype(np.int16),
+        tempnii.header,
+        tempnii.affine,
+        outpath,
+        feature,
+        smooth_ctx,
+        smooth_hipp,
+        analysis,
+        px_demo,
+    )
 
 def dicomify(
     outdir,
@@ -978,6 +1036,10 @@ def surface_to_volume(
     features = sorted(features, key=str.lower)
     features.append("-".join([x for x in features if "blur" not in x]))
     print("feats: ", features)
+    dicomify_base(outdir,os.path.join(rootzbrainfolder, "structural"
+            f"{subj}_{ses}_space-nativepro_T1w_brain.nii.gz",),subj=subj,ses=ses,tmp=tmp,px_demo=px_demo)
+
+
     # shutil.copyfile(
     #     os.path.join(
     #         rootfolder,
@@ -992,53 +1054,54 @@ def surface_to_volume(
     micapiperootfolder = os.path.join(rootfolder, micapipename, subj, ses)
     fixmatrix(micapiperootfolder, subj, ses, tmp, workbench_path, rootzbrainfolder)
 
-    # Parallel(n_jobs=n_jobs)(
-    #     delayed(process)(
-    #         feature,
-    #         hemi,
-    #         analysis,
-    #         rootzbrainfolder,
-    #         rootfolder,
-    #         outdir,
-    #         subj,
-    #         ses,
-    #         struct,
-    #         micapipename,
-    #         hippunfoldname,
-    #         smooth_ctx,
-    #         smooth_hipp,
-    #         workbench_path,
-    #         tmp,
-    #     )
-    #     for feature in features
-    #     for hemi in hemis
-    #     for analysis in analyses
-    #     for struct in structs
-    # )
+    Parallel(n_jobs=n_jobs)(
+        delayed(process)(
+            feature,
+            hemi,
+            analysis,
+            rootzbrainfolder,
+            rootfolder,
+            outdir,
+            subj,
+            ses,
+            struct,
+            micapipename,
+            hippunfoldname,
+            smooth_ctx,
+            smooth_hipp,
+            workbench_path,
+            tmp,
+        )
+        for feature in features
+        for hemi in hemis
+        for analysis in analyses
+        for struct in structs
+    )
 
-    # if not os.path.exists(f"{outdir}/full"):
-    #     os.makedirs(f"{outdir}/full")
-    # if not os.path.exists(f"{outdir}/full_burned"):
-    #     os.makedirs(f"{outdir}/full_burned")
-    # Parallel(n_jobs=n_jobs)(
-    #     delayed(gluetogether)(
-    #         outdir,
-    #         subj,
-    #         ses,
-    #         feature,
-    #         smooth_ctx,
-    #         smooth_hipp,
-    #         analysis,
-    #         rootfolder,
-    #         micapipename,
-    #         tmp,
-    #         rootzbrainfolder,
-    #         thresh=thresh,
-    #     )
-    #     for feature in features
-    #     for analysis in analyses
-    # )
+    if not os.path.exists(f"{outdir}/full"):
+        os.makedirs(f"{outdir}/full")
+    if not os.path.exists(f"{outdir}/full_burned"):
+        os.makedirs(f"{outdir}/full_burned")
+    Parallel(n_jobs=n_jobs)(
+        delayed(gluetogether)(
+            outdir,
+            subj,
+            ses,
+            feature,
+            smooth_ctx,
+            smooth_hipp,
+            analysis,
+            rootfolder,
+            micapipename,
+            tmp,
+            rootzbrainfolder,
+            thresh=thresh,
+        )
+        for feature in features
+        for analysis in analyses
+    )
     if dicoms == 1:
+        dicomify_base(outdir, subj, ses, tmp, thresh, px_demo=px_demo)
         print("Converting to DICOM")
         timepre = time()
         Parallel(n_jobs=n_jobs)(

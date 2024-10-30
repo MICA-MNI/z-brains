@@ -180,7 +180,7 @@ def transfer_nii_hdr_series_tags(ds, nii2dcm_parameters, file_meta):
     ds.PatientName = nii2dcm_parameters["PatientName"]
 
 
-def transfer_nii_hdr_instance_tags(ds, nii2dcm_parameters, instance_index):
+def transfer_nii_hdr_instance_tags(ds, nii2dcm_parameters, instance_index, isbase=False):
     """
     Transfer NIfTI header parameters applicable to Instance
 
@@ -202,8 +202,12 @@ def transfer_nii_hdr_instance_tags(ds, nii2dcm_parameters, instance_index):
         str(round(nii2dcm_parameters["ImagePositionPatient"][instance_index][1], 2)),
         str(round(nii2dcm_parameters["ImagePositionPatient"][instance_index][2], 2)),
     ]
-    ds.PhotometricInterpretation = "RGB"
-    ds.SamplesPerPixel = 3
+    if isbase == False:
+        ds.PhotometricInterpretation = "RGB"
+        ds.SamplesPerPixel = 3
+    else:
+        ds.PhotometricInterpretation = "MONOCHROME2"
+        ds.SamplesPerPixel = 1
     ds.BitsAllocated = 8
     ds.BitsStored = 8
     ds.PlanarConfiguration = 1
@@ -291,6 +295,7 @@ def convert_nifti_to_dicom(
             write_slice_wrapper(
                 (ds, array, i, out_dir, nii2dcm_parameters)
             )
+
     else:
         useFloat = False
         array = array.transpose(2, 0, 1, 3)
