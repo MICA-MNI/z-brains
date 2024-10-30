@@ -833,7 +833,7 @@ def threshold(array, threshold):
 
 def dicomify_base(
     outdir,
-    path,
+    prefixpath,
     subj,
     ses,
     px_demo=None,
@@ -862,7 +862,7 @@ def dicomify_base(
     smooth_ctx="NA"
     smooth_hipp="NA"
     analysis="Base"
-    path = f"{outdir}/structural/{subj}_{ses}_space-nativepro_T1w_brain_MNI152.nii.gz"
+    path = f"{prefixpath}/structural/{subj}_{ses}_space-nativepro_T1w_brain_MNI152.nii.gz"
 
     if not os.path.isfile(path):
         print(
@@ -1036,8 +1036,7 @@ def surface_to_volume(
     features = sorted(features, key=str.lower)
     features.append("-".join([x for x in features if "blur" not in x]))
     print("feats: ", features)
-    dicomify_base(outdir,os.path.join(rootzbrainfolder, "structural"
-            f"{subj}_{ses}_space-nativepro_T1w_brain.nii.gz",),subj=subj,ses=ses,tmp=tmp,px_demo=px_demo)
+    dicomify_base(outdir,rootzbrainfolder,subj=subj,ses=ses,tmp=tmp,px_demo=px_demo)
 
 
     # shutil.copyfile(
