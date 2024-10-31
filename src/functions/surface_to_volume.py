@@ -1053,17 +1053,6 @@ def surface_to_volume(
     print("feats: ", features)
     dicomify_base(outdir, rootzbrainfolder, subj=subj, ses=ses, px_demo=px_demo)
 
-    # shutil.copyfile(
-    #     os.path.join(
-    #         rootfolder,
-    #         micapipename,
-    #         subj,
-    #         ses,
-    #         "anat",
-    #         f"{subj}_{ses}_space-nativepro_T1w_brain.nii.gz",
-    #     ),
-    #     os.path.join(outdir, "base_T1w.nii.gz"),
-    # )
     micapiperootfolder = os.path.join(rootfolder, micapipename, subj, ses)
     fixmatrix(micapiperootfolder, subj, ses, tmp, workbench_path, rootzbrainfolder)
     # Parallel(n_jobs=n_jobs)(
