@@ -76,6 +76,19 @@ def fixmatrix(path, subject, session, temppath, wb_path, rootzbrainfolder):
         "-warp",
         os.path.join(temppath, "real_warp.nii.gz"),
     ]
+    subprocess.run(command3)
+    command3 = [
+        os.path.join(wb_path, "wb_command"),
+        "-volume-resample",
+        f"{rootzbrainfolder}/structural/{subject}_{session}_space-nativepro_T1w.nii.gz",
+        "src/data/MNI152_T1_0.8mm_brain.nii.gz",
+        "ENCLOSING_VOXEL",
+        f"{rootzbrainfolder}/structural/{subject}_{session}_space-nativepro_T1w_MNI152.nii.gz",
+        "-affine",
+        os.path.join(temppath, "real_world_affine.txt"),
+        "-warp",
+        os.path.join(temppath, "real_warp.nii.gz"),
+    ]
 
     subprocess.run(command3)
 
@@ -234,7 +247,7 @@ def savevolume(
         vol = vol.get_fdata()
 
     template = nib.load(
-        f"{rootzbrainfolder}/structural/{subj}_{ses}_space-nativepro_T1w_brain_MNI152.nii.gz",
+        f"{rootzbrainfolder}/structural/{subj}_{ses}_space-nativepro_T1w_MNI152.nii.gz",
     )
     template_data = template.get_fdata()
 
@@ -831,6 +844,7 @@ def threshold(array, threshold):
     array = np.where((array > -threshold) & (array < 0), 0, array)
     return array
 
+
 def dicomify_base(
     outdir,
     prefixpath,
@@ -858,11 +872,11 @@ def dicomify_base(
     Returns:
         None
     """
-    feature="T1w_brain_MNI152"
-    smooth_ctx="NA"
-    smooth_hipp="NA"
-    analysis="Base"
-    path = f"{prefixpath}/structural/{subj}_{ses}_space-nativepro_T1w_brain_MNI152.nii.gz"
+    feature = "T1w_brain_MNI152"
+    smooth_ctx = "NA"
+    smooth_hipp = "NA"
+    analysis = "Base"
+    path = f"{prefixpath}/structural/{subj}_{ses}_space-nativepro_T1w_MNI152.nii.gz"
 
     if not os.path.isfile(path):
         print(
@@ -870,7 +884,7 @@ def dicomify_base(
         )
         return
 
-    outpath = f"{outdir}/DICOM/{subj}_{ses}_space-nativepro_T1w_brain_MNI152"
+    outpath = f"{outdir}/DICOM/{subj}_{ses}_space-nativepro_T1w_MNI152"
     # if not os.path.exists(outpath):
     #     os.makedirs(outpath)
 
@@ -889,6 +903,7 @@ def dicomify_base(
         analysis,
         px_demo,
     )
+
 
 def dicomify(
     outdir,
@@ -1036,8 +1051,7 @@ def surface_to_volume(
     features = sorted(features, key=str.lower)
     features.append("-".join([x for x in features if "blur" not in x]))
     print("feats: ", features)
-    dicomify_base(outdir,rootzbrainfolder,subj=subj,ses=ses,px_demo=px_demo)
-
+    dicomify_base(outdir, rootzbrainfolder, subj=subj, ses=ses, px_demo=px_demo)
 
     # shutil.copyfile(
     #     os.path.join(

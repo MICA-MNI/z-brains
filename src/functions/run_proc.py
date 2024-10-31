@@ -632,12 +632,24 @@ def run(
         os.path.join(
             subject_micapipe_dir,
             "anat",
-            f"{BIDS_ID}_space-nativepro_T1w.nii.gz",
+            f"{BIDS_ID}_space-nativepro_T1w_brain.nii.gz",
         ),
         os.path.join(
             subject_output_dir,
             "structural",
             f"{BIDS_ID}_space-nativepro_T1w_brain.nii.gz",
+        ),
+    )
+    shutil.copyfile(
+        os.path.join(
+            subject_micapipe_dir,
+            "anat",
+            f"{BIDS_ID}_space-nativepro_T1w.nii.gz",
+        ),
+        os.path.join(
+            subject_output_dir,
+            "structural",
+            f"{BIDS_ID}_space-nativepro_T1w.nii.gz",
         ),
     )
     shutil.copyfile(
