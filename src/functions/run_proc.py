@@ -574,56 +574,6 @@ def run(
     # thickness -> volume
     if structure == "subcortex":
         features = [feat.replace("thickness", "volume") for feat in features]
-
-    # do the mapping
-    for feat in features:
-        if structure == "cortex":
-            for res in resolutions:
-                for label in labels:
-                    map_cortex(
-                        BIDS_ID,
-                        feat,
-                        res,
-                        label,
-                        fwhm,
-                        WORKBENCH_PATH,
-                        subject_micapipe_dir,
-                        subject_output_dir,
-                        folder_maps,
-                        folder_ctx,
-                        subject_plugin_dir,  # type: ignore
-                        tmp_dir,
-                    )
-        elif structure == "subcortex":
-            map_subcortex(
-                BIDS_ID,
-                feat,
-                subject_surf_dir,
-                subject_micapipe_dir,
-                subject_output_dir,
-                folder_maps,
-                folder_sctx,
-                script_dir,
-                subject_plugin_dir,
-            )
-        elif structure == "hippocampus":
-            for res in resolutions:
-                map_hippocampus(
-                    BIDS_ID,
-                    feat,
-                    res,
-                    labels,
-                    WORKBENCH_PATH,
-                    subject_hippunfold_dir,
-                    subject_micapipe_dir,
-                    subject_output_dir,
-                    folder_maps,
-                    folder_hip,
-                    fwhm,
-                    tmp_dir,
-                    subject_plugin_dir,  # type: ignore
-                )
-
     # Copy base T1w to output folder
     if not os.path.exists(os.path.join(subject_output_dir, "structural")):
         os.makedirs(os.path.join(subject_output_dir, "structural"))
@@ -705,6 +655,54 @@ def run(
                     f"{BIDS_ID}_hemi-{hemi}_space-T1w_den-0p5mm_label-hipp_{surf}.surf.gii",
                 ),
             )
+    # do the mapping
+    for feat in features:
+        if structure == "cortex":
+            for res in resolutions:
+                for label in labels:
+                    map_cortex(
+                        BIDS_ID,
+                        feat,
+                        res,
+                        label,
+                        fwhm,
+                        WORKBENCH_PATH,
+                        subject_micapipe_dir,
+                        subject_output_dir,
+                        folder_maps,
+                        folder_ctx,
+                        subject_plugin_dir,  # type: ignore
+                        tmp_dir,
+                    )
+        elif structure == "subcortex":
+            map_subcortex(
+                BIDS_ID,
+                feat,
+                subject_surf_dir,
+                subject_micapipe_dir,
+                subject_output_dir,
+                folder_maps,
+                folder_sctx,
+                script_dir,
+                subject_plugin_dir,
+            )
+        elif structure == "hippocampus":
+            for res in resolutions:
+                map_hippocampus(
+                    BIDS_ID,
+                    feat,
+                    res,
+                    labels,
+                    WORKBENCH_PATH,
+                    subject_hippunfold_dir,
+                    subject_micapipe_dir,
+                    subject_output_dir,
+                    folder_maps,
+                    folder_hip,
+                    fwhm,
+                    tmp_dir,
+                    subject_plugin_dir,  # type: ignore
+                )
 
     # Wrap up
     elapsed = round((time.time() - start_time) / 60, 2)
