@@ -912,6 +912,7 @@ def report_struct(
     color_range=(-2, 2),
     color_bar="bottom",
     tmp_dir: PathType = "/tmp",
+    feature_means=None
 ):
     logger = logging.getLogger(tmp_dir)
     bids_id = get_bids_id(sid, ses)
@@ -937,7 +938,16 @@ def report_struct(
     info = ""
     if struct != "subcortex":
         struct_res = map_resolution(struct, res)
-        info = f"| {smooth}mm smooth | resolution {struct_res}"
+        info = f"| {smooth}mm smooth | resolution {struct_res} "
+
+    feat_lh, feat_rh = load_data_struct(
+        struct,
+        file_lh=file_lh,
+        file_rh=file_rh,
+        analysis=analysis,
+        threshold=thr,
+        threshold_alpha=thr_alpha,
+    )
 
     html = (
         '<p style="margin-bottom:0;margin-top:0;'
@@ -946,7 +956,7 @@ def report_struct(
         # f'<b>{adjectivize_struct(struct)} {feat}</b> | {info} '
         f"<b>{struct.capitalize()}</b>"
         # f'{analysis} analysis | approach-{approach} {thr_str}'
-        f"| {approach} approach {info}"
+        f"| {approach} approach {info}{f"| left mean={np.mean(feat_lh)} " if file_lh.exists() else ""}{f"| right mean={np.mean(feat_rh)}" if file_rh.exists() else ""}"
         "</p>"
     )
 
@@ -961,14 +971,7 @@ def report_struct(
         html += png_block
         return html
 
-    feat_lh, feat_rh = load_data_struct(
-        struct,
-        file_lh=file_lh,
-        file_rh=file_rh,
-        analysis=analysis,
-        threshold=thr,
-        threshold_alpha=thr_alpha,
-    )
+    
 
     if analysis == "asymmetry":
         color_range = (-1.5, 1.5)
@@ -1021,7 +1024,7 @@ def generate_clinical_report(
     subject_dir=None,
     output_dir=None,
     tag=None,
-    meanscores=None
+    feature_means=None
 ):
     """Zbrains: Clinical report generator
 
@@ -1195,11 +1198,11 @@ def generate_clinical_report(
             res=res_ctx,
             label=label_ctx,
             smooth=smooth_ctx,
-            
+            feature_means=feature_means,
             **kwds,
         )
 
-        report += report_struct(struct="subcortex", feat=feat_sctx, **kwds)
+        report += report_struct(struct="subcortex", feat=feat_sctx, feature_means=feature_means, **kwds)
 
         report += report_struct(
             struct="hippocampus",
@@ -1207,6 +1210,7 @@ def generate_clinical_report(
             res=res_hip,
             label=label_hip,
             smooth=smooth_hip,
+            feature_means=feature_means,
             **kwds,
         )
 

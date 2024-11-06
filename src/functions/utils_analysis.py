@@ -1065,6 +1065,7 @@ def run_analysis(
             for analysis in analyses:
                 print("mahalmeans")
                 print(res[analysis]['md'])
+                print("length", len(res[analysis]['md']))
                 feature_means[struct][resol][label][analysis] = np.mean(res[analysis]['md'])
 
         n_available_cn = 0
@@ -1088,4 +1089,4 @@ def run_analysis(
     exit()
     logger.info("Done!\n\n")
 
-    return available_features
+    return available_features, feature_means
