@@ -1067,8 +1067,8 @@ def run_analysis(
             f"controls available]\n"
         )
     print(list(res.keys()))
-    print(res['regional'].keys())
-    print(res['asymmetry'].keys())
+    print(res['regional']['data_px'])
+    print(res['asymmetry']['data_px'])
     exit()
     logger.info("Done!\n\n")
 
