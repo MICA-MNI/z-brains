@@ -1067,6 +1067,7 @@ def run_analysis(
             f"controls available]\n"
         )
     print(list(res.keys()))
+    exit()
     logger.info("Done!\n\n")
 
     return available_features
