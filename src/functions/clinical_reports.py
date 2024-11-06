@@ -912,6 +912,7 @@ def report_struct(
     color_range=(-2, 2),
     color_bar="bottom",
     tmp_dir: PathType = "/tmp",
+    feature_means=None
 ):
     logger = logging.getLogger(tmp_dir)
     bids_id = get_bids_id(sid, ses)
@@ -937,18 +938,9 @@ def report_struct(
     info = ""
     if struct != "subcortex":
         struct_res = map_resolution(struct, res)
-        info = f"| {smooth}mm smooth | resolution {struct_res}"
+        info = f"| {smooth}mm smooth | resolution {struct_res} "
 
-    html = (
-        '<p style="margin-bottom:0;margin-top:0;'
-        "font-family:gill sans,sans-serif;text-align:left;font-size:14px;"
-        'color:#5d5070"> '
-        # f'<b>{adjectivize_struct(struct)} {feat}</b> | {info} '
-        f"<b>{struct.capitalize()}</b>"
-        # f'{analysis} analysis | approach-{approach} {thr_str}'
-        f"| {approach} approach {info}"
-        "</p>"
-    )
+    
 
     lh_exists = file_lh.exists()
     if not lh_exists or file_rh is not None and not file_rh.exists():
@@ -958,17 +950,43 @@ def report_struct(
         logger.warning(f"{adjectivize_struct(struct)} file was not found:\n{missing}")
 
         png_block = make_png_missing(struct)
+        html = (
+        '<p style="margin-bottom:0;margin-top:0;'
+        "font-family:gill sans,sans-serif;text-align:left;font-size:14px;"
+        'color:#5d5070"> '
+        # f'<b>{adjectivize_struct(struct)} {feat}</b> | {info} '
+        f"<b>{struct.capitalize()}</b>"
+        # f'{analysis} analysis | approach-{approach} {thr_str}'
+        f"| {approach} approach {info}"
+        "</p>"
+    )
         html += png_block
         return html
-
-    feat_lh, feat_rh = load_data_struct(
+    else:
+        feat_lh, feat_rh = load_data_struct(
         struct,
         file_lh=file_lh,
         file_rh=file_rh,
         analysis=analysis,
         threshold=thr,
         threshold_alpha=thr_alpha,
-    )
+        )
+
+        file_lh_exists = file_lh.exists() if file_lh is not None else False
+        file_rh_exists = file_rh.exists() if file_rh is not None else False
+        html = (
+            '<p style="margin-bottom:0;margin-top:0;'
+            "font-family:gill sans,sans-serif;text-align:left;font-size:14px;"
+            'color:#5d5070"> '
+            # f'<b>{adjectivize_struct(struct)} {feat}</b> | {info} '
+            f"<b>{struct.capitalize()}</b>"
+            # f'{analysis} analysis | approach-{approach} {thr_str}'
+            f"| {approach} approach {info}{f'| left mean={np.mean(feat_lh):.2f} ' if file_lh_exists else ''}{f'| right mean={np.mean(feat_rh):.2f}' if file_rh_exists else ''}"
+            "</p>"
+        )
+
+
+    
 
     if analysis == "asymmetry":
         color_range = (-1.5, 1.5)
@@ -1021,6 +1039,7 @@ def generate_clinical_report(
     subject_dir=None,
     output_dir=None,
     tag=None,
+    feature_means=None
 ):
     """Zbrains: Clinical report generator
 
@@ -1194,10 +1213,11 @@ def generate_clinical_report(
             res=res_ctx,
             label=label_ctx,
             smooth=smooth_ctx,
+            feature_means=feature_means,
             **kwds,
         )
 
-        report += report_struct(struct="subcortex", feat=feat_sctx, **kwds)
+        report += report_struct(struct="subcortex", feat=feat_sctx, feature_means=feature_means, **kwds)
 
         report += report_struct(
             struct="hippocampus",
@@ -1205,6 +1225,7 @@ def generate_clinical_report(
             res=res_hip,
             label=label_hip,
             smooth=smooth_hip,
+            feature_means=feature_means,
             **kwds,
         )
 

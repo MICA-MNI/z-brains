@@ -137,10 +137,12 @@ def parse_args(args):
     sid = f"sub-{args.sub.replace('sub-', '')}"
     ses = f"ses-{args.ses.replace('ses-', '')}" if args.ses else None
 
-    structures = args.struct or ["all"]
-    if "all" in structures:
-        structures = LIST_STRUCTURES
-    structures.sort(key=str.lower)  # case-insensitive sort
+    if not args.struct:
+        args.struct = ["all"]
+    if "all" in args.struct:
+        args.struct = LIST_STRUCTURES
+    args.struct.sort(key=str.lower)  # case-insensitive sort
+    structures = args.struct
 
     features = args.feat or ["all"]
     if "all" in features:
@@ -211,17 +213,21 @@ def check_files_and_directories(args, tasks, structures, sid, ses):
         if ses
         else os.path.join(px_zbrains_path, sid)
     )
+    SUBJECT_MICAPIPE_DIR = None
+    SUBJECT_HIPPUNFOLD_DIR = None
+    SUBJECT_SURF_DIR = None
 
     if "proc" in tasks:
-        SUBJECT_MICAPIPE_DIR = (
-            os.path.join(dataset_path, args.micapipe, sid, ses)
-            if ses
-            else os.path.join(dataset_path, args.micapipe, sid)
-        )
-        # print(SUBJECT_MICAPIPE_DIR)
-        assert_exists(
-            SUBJECT_MICAPIPE_DIR, f"{BIDS_ID} micapipe directory does not exist."
-        )
+        if "cortex" in structures or "subcortex" in structures:
+            SUBJECT_MICAPIPE_DIR = (
+                os.path.join(dataset_path, args.micapipe, sid, ses)
+                if ses
+                else os.path.join(dataset_path, args.micapipe, sid)
+            )
+            # print(SUBJECT_MICAPIPE_DIR)
+            assert_exists(
+                SUBJECT_MICAPIPE_DIR, f"{BIDS_ID} micapipe directory does not exist."
+            )
 
         if "hippocampus" in structures:
             SUBJECT_HIPPUNFOLD_DIR = (
@@ -483,6 +489,8 @@ def main_func(args):
                     str(args.dataset),
                     "--dicoms",
                     str(args.dicoms),
+                    "--volumetric",
+                    str(args.volumetric),
                 ]
                 print(args.dicoms)
                 if args.demo:
@@ -512,17 +520,20 @@ def check_sub(args, sub, ses=None):
         micapipe_path = os.path.join(micapipe_path, ses)
         hippunfold_path = os.path.join(hippunfold_path, ses)
     if "proc" in args.run:
-        if not os.path.exists(micapipe_path):
-            print(
-                f'No micapipe at {micapipe_path} for {sub}{f"-{ses}" if ses else ""}, skipping'
-            )
-            return False
-
-        if not os.path.exists(hippunfold_path):
-            print(
-                f'No hippunfold at {hippunfold_path} for {sub}{f"-{ses}" if ses else ""}, skipping'
-            )
-            return False
+        if "cortex" in args.struct or "subcortex" in args.struct:
+            if not os.path.exists(micapipe_path) or not os.path.isdir(micapipe_path):
+                print(
+                    f'No micapipe at {micapipe_path} for {sub}{f"-{ses}" if ses else ""}, skipping'
+                )
+                return False
+        if "hippocampus" in args.struct:
+            if not os.path.exists(hippunfold_path) or not os.path.isdir(
+                hippunfold_path
+            ):
+                print(
+                    f'No hippunfold at {hippunfold_path} for {sub}{f"-{ses}" if ses else ""}, skipping'
+                )
+                return False
 
     return True
 
@@ -700,6 +711,7 @@ if __name__ == "__main__":
     parser.add_argument("--verbose", type=int, default=-1)
     parser.add_argument("--version", action="version", version="1.0.0")
     parser.add_argument("--dicoms", type=int, default=1)
+    parser.add_argument("--volumetric", type=int, default=1)
     # Parse the arguments
     args, unknown_args = parser.parse_known_args()
     print(args.dicoms)

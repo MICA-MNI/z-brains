@@ -616,9 +616,10 @@ def load_demo(
     for p in path:
         sep = "\t" if p.suffix == ".tsv" else ","
         df = pd.read_csv(p, header=[0], dtype=dtypes, sep=sep)
+
         if rename is not None:
             df.rename(columns=rename, inplace=True)
-
+            df = df.dropna(subset=["participant_id"])
             if "participant_id" in df:
                 pids = df["participant_id"].tolist()
                 for v in pids:
@@ -977,6 +978,10 @@ def run_analysis(
     if "subcortex" in structures:
         available_features["subcortex"] = []
 
+    feature_means = {k: defaultdict(dict) for k in structures}
+    if "subcortex" in structures:
+        feature_means["subcortex"] = []
+
     # Main loop ----------------------------------------------------------------
     for struct, resol, label in iterables:
         print(struct, resol, label)
@@ -1039,15 +1044,29 @@ def run_analysis(
         else:
             available_features[struct][resol][label] = data_mahalanobis["feat"]
 
+
         # Mahalanobis
         if len(data_mahalanobis["feat"]) < 2:
             continue
 
         # Analysis: mahalanobis distance
         res = _subject_mahalanobis(data=data_mahalanobis, analyses=analyses)
-
+        
         # Save results
         kwds.update({"feat": data_mahalanobis["feat"]})
+        # if struct == "subcortex":
+        #         feature_means[struct] = {}
+        #         for analysis in analyses:
+        #             print("mahalmeans")
+        #             print(res[analysis]['md'])
+        #             feature_means[struct][analysis] = np.mean(res[analysis]['md'])
+        # else:
+        #     feature_means[struct][resol][label] = {}
+        #     for analysis in analyses:
+        #         print("mahalmeans")
+        #         print(res[analysis]['md'])
+        #         print("length", len(res[analysis]['md']))
+        #         feature_means[struct][resol][label][analysis] = np.mean(res[analysis]['md'])
 
         n_available_cn = 0
         for analysis in analyses:
@@ -1057,7 +1076,7 @@ def run_analysis(
 
             if analysis == "regional" and struct != "subcortex":
                 md = md.reshape(2, -1)
-
+            
             _save(pth_analysis, x=md, sid=px_sid, ses=px_ses, analysis=analysis, **kwds)
 
         # n_available_cn = res['data_cn'].shape[0]
@@ -1068,4 +1087,4 @@ def run_analysis(
 
     logger.info("Done!\n\n")
 
-    return available_features
+    return available_features, feature_means

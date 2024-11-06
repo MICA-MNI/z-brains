@@ -51,6 +51,7 @@ def main(
     n_jobs_wb,
     workbench_path,
     dicoms,
+    volumetric,
 ):
     # Some checks
     # logger = logging.getLogger(tmp)
@@ -112,9 +113,10 @@ def main(
     px_demo = None
     if demo is not None:
         px_demo = load_demo(demo, rename=actual_to_expected, dtypes=col_dtypes, tmp=tmp)
-        px_demo = px_demo.loc[
-            (px_demo["participant_id"] == px_id) & (px_demo["session_id"] == px_ses)
-        ]
+        px_demo = px_demo.loc[(px_demo["participant_id"] == px_id)]
+        # px_demo = px_demo.loc[
+        #     (px_demo["participant_id"] == px_id) & (px_demo["session_id"] == px_ses)
+        # ]
 
         # If no such row exists, create an empty DataFrame with the same columns
         if px_demo.empty:
@@ -133,7 +135,7 @@ def main(
     # # Run analyses -------------------------------------------------------------
     logger.info("\n\nStarting analysis")
     for label in labels_ctx:
-        available_features = run_analysis(
+        available_features, feature_means = run_analysis(
             px_sid=px_id,
             px_ses=px_ses,
             cn_zbrains=zbrains_ref,
@@ -156,27 +158,29 @@ def main(
             tmp=tmp,
             n_jobs=n_jobs,
         )
-    # # Generate volumes ----------------------------------------------------------
-    # logger.info("\n\nStarting volume generation")
-    # surface_to_volume(
-    #     dataset,
-    #     feat,
-    #     LIST_ANALYSES,
-    #     struct,
-    #     smooth_ctx,
-    #     smooth_hip,
-    #     zbrains_ref,
-    #     px_id,
-    #     px_ses,
-    #     px_demo,
-    #     micapipename,
-    #     hippunfoldname,
-    #     tmp,
-    #     n_jobs=n_jobs,
-    #     n_jobs_wb=n_jobs_wb,
-    #     workbench_path=workbench_path,
-    #     dicoms=dicoms,
-    # )
+    if volumetric == 1 or dicoms == 1:
+        # Generate volumes ----------------------------------------------------------
+        logger.info("\n\nStarting volume generation")
+        surface_to_volume(
+            dataset,
+            feat,
+            LIST_ANALYSES,
+            struct,
+            smooth_ctx,
+            smooth_hip,
+            zbrains_ref,
+            px_id,
+            px_ses,
+            px_demo,
+            micapipename,
+            hippunfoldname,
+            tmp,
+            n_jobs=n_jobs,
+            n_jobs_wb=n_jobs_wb,
+            workbench_path=workbench_path,
+            dicoms=dicoms,
+            thresh=threshold,
+        )
 
     # Generate report ----------------------------------------------------------
     logger.info("\n\nStarting report generation")
@@ -238,6 +242,7 @@ def main(
         label_ctx=lab_ctx,
         label_hip=lab_hip,
         tmp_dir=tmp,
+        feature_means=feature_means
     )
 
 
@@ -271,6 +276,7 @@ def run(
     workbench_path=None,
     dataset=None,
     dicoms=None,
+    volumetric=None,
 ):
 
     # Logging settings
@@ -345,6 +351,7 @@ def run(
         n_jobs_wb,
         workbench_path,
         dicoms,
+        volumetric,
     )
 
 
@@ -379,6 +386,7 @@ if __name__ == "__main__":
     parser.add_argument("--workbench_path", type=str, required=True)
     parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--dicoms", type=int, required=True)
+    parser.add_argument("--volumetric", type=int, required=True)
 
     # Parse the arguments.
     args = parser.parse_args()
@@ -419,4 +427,5 @@ if __name__ == "__main__":
         workbench_path=args.workbench_path,
         dataset=args.dataset,
         dicoms=args.dicoms,
+        volumetric=args.volumetric,
     )

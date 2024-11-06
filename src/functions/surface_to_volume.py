@@ -9,8 +9,141 @@ import matplotlib.pyplot as plt
 import re
 from time import time
 import shutil
+import cmocean as cmo
+import scipy
 
 hemis = ["L", "R"]
+settozero = True
+
+
+def fixmatrix(path, subject, session, temppath, wb_path, rootzbrainfolder):
+    # Load the .mat file
+    mat = scipy.io.loadmat(
+        os.path.join(
+            path,
+            "xfm",
+            f"{subject}_{session}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_0GenericAffine.mat",
+        )
+    )
+
+    # Extract variables from the .mat file
+    affine_transform = mat["AffineTransform_double_3_3"].flatten()
+    fixed = mat["fixed"].flatten()
+
+    temp = np.identity(4)
+    for i in range(3):
+        temp[i, 3] = affine_transform[9 + i] + fixed[i]
+        for j in range(3):
+            temp[i, j] = affine_transform[i * 3 + j]
+            temp[i, 3] -= temp[i, j] * fixed[j]
+
+    flips = np.identity(4)
+    flips[0, 0] = -1
+    flips[1, 1] = -1
+
+    m_matrix = np.linalg.inv(flips @ temp @ flips)
+
+    print(m_matrix)
+    with open(
+        os.path.join(temppath, "real_world_affine.txt"),
+        "w",
+    ) as f:
+        for row in m_matrix:
+            f.write(" ".join(map(str, row)) + "\n")
+
+    command = [
+        os.path.join(wb_path, "wb_command"),
+        "-convert-warpfield",
+        "-from-itk",
+        os.path.join(
+            path,
+            "xfm",
+            f"{subject}_{session}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_1Warp.nii.gz",
+        ),
+        "-to-world",
+        os.path.join(temppath, "real_warp.nii.gz"),
+    ]
+    subprocess.run(command)
+    command3 = [
+        os.path.join(wb_path, "wb_command"),
+        "-volume-resample",
+        f"{rootzbrainfolder}/structural/{subject}_{session}_space-nativepro_T1w_brain.nii.gz",
+        "src/data/MNI152_T1_0.8mm_brain.nii.gz",
+        "CUBIC",
+        f"{rootzbrainfolder}/structural/{subject}_{session}_space-nativepro_T1w_brain_MNI152.nii.gz",
+        "-affine",
+        os.path.join(temppath, "real_world_affine.txt"),
+        "-warp",
+        os.path.join(temppath, "real_warp.nii.gz"),
+    ]
+    subprocess.run(command3)
+    command3 = [
+        os.path.join(wb_path, "wb_command"),
+        "-volume-resample",
+        f"{rootzbrainfolder}/structural/{subject}_{session}_space-nativepro_T1w.nii.gz",
+        "src/data/MNI152_T1_0.8mm_brain.nii.gz",
+        "CUBIC",
+        f"{rootzbrainfolder}/structural/{subject}_{session}_space-nativepro_T1w_MNI152.nii.gz",
+        "-affine",
+        os.path.join(temppath, "real_world_affine.txt"),
+        "-warp",
+        os.path.join(temppath, "real_warp.nii.gz"),
+    ]
+
+    subprocess.run(command3)
+
+
+def float_array_to_hot_nonrgb(array):
+    """
+    Converts a floating-point array to a "hot" colormap representation.
+
+    This function takes a floating-point array, normalizes it to the range [0, 1],
+    maps the values to colors in the "hot" colormap, and returns the RGB array along with a mask.
+
+    Args:
+        array: A numpy array containing floating-point values.
+
+    Returns:
+        Tuple containing the RGB array representing the "hot" colormap and a mask array.
+    """
+    if np.sum(array) == 0:
+        dims = array.shape + (3,)
+        mask = array != 0.0
+        return np.zeros(dims, dtype=np.uint8), mask
+    # Normalize the array to the range [0, 1]
+
+    array = np.clip(array, -4, 4)
+    mask = array != 0.0
+    # Normalize the clipped array to the range [0, 1]
+    array = (array - -4) / (4 - -4)
+
+    # Convert the colors to integers in the range [0, 255]
+    rgb_array = (array * 255).astype(float)
+
+    return rgb_array, mask
+
+
+def float_array_to_grayscale_nonrgb(array):
+    """
+    Converts a floating-point array to a grayscale image representation.
+
+    This function takes a floating-point array, normalizes it to the range [0, 1],
+    converts the values to integers in the range [0, 255], and returns a grayscale image.
+
+    Args:
+        array: A numpy array containing floating-point values.
+
+    Returns:
+        A numpy array representing the grayscale image.
+    """
+
+    # Normalize the array to the range [0, 1]
+    array = (array - np.min(array)) / (np.max(array) - np.min(array))
+
+    # Convert the values to integers in the range [0, 255]
+    int_array = (array * 255).astype(float)
+
+    return int_array
 
 
 def float_array_to_hot(array):
@@ -38,8 +171,8 @@ def float_array_to_hot(array):
     array = (array - -4) / (4 - -4)
 
     # Get the "hot" colormap
-    cmap = plt.get_cmap("hot")
-
+    # cmap = plt.get_cmap("hot")
+    cmap = cmo.cm.balance
     # Convert the normalized values to colors in the "hot" colormap
     rgb_array = cmap(array)
 
@@ -114,7 +247,7 @@ def savevolume(
         vol = vol.get_fdata()
 
     template = nib.load(
-        f"{rootzbrainfolder}/structural/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz"
+        f"{rootzbrainfolder}/structural/{subj}_{ses}_space-nativepro_T1w_MNI152.nii.gz",
     )
     template_data = template.get_fdata()
 
@@ -224,11 +357,25 @@ def process_cortex(
         "-metric-to-volume-mapping",
         outputmetric,
         f"{boundingpattern}midthickness.surf.gii",
-        f"{rootzbrainfolder}/structural/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz",
-        f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
+        f"{rootzbrainfolder}/structural/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz",  # the structural image that the metric map is based off
+        f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp_pretransform.nii.gz",  # the output file (mine gets renamed later)
         "-ribbon-constrained",
-        f"{boundingpattern}white.surf.gii",
-        f"{boundingpattern}pial.surf.gii",
+        f"{boundingpattern}white.surf.gii",  # white surf
+        f"{boundingpattern}pial.surf.gii",  # pial surf
+        "-greedy",
+    ]
+
+    command3 = [
+        os.path.join(workbench_path, "wb_command"),
+        "-volume-resample",
+        f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp_pretransform.nii.gz",
+        "src/data/MNI152_T1_0.8mm_brain.nii.gz",
+        "ENCLOSING_VOXEL",
+        f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
+        "-affine",
+        os.path.join(tmp, "real_world_affine.txt"),
+        "-warp",
+        os.path.join(tmp, "real_warp.nii.gz"),
     ]
 
     # Run the commands
@@ -238,7 +385,7 @@ def process_cortex(
     subprocess.run(command1)
     subprocess.run(command_struct_2)
     subprocess.run(command2)
-
+    subprocess.run(command3)
     os.replace(
         f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
         f"{outdir}/{subj}_{ses}_hemi-{hemi}_surf-fsLR-32k_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.nii.gz",
@@ -296,7 +443,10 @@ def process_hippocampus(
         print(
             f"{feature} is not available for {subj}_{ses}_{hemi} at {smooth} smoothing in the {struct}, skipping"
         )
-        return
+        if not settozero:
+            return
+        else:
+            metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{subj}_{ses}_hemi-{hemi}_den-0p5mm_label-midthickness_feature-T1map_smooth-{smooth}_analysis-{analysis}.func.gii"
 
     command_struct = [
         os.path.join(workbench_path, "wb_command"),
@@ -311,15 +461,30 @@ def process_hippocampus(
         metricfile,
         f"{boundingpattern}midthickness.surf.gii",
         f"{rootzbrainfolder}/structural/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz",
-        f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
+        f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp_pretransform.nii.gz",
         "-ribbon-constrained",
         f"{boundingpattern}inner.surf.gii",
         f"{boundingpattern}outer.surf.gii",
+        "-greedy",
+    ]
+    command3 = [
+        os.path.join(workbench_path, "wb_command"),
+        "-volume-resample",
+        f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp_pretransform.nii.gz",
+        "src/data/MNI152_T1_0.8mm_brain.nii.gz",
+        "ENCLOSING_VOXEL",
+        f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
+        "-affine",
+        os.path.join(tmp, "real_world_affine.txt"),
+        "-warp",
+        os.path.join(tmp, "real_warp.nii.gz"),
     ]
 
     subprocess.run(command_struct)
 
     subprocess.run(command2)
+
+    subprocess.run(command3)
 
     os.replace(
         f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
@@ -337,6 +502,7 @@ def process_subcortex(
     subj,
     ses,
     struct,
+    workbench_path,
     tmp,
 ):
     """
@@ -368,7 +534,10 @@ def process_subcortex(
     metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{subj}_{ses}_feature-{feature}_analysis-{analysis}.csv"
     if not os.path.isfile(metricfile):
         print(f"{feature} is not available for {subj}_{ses} in the {struct}, skipping")
-        return
+        if not settozero:
+            return
+        else:
+            metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{subj}_{ses}_feature-T1map_analysis-{analysis}.csv"
     STRUCTURES = {
         "Laccumb": 26,
         "Lamyg": 18,
@@ -403,9 +572,21 @@ def process_subcortex(
         outputatlas, atlas.affine, atlas.header, dtype=np.float64
     )
     output_img.to_filename(
-        f"{tmp}/{feature}_{analysis}_{struct}_temp.nii.gz",
+        f"{tmp}/{feature}_{analysis}_{struct}_temp_pretransform.nii.gz",
     )
-
+    command3 = [
+        os.path.join(workbench_path, "wb_command"),
+        "-volume-resample",
+        f"{tmp}/{feature}_{analysis}_{struct}_temp_pretransform.nii.gz",
+        "src/data/MNI152_T1_0.8mm_brain.nii.gz",
+        "ENCLOSING_VOXEL",
+        f"{tmp}/{feature}_{analysis}_{struct}_temp.nii.gz",
+        "-affine",
+        os.path.join(tmp, "real_world_affine.txt"),
+        "-warp",
+        os.path.join(tmp, "real_warp.nii.gz"),
+    ]
+    subprocess.run(command3)
     os.replace(
         f"{tmp}/{feature}_{analysis}_{struct}_temp.nii.gz",
         f"{outdir}/{subj}_{ses}_feature-{feature}_analysis-{analysis}.nii.gz",
@@ -456,6 +637,7 @@ def process(
         None
     """
     outdir = os.path.join(outdir, struct)
+
     print(f"Processing structure: {struct}")
     if struct == "cortex":
         subdir = micapipename
@@ -512,6 +694,7 @@ def process(
             subj,
             ses,
             struct,
+            workbench_path,
             tmp,
         )
     print("Processing completed.")
@@ -565,6 +748,7 @@ def gluetogether(
             return
         else:
             print(f"Loading file: {cort}")
+
     else:
         for each in [cort, hippo, subcort]:
             if not os.path.isfile(each):
@@ -577,17 +761,26 @@ def gluetogether(
     if not "blur" in feature:
         hipponifti = nib.load(hippo)
         subcortnifti = nib.load(subcort)
+    elif settozero:
+        subcortnifti = nib.load(subcort)
+        hipponifti = nib.load(hippo)
     print("Data loaded, starting to combine structures.")
 
     cortdata = cortnifti.get_fdata()
     if not "blur" in feature:
         hippodata = hipponifti.get_fdata()
         subcortdata = subcortnifti.get_fdata()
+    elif settozero:
+        subcortdata = subcortnifti.get_fdata()
+        hippodata = hipponifti.get_fdata()
     outputnifti = np.zeros_like(cortdata)
     outputnifti[cortdata != 0] = cortdata[cortdata != 0]
     if not "blur" in feature:
         outputnifti[subcortdata != 0] = subcortdata[subcortdata != 0]
         outputnifti[hippodata != 0] = hippodata[hippodata != 0]
+    elif settozero:
+        outputnifti[subcortdata != 0] = 0.0001
+        outputnifti[hippodata != 0] = 0.0001
 
     print("Left hemisphere data combined.")
 
@@ -596,15 +789,23 @@ def gluetogether(
         hippo = f"{outdir}/hippocampus/{subj}_{ses}_hemi-R_den-0p5mm_label-midthickness_feature-{feature}_smooth-{smooth_hipp}_analysis-{analysis}.nii.gz"
 
         cortnifti = nib.load(cort)
+
         if not "blur" in feature:
+            hipponifti = nib.load(hippo)
+        elif settozero:
             hipponifti = nib.load(hippo)
 
         cortdata = cortnifti.get_fdata()
         if not "blur" in feature:
             hippodata = hipponifti.get_fdata()
+        elif settozero:
+            hippodata = hipponifti.get_fdata()
+
         outputnifti[cortdata != 0] = cortdata[cortdata != 0]
         if not "blur" in feature:
             outputnifti[hippodata != 0] = hippodata[hippodata != 0]
+        elif settozero:
+            outputnifti[hippodata != 0] = 0.0001
         print("Right hemisphere data combined.")
 
     micapipefolder = os.path.join(rootfolder, micapipename, subj, ses)
@@ -642,6 +843,66 @@ def threshold(array, threshold):
     array = np.where((array < threshold) & (array > 0), 0, array)
     array = np.where((array > -threshold) & (array < 0), 0, array)
     return array
+
+
+def dicomify_base(
+    outdir,
+    prefixpath,
+    subj,
+    ses,
+    px_demo=None,
+):
+    """
+    Convert a NIfTI image to DICOM format for a specific subject and session.
+
+    This function converts a NIfTI image to DICOM format based on the provided parameters,
+    creating DICOM files in the specified output directory.
+
+    Args:
+        outdir: Output directory for saving the DICOM files.
+        subj: Subject identifier.
+        ses: Session identifier.
+        feature: Specific feature of the image.
+        smooth_ctx: Level of smoothing for the cortex.
+        smooth_hipp: Level of smoothing for the hippocampus.
+        analysis: Type of analysis performed on the image.
+        tmp: Temporary directory path.
+        px_demo: Path to the participant demographics file (default is None).
+
+    Returns:
+        None
+    """
+    feature = "T1w_brain_MNI152"
+    smooth_ctx = "NA"
+    smooth_hipp = "NA"
+    analysis = "Base"
+    path = f"{prefixpath}/structural/{subj}_{ses}_space-nativepro_T1w_MNI152.nii.gz"
+
+    if not os.path.isfile(path):
+        print(
+            f"File not found at {path}. {feature} and the {analysis} analysis is not available for {subj}_{ses}, skipping"
+        )
+        return
+
+    outpath = f"{outdir}/DICOM/{subj}_{ses}_space-nativepro_T1w_MNI152"
+    # if not os.path.exists(outpath):
+    #     os.makedirs(outpath)
+
+    tempnii = nib.load(path)
+
+    array = tempnii.get_fdata()
+
+    convert_nifti_to_dicom(
+        array.astype(np.int16),
+        tempnii.header,
+        tempnii.affine,
+        outpath,
+        feature,
+        smooth_ctx,
+        smooth_hipp,
+        analysis,
+        px_demo,
+    )
 
 
 def dicomify(
@@ -685,8 +946,8 @@ def dicomify(
         return
 
     outpath = f"{outdir}/DICOM/{subj}_{ses}_label-midthickness_feature-{feature}_smooth-ctx-{smooth_ctx}_smooth-hipp-{smooth_hipp}_analysis-{analysis}_threshold-{thresh}"
-    if not os.path.exists(outpath):
-        os.makedirs(outpath)
+    # if not os.path.exists(outpath):
+    #     os.makedirs(outpath)
 
     tempnii = nib.load(path)
 
@@ -760,7 +1021,7 @@ def surface_to_volume(
     os.environ["OMP_NUM_THREADS"] = str(n_jobs_wb)
     if isinstance(px_demo, pd.DataFrame):
         px_demo = px_demo[px_demo["participant_id"] == subj]
-        px_demo = px_demo[px_demo["session_id"] == ses]
+        # px_demo = px_demo[px_demo["session_id"] == ses]
         px_demo = px_demo.reset_index(drop=True)
     rootzbrainfolder = os.path.join(rootfolder, zbrainsdir, subj, ses)
     outdir = os.path.join(rootzbrainfolder, "norm-z-volumetric")
@@ -790,18 +1051,10 @@ def surface_to_volume(
     features = sorted(features, key=str.lower)
     features.append("-".join([x for x in features if "blur" not in x]))
     print("feats: ", features)
-    # shutil.copyfile(
-    #     os.path.join(
-    #         rootfolder,
-    #         micapipename,
-    #         subj,
-    #         ses,
-    #         "anat",
-    #         f"{subj}_{ses}_space-nativepro_T1w_brain.nii.gz",
-    #     ),
-    #     os.path.join(outdir, "base_T1w.nii.gz"),
-    # )
+    # dicomify_base(outdir, rootzbrainfolder, subj=subj, ses=ses, px_demo=px_demo)
 
+    micapiperootfolder = os.path.join(rootfolder, micapipename, subj, ses)
+    fixmatrix(micapiperootfolder, subj, ses, tmp, workbench_path, rootzbrainfolder)
     Parallel(n_jobs=n_jobs)(
         delayed(process)(
             feature,
@@ -849,6 +1102,8 @@ def surface_to_volume(
         for analysis in analyses
     )
     if dicoms == 1:
+        os.makedirs(f"{outdir}/DICOM", exist_ok=True)
+        dicomify_base(outdir, subj, ses, tmp, thresh, px_demo=px_demo)
         print("Converting to DICOM")
         timepre = time()
         Parallel(n_jobs=n_jobs)(

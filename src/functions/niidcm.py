@@ -6,6 +6,8 @@ import pydicom as pyd
 from .dcmclasses import DicomMRI
 from multiprocessing import Pool
 
+
+compat = True
 eps = 0.00000001192093
 
 
@@ -178,7 +180,7 @@ def transfer_nii_hdr_series_tags(ds, nii2dcm_parameters, file_meta):
     ds.PatientName = nii2dcm_parameters["PatientName"]
 
 
-def transfer_nii_hdr_instance_tags(ds, nii2dcm_parameters, instance_index):
+def transfer_nii_hdr_instance_tags(ds, nii2dcm_parameters, instance_index, isbase=False):
     """
     Transfer NIfTI header parameters applicable to Instance
 
@@ -200,8 +202,12 @@ def transfer_nii_hdr_instance_tags(ds, nii2dcm_parameters, instance_index):
         str(round(nii2dcm_parameters["ImagePositionPatient"][instance_index][1], 2)),
         str(round(nii2dcm_parameters["ImagePositionPatient"][instance_index][2], 2)),
     ]
-    ds.PhotometricInterpretation = "RGB"
-    ds.SamplesPerPixel = 3
+    if isbase == False:
+        ds.PhotometricInterpretation = "RGB"
+        ds.SamplesPerPixel = 3
+    else:
+        ds.PhotometricInterpretation = "MONOCHROME2"
+        ds.SamplesPerPixel = 1
     ds.BitsAllocated = 8
     ds.BitsStored = 8
     ds.PlanarConfiguration = 1
@@ -281,16 +287,52 @@ def convert_nifti_to_dicom(
 
     transfer_nii_hdr_series_tags(ds, nii2dcm_parameters, filemeta)
     print("NIfTI header series tags transferred.")
+    from pydicom.uid import ExplicitVRLittleEndian, ImplicitVRLittleEndian
 
-    with Pool() as p:
-        p.map(
-            write_slice_wrapper,
-            [
+    print("DICOM slices written.")
+    if compat == True:
+        for i in range(nii2dcm_parameters["NumberOfInstances"]):
+            write_slice_wrapper(
                 (ds, array, i, out_dir, nii2dcm_parameters)
-                for i in range(nii2dcm_parameters["NumberOfInstances"])
-            ],
-        )
+            )
+
+    else:
+        useFloat = False
+        array = array.transpose(2, 0, 1, 3)
+
+        # array = np.flip(array, 0)
+
+        ds.Rows = array.shape[1]
+        ds.Columns = array.shape[2]
+        ds.NumberOfFrames = array.shape[0]
+        if not useFloat:
+
+            ds.PixelData = array.astype(np.uint8).tobytes()
+        else:
+            ds.FloatPixelData = array.astype(np.float32).tobytes()
+            ds["FloatPixelData"].VR = "OF"
+            ds.file_meta.TransferSyntaxUID = ImplicitVRLittleEndian
+            ds.is_implicit_VR = True
+            del ds.PixelData
+
+        ds.file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
+
+        if not useFloat:
+            ds.PhotometricInterpretation = "RGB"
+            ds.SamplesPerPixel = 3
+            ds.BitsAllocated = 8
+            ds.BitsStored = 8
+            ds.PlanarConfiguration = 0
+            ds.HighBit = 7
+        else:
+            ds.BitsAllocated = 32
+            ds.BitsStored = 32
+            ds.HighBit = ds.BitsStored - 1
+            ds.SamplesPerPixel = 1
+            ds.PhotometricInterpretation = "MONOCHROME2"
+
+        ds.save_as(abspath(out_dir + ".dcm"))
     print("DICOM slices written.")
 
-    print(f"nii2dcm: DICOM files written to: {abspath(out_dir)}")
+    print(f"nii2dcm: DICOM files written to: {abspath(out_dir + '.dcm')}")
     print("Conversion complete.")
