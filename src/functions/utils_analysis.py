@@ -1067,7 +1067,7 @@ def run_analysis(
             f"controls available]\n"
         )
     print(list(res.keys()))
-    print(available_features.keys())
+    print(available_features['hippocampus'])
     exit()
     logger.info("Done!\n\n")
 
