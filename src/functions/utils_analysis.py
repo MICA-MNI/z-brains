@@ -1066,7 +1066,7 @@ def run_analysis(
             f'\n\t{"Mahalanobis":<15}: \t[{n_available_cn}/{n_cn} '
             f"controls available]\n"
         )
-
+    print(list(res.keys()))
     logger.info("Done!\n\n")
 
     return available_features
