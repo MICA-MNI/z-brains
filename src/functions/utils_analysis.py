@@ -1041,10 +1041,6 @@ def run_analysis(
         # store available features
         if struct == "subcortex":
             available_features[struct] = data_mahalanobis["feat"]
-            print("mahalmeans")
-            print(len(data_mahalanobis['data_px']))
-            print(data_mahalanobis['data_px'])
-            feature_means[struct] = np.mean(data_mahalanobis["data_px"])
         else:
             available_features[struct][resol][label] = data_mahalanobis["feat"]
 
