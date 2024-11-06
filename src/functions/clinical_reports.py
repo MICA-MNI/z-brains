@@ -1021,6 +1021,7 @@ def generate_clinical_report(
     subject_dir=None,
     output_dir=None,
     tag=None,
+    meanscores=None
 ):
     """Zbrains: Clinical report generator
 
@@ -1194,6 +1195,7 @@ def generate_clinical_report(
             res=res_ctx,
             label=label_ctx,
             smooth=smooth_ctx,
+            
             **kwds,
         )
 

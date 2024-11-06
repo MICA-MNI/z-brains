@@ -135,7 +135,7 @@ def main(
     # # Run analyses -------------------------------------------------------------
     logger.info("\n\nStarting analysis")
     for label in labels_ctx:
-        available_features = run_analysis(
+        available_features, meanscores = run_analysis(
             px_sid=px_id,
             px_ses=px_ses,
             cn_zbrains=zbrains_ref,
@@ -242,6 +242,7 @@ def main(
         label_ctx=lab_ctx,
         label_hip=lab_hip,
         tmp_dir=tmp,
+        meanscores=meanscores
     )
 
 
