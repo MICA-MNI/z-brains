@@ -1051,15 +1051,7 @@ def run_analysis(
 
         # Analysis: mahalanobis distance
         res = _subject_mahalanobis(data=data_mahalanobis, analyses=analyses)
-        if struct == "subcortex":
-            print("mahalmeans")
-            print(res[analysis]['md'])
-            feature_means[struct] = np.mean(res[analysis]['md'])
-        else:
-            print("mahalmeans")
-            print(res[analysis]['md'])
-            feature_means[struct][resol][label] = np.mean(res[analysis]['md'])
-
+        
         # Save results
         kwds.update({"feat": data_mahalanobis["feat"]})
 
@@ -1071,6 +1063,14 @@ def run_analysis(
 
             if analysis == "regional" and struct != "subcortex":
                 md = md.reshape(2, -1)
+            if struct == "subcortex":
+                print("mahalmeans")
+                print(res[analysis]['md'])
+                feature_means[struct][analysis] = np.mean(res[analysis]['md'])
+            else:
+                print("mahalmeans")
+                print(res[analysis]['md'])
+                feature_means[struct][resol][label][analysis] = np.mean(res[analysis]['md'])
 
             _save(pth_analysis, x=md, sid=px_sid, ses=px_ses, analysis=analysis, **kwds)
 
