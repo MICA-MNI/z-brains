@@ -1061,7 +1061,7 @@ def run_analysis(
                     print(res[analysis]['md'])
                     feature_means[struct][analysis] = np.mean(res[analysis]['md'])
         else:
-            feature_means[struct][resol][label][analysis] = {}
+            feature_means[struct][resol][label] = {}
             for analysis in analyses:
                 print("mahalmeans")
                 print(res[analysis]['md'])
