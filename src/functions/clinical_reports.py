@@ -956,7 +956,7 @@ def report_struct(
         # f'<b>{adjectivize_struct(struct)} {feat}</b> | {info} '
         f"<b>{struct.capitalize()}</b>"
         # f'{analysis} analysis | approach-{approach} {thr_str}'
-        f"| {approach} approach {info}{f"| left mean={np.mean(feat_lh)} " if file_lh.exists() else ""}{f"| right mean={np.mean(feat_rh)}" if file_rh.exists() else ""}"
+        f"| {approach} approach {info}{f'| left mean={np.mean(feat_lh)} ' if file_lh.exists() else ''}{f'| right mean={np.mean(feat_rh)}' if file_rh.exists() else ''}"
         "</p>"
     )
 
