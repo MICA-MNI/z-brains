@@ -1055,17 +1055,16 @@ def run_analysis(
         # Save results
         kwds.update({"feat": data_mahalanobis["feat"]})
         if struct == "subcortex":
-                print("mahalmeans")
-                print(res[analysis]['md'])
-                print()
                 feature_means[struct] = {}
                 for analysis in analyses:
+                    print("mahalmeans")
+                    print(res[analysis]['md'])
                     feature_means[struct][analysis] = np.mean(res[analysis]['md'])
         else:
-            print("mahalmeans")
-            print(res[analysis]['md'])
             feature_means[struct][resol][label][analysis] = {}
             for analysis in analyses:
+                print("mahalmeans")
+                print(res[analysis]['md'])
                 feature_means[struct][resol][label][analysis] = np.mean(res[analysis]['md'])
 
         n_available_cn = 0
