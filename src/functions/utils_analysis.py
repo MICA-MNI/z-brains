@@ -1068,7 +1068,7 @@ def run_analysis(
         )
     print(list(res.keys()))
     print(res['regional'].keys())
-    print(res['assymetry'].keys())
+    print(res['asymmetry'].keys())
     exit()
     logger.info("Done!\n\n")
 
