@@ -1051,78 +1051,79 @@ def surface_to_volume(
     features = sorted(features, key=str.lower)
     features.append("-".join([x for x in features if "blur" not in x]))
     print("feats: ", features)
-    dicomify_base(outdir, rootzbrainfolder, subj=subj, ses=ses, px_demo=px_demo)
+    # dicomify_base(outdir, rootzbrainfolder, subj=subj, ses=ses, px_demo=px_demo)
 
     micapiperootfolder = os.path.join(rootfolder, micapipename, subj, ses)
     fixmatrix(micapiperootfolder, subj, ses, tmp, workbench_path, rootzbrainfolder)
-    # Parallel(n_jobs=n_jobs)(
-    #     delayed(process)(
-    #         feature,
-    #         hemi,
-    #         analysis,
-    #         rootzbrainfolder,
-    #         rootfolder,
-    #         outdir,
-    #         subj,
-    #         ses,
-    #         struct,
-    #         micapipename,
-    #         hippunfoldname,
-    #         smooth_ctx,
-    #         smooth_hipp,
-    #         workbench_path,
-    #         tmp,
-    #     )
-    #     for feature in features
-    #     for hemi in hemis
-    #     for analysis in analyses
-    #     for struct in structs
-    # )
+    Parallel(n_jobs=n_jobs)(
+        delayed(process)(
+            feature,
+            hemi,
+            analysis,
+            rootzbrainfolder,
+            rootfolder,
+            outdir,
+            subj,
+            ses,
+            struct,
+            micapipename,
+            hippunfoldname,
+            smooth_ctx,
+            smooth_hipp,
+            workbench_path,
+            tmp,
+        )
+        for feature in features
+        for hemi in hemis
+        for analysis in analyses
+        for struct in structs
+    )
 
-    # if not os.path.exists(f"{outdir}/full"):
-    #     os.makedirs(f"{outdir}/full")
-    # if not os.path.exists(f"{outdir}/full_burned"):
-    #     os.makedirs(f"{outdir}/full_burned")
-    # Parallel(n_jobs=n_jobs)(
-    #     delayed(gluetogether)(
-    #         outdir,
-    #         subj,
-    #         ses,
-    #         feature,
-    #         smooth_ctx,
-    #         smooth_hipp,
-    #         analysis,
-    #         rootfolder,
-    #         micapipename,
-    #         tmp,
-    #         rootzbrainfolder,
-    #         thresh=thresh,
-    #     )
-    #     for feature in features
-    #     for analysis in analyses
-    # )
-    # if dicoms == 1:
-    #     dicomify_base(outdir, subj, ses, tmp, thresh, px_demo=px_demo)
-    #     print("Converting to DICOM")
-    #     timepre = time()
-    #     Parallel(n_jobs=n_jobs)(
-    #         delayed(dicomify)(
-    #             outdir,
-    #             subj,
-    #             ses,
-    #             feature,
-    #             smooth_ctx,
-    #             smooth_hipp,
-    #             analysis,
-    #             tmp,
-    #             thresh,
-    #             px_demo=px_demo,
-    #         )
-    #         for feature in features
-    #         for analysis in analyses
-    #     )
-    #     timepost = time() - timepre
-    #     print(f"Time taken to convert to DICOM: {timepost}")
+    if not os.path.exists(f"{outdir}/full"):
+        os.makedirs(f"{outdir}/full")
+    if not os.path.exists(f"{outdir}/full_burned"):
+        os.makedirs(f"{outdir}/full_burned")
+    Parallel(n_jobs=n_jobs)(
+        delayed(gluetogether)(
+            outdir,
+            subj,
+            ses,
+            feature,
+            smooth_ctx,
+            smooth_hipp,
+            analysis,
+            rootfolder,
+            micapipename,
+            tmp,
+            rootzbrainfolder,
+            thresh=thresh,
+        )
+        for feature in features
+        for analysis in analyses
+    )
+    if dicoms == 1:
+        os.makedirs(f"{outdir}/DICOM", exist_ok=True)
+        dicomify_base(outdir, subj, ses, tmp, thresh, px_demo=px_demo)
+        print("Converting to DICOM")
+        timepre = time()
+        Parallel(n_jobs=n_jobs)(
+            delayed(dicomify)(
+                outdir,
+                subj,
+                ses,
+                feature,
+                smooth_ctx,
+                smooth_hipp,
+                analysis,
+                tmp,
+                thresh,
+                px_demo=px_demo,
+            )
+            for feature in features
+            for analysis in analyses
+        )
+        timepost = time() - timepre
+        print(f"Time taken to convert to DICOM: {timepost}")
 
 
 if __name__ == "__main__":
