@@ -978,6 +978,10 @@ def run_analysis(
     if "subcortex" in structures:
         available_features["subcortex"] = []
 
+    feature_means = {k: defaultdict(dict) for k in structures}
+    if "subcortex" in structures:
+        feature_means["subcortex"] = []
+
     # Main loop ----------------------------------------------------------------
     for struct, resol, label in iterables:
         print(struct, resol, label)
@@ -1037,8 +1041,12 @@ def run_analysis(
         # store available features
         if struct == "subcortex":
             available_features[struct] = data_mahalanobis["feat"]
+            print("mahalmeans")
+            print(data_mahalanobis)
+            feature_means[struct] = np.mean(data_mahalanobis["data_px"])
         else:
             available_features[struct][resol][label] = data_mahalanobis["feat"]
+
 
         # Mahalanobis
         if len(data_mahalanobis["feat"]) < 2:
@@ -1067,7 +1075,7 @@ def run_analysis(
             f"controls available]\n"
         )
     print(list(res.keys()))
-    print(available_features['hippocampus'])
+    print(available_features['hippocampus']['high'])
     exit()
     logger.info("Done!\n\n")
 
