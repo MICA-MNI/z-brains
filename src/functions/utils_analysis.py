@@ -1054,6 +1054,19 @@ def run_analysis(
         
         # Save results
         kwds.update({"feat": data_mahalanobis["feat"]})
+        if struct == "subcortex":
+                print("mahalmeans")
+                print(res[analysis]['md'])
+                print()
+                feature_means[struct] = {}
+                for analysis in analyses:
+                    feature_means[struct][analysis] = np.mean(res[analysis]['md'])
+        else:
+            print("mahalmeans")
+            print(res[analysis]['md'])
+            feature_means[struct][resol][label][analysis] = {}
+            for analysis in analyses:
+                feature_means[struct][resol][label][analysis] = np.mean(res[analysis]['md'])
 
         n_available_cn = 0
         for analysis in analyses:
@@ -1063,15 +1076,7 @@ def run_analysis(
 
             if analysis == "regional" and struct != "subcortex":
                 md = md.reshape(2, -1)
-            if struct == "subcortex":
-                print("mahalmeans")
-                print(res[analysis]['md'])
-                feature_means[struct][analysis] = np.mean(res[analysis]['md'])
-            else:
-                print("mahalmeans")
-                print(res[analysis]['md'])
-                feature_means[struct][resol][label][analysis] = np.mean(res[analysis]['md'])
-
+            
             _save(pth_analysis, x=md, sid=px_sid, ses=px_ses, analysis=analysis, **kwds)
 
         # n_available_cn = res['data_cn'].shape[0]
