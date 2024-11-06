@@ -1067,8 +1067,7 @@ def run_analysis(
             f"controls available]\n"
         )
     print(list(res.keys()))
-    print(res['regional']['data_px'])
-    print(res['asymmetry']['data_px'])
+    print(available_features.keys())
     exit()
     logger.info("Done!\n\n")
 
