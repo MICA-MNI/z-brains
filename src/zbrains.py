@@ -519,7 +519,11 @@ def check_sub(args, sub, ses=None):
     if ses is not None:
         micapipe_path = os.path.join(micapipe_path, ses)
         hippunfold_path = os.path.join(hippunfold_path, ses)
+    if not os.path.isdir(micapipe_path):
+        print(f'Non proccessable micapipe output at {micapipe_path} for {sub}{f"-{ses}" if ses else ""}, skipping')
+        return False
     if "proc" in args.run:
+        
         if "cortex" in args.struct or "subcortex" in args.struct:
             if not os.path.exists(micapipe_path) or not os.path.isdir(micapipe_path):
                 print(
@@ -534,6 +538,7 @@ def check_sub(args, sub, ses=None):
                     f'No hippunfold at {hippunfold_path} for {sub}{f"-{ses}" if ses else ""}, skipping'
                 )
                 return False
+        
 
     return True
 
