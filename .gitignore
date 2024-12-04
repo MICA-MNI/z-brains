@@ -8,3 +8,4 @@ run.*
 *.bash
 .vscode
 .pytest_cache/
+/run.bat
