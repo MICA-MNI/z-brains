@@ -512,15 +512,17 @@ def main_func(args):
 
 def check_sub(args, sub, ses=None):
     micapipe_path = os.path.join(args.dataset, "derivatives", args.micapipe, sub)
-    hippunfold_path = os.path.join(
-        args.dataset, "derivatives", args.hippunfold, "hippunfold", sub
-    )
+    if "hippocampus" in args.struct:
+        hippunfold_path = os.path.join(
+            args.dataset, "derivatives", args.hippunfold, "hippunfold", sub
+        )
 
     if ses is not None:
         micapipe_path = os.path.join(micapipe_path, ses)
-        hippunfold_path = os.path.join(hippunfold_path, ses)
+        if "hippocampus" in args.struct:
+            hippunfold_path = os.path.join(hippunfold_path, ses)
     if not os.path.isdir(micapipe_path):
-        print(f'Non proccessable micapipe output at {micapipe_path} for {sub}{f"-{ses}" if ses else ""}, skipping')
+        # print(f'Non proccessable micapipe output at {micapipe_path} for {sub}{f"-{ses}" if ses else ""}, skipping')
         return False
     if "proc" in args.run:
         
@@ -719,7 +721,6 @@ if __name__ == "__main__":
     parser.add_argument("--volumetric", type=int, default=1)
     # Parse the arguments
     args, unknown_args = parser.parse_known_args()
-    print(args.dicoms)
     if not vars(args):
         parser.print_help()
         sys.exit(1)
