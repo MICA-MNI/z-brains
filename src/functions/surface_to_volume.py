@@ -16,14 +16,14 @@ hemis = ["L", "R"]
 settozero = True
 
 
-def fixmatrix(path, subject, session, temppath, wb_path, rootzbrainfolder):
+def fixmatrix(subject, session, temppath, wb_path, rootzbrainfolder):
     # Load the .mat file
     mat = scipy.io.loadmat(
         os.path.join(
-            path,
-            "xfm",
+            rootzbrainfolder,
+            "structural",
             f"{subject}_{session}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_0GenericAffine.mat",
-        )
+        ),
     )
 
     # Extract variables from the .mat file
@@ -1054,7 +1054,7 @@ def surface_to_volume(
     # dicomify_base(outdir, rootzbrainfolder, subj=subj, ses=ses, px_demo=px_demo)
 
     micapiperootfolder = os.path.join(rootfolder, micapipename, subj, ses)
-    fixmatrix(micapiperootfolder, subj, ses, tmp, workbench_path, rootzbrainfolder)
+    fixmatrix(subj, ses, tmp, workbench_path, rootzbrainfolder)
     Parallel(n_jobs=n_jobs)(
         delayed(process)(
             feature,
