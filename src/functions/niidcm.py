@@ -180,7 +180,9 @@ def transfer_nii_hdr_series_tags(ds, nii2dcm_parameters, file_meta):
     ds.PatientName = nii2dcm_parameters["PatientName"]
 
 
-def transfer_nii_hdr_instance_tags(ds, nii2dcm_parameters, instance_index, isbase=False):
+def transfer_nii_hdr_instance_tags(
+    ds, nii2dcm_parameters, instance_index, isbase=False
+):
     """
     Transfer NIfTI header parameters applicable to Instance
 
@@ -289,12 +291,13 @@ def convert_nifti_to_dicom(
     print("NIfTI header series tags transferred.")
     from pydicom.uid import ExplicitVRLittleEndian, ImplicitVRLittleEndian
 
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+
     print("DICOM slices written.")
     if compat == True:
         for i in range(nii2dcm_parameters["NumberOfInstances"]):
-            write_slice_wrapper(
-                (ds, array, i, out_dir, nii2dcm_parameters)
-            )
+            write_slice_wrapper((ds, array, i, out_dir, nii2dcm_parameters))
 
     else:
         useFloat = False

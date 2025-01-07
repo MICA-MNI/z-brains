@@ -63,8 +63,9 @@ def fixmatrix(subject, session, temppath, wb_path, rootzbrainfolder):
         "-to-world",
         os.path.join(temppath, "real_warp.nii.gz"),
     ]
-    subprocess.run(command)
-    command3 = [
+    # command = [f'"{arg}"' for arg in command]
+    subprocess.run(" ".join(command), shell=True)
+    command2 = [
         os.path.join(wb_path, "wb_command"),
         "-volume-resample",
         f"{rootzbrainfolder}/structural/{subject}_{session}_space-nativepro_T1w_brain.nii.gz",
@@ -76,7 +77,7 @@ def fixmatrix(subject, session, temppath, wb_path, rootzbrainfolder):
         "-warp",
         os.path.join(temppath, "real_warp.nii.gz"),
     ]
-    subprocess.run(command3)
+    subprocess.run(" ".join(command2), shell=True)
     command3 = [
         os.path.join(wb_path, "wb_command"),
         "-volume-resample",
@@ -90,7 +91,7 @@ def fixmatrix(subject, session, temppath, wb_path, rootzbrainfolder):
         os.path.join(temppath, "real_warp.nii.gz"),
     ]
 
-    subprocess.run(command3)
+    subprocess.run(" ".join(command3), shell=True)
 
 
 def float_array_to_hot_nonrgb(array):
@@ -1055,55 +1056,55 @@ def surface_to_volume(
 
     micapiperootfolder = os.path.join(rootfolder, micapipename, subj, ses)
     fixmatrix(subj, ses, tmp, workbench_path, rootzbrainfolder)
-    Parallel(n_jobs=n_jobs)(
-        delayed(process)(
-            feature,
-            hemi,
-            analysis,
-            rootzbrainfolder,
-            rootfolder,
-            outdir,
-            subj,
-            ses,
-            struct,
-            micapipename,
-            hippunfoldname,
-            smooth_ctx,
-            smooth_hipp,
-            workbench_path,
-            tmp,
-        )
-        for feature in features
-        for hemi in hemis
-        for analysis in analyses
-        for struct in structs
-    )
+    # Parallel(n_jobs=n_jobs)(
+    #     delayed(process)(
+    #         feature,
+    #         hemi,
+    #         analysis,
+    #         rootzbrainfolder,
+    #         rootfolder,
+    #         outdir,
+    #         subj,
+    #         ses,
+    #         struct,
+    #         micapipename,
+    #         hippunfoldname,
+    #         smooth_ctx,
+    #         smooth_hipp,
+    #         workbench_path,
+    #         tmp,
+    #     )
+    #     for feature in features
+    #     for hemi in hemis
+    #     for analysis in analyses
+    #     for struct in structs
+    # )
 
-    if not os.path.exists(f"{outdir}/full"):
-        os.makedirs(f"{outdir}/full")
-    if not os.path.exists(f"{outdir}/full_burned"):
-        os.makedirs(f"{outdir}/full_burned")
-    Parallel(n_jobs=n_jobs)(
-        delayed(gluetogether)(
-            outdir,
-            subj,
-            ses,
-            feature,
-            smooth_ctx,
-            smooth_hipp,
-            analysis,
-            rootfolder,
-            micapipename,
-            tmp,
-            rootzbrainfolder,
-            thresh=thresh,
-        )
-        for feature in features
-        for analysis in analyses
-    )
+    # if not os.path.exists(f"{outdir}/full"):
+    #     os.makedirs(f"{outdir}/full")
+    # if not os.path.exists(f"{outdir}/full_burned"):
+    #     os.makedirs(f"{outdir}/full_burned")
+    # Parallel(n_jobs=n_jobs)(
+    #     delayed(gluetogether)(
+    #         outdir,
+    #         subj,
+    #         ses,
+    #         feature,
+    #         smooth_ctx,
+    #         smooth_hipp,
+    #         analysis,
+    #         rootfolder,
+    #         micapipename,
+    #         tmp,
+    #         rootzbrainfolder,
+    #         thresh=thresh,
+    #     )
+    #     for feature in features
+    #     for analysis in analyses
+    # )
     if dicoms == 1:
         os.makedirs(f"{outdir}/DICOM", exist_ok=True)
-        dicomify_base(outdir, subj, ses, tmp, thresh, px_demo=px_demo)
+        dicomify_base(outdir, rootzbrainfolder, subj, ses, px_demo=px_demo)
         print("Converting to DICOM")
         timepre = time()
         Parallel(n_jobs=n_jobs)(
