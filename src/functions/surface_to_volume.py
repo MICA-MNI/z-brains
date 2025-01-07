@@ -58,7 +58,7 @@ def fixmatrix(subject, session, temppath, wb_path, rootzbrainfolder):
         os.path.join(
             rootzbrainfolder,
             "structural",
-            f"{subject}_{session}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_0GenericAffine.mat",
+            f"{subject}_{session}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_1Warp.nii.gz",
         ),
         "-to-world",
         os.path.join(temppath, "real_warp.nii.gz"),
