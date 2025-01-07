@@ -667,6 +667,19 @@ def run(
                 f"{BIDS_ID}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_0GenericAffine.mat",
             ),
         )
+        shutil.copyfile(
+            os.path.join(
+                subject_micapipe_dir,
+                "xfm",
+                f"{BIDS_ID}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_1Warp.nii.gz",
+            ),
+            os.path.join(
+                subject_output_dir,
+                "structural",
+                f"{BIDS_ID}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_1Warp.nii.gz",
+            ),
+        )
+
     # do the mapping
     for feat in features:
         if structure == "cortex":
