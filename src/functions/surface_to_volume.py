@@ -1056,52 +1056,52 @@ def surface_to_volume(
 
     micapiperootfolder = os.path.join(rootfolder, micapipename, subj, ses)
     fixmatrix(subj, ses, tmp, workbench_path, rootzbrainfolder)
-    # Parallel(n_jobs=n_jobs)(
-    #     delayed(process)(
-    #         feature,
-    #         hemi,
-    #         analysis,
-    #         rootzbrainfolder,
-    #         rootfolder,
-    #         outdir,
-    #         subj,
-    #         ses,
-    #         struct,
-    #         micapipename,
-    #         hippunfoldname,
-    #         smooth_ctx,
-    #         smooth_hipp,
-    #         workbench_path,
-    #         tmp,
-    #     )
-    #     for feature in features
-    #     for hemi in hemis
-    #     for analysis in analyses
-    #     for struct in structs
-    # )
+    Parallel(n_jobs=n_jobs)(
+        delayed(process)(
+            feature,
+            hemi,
+            analysis,
+            rootzbrainfolder,
+            rootfolder,
+            outdir,
+            subj,
+            ses,
+            struct,
+            micapipename,
+            hippunfoldname,
+            smooth_ctx,
+            smooth_hipp,
+            workbench_path,
+            tmp,
+        )
+        for feature in features
+        for hemi in hemis
+        for analysis in analyses
+        for struct in structs
+    )
 
-    # if not os.path.exists(f"{outdir}/full"):
-    #     os.makedirs(f"{outdir}/full")
-    # if not os.path.exists(f"{outdir}/full_burned"):
-    #     os.makedirs(f"{outdir}/full_burned")
-    # Parallel(n_jobs=n_jobs)(
-    #     delayed(gluetogether)(
-    #         outdir,
-    #         subj,
-    #         ses,
-    #         feature,
-    #         smooth_ctx,
-    #         smooth_hipp,
-    #         analysis,
-    #         rootfolder,
-    #         micapipename,
-    #         tmp,
-    #         rootzbrainfolder,
-    #         thresh=thresh,
-    #     )
-    #     for feature in features
-    #     for analysis in analyses
-    # )
+    if not os.path.exists(f"{outdir}/full"):
+        os.makedirs(f"{outdir}/full")
+    if not os.path.exists(f"{outdir}/full_burned"):
+        os.makedirs(f"{outdir}/full_burned")
+    Parallel(n_jobs=n_jobs)(
+        delayed(gluetogether)(
+            outdir,
+            subj,
+            ses,
+            feature,
+            smooth_ctx,
+            smooth_hipp,
+            analysis,
+            rootfolder,
+            micapipename,
+            tmp,
+            rootzbrainfolder,
+            thresh=thresh,
+        )
+        for feature in features
+        for analysis in analyses
+    )
     if dicoms == 1:
         os.makedirs(f"{outdir}/DICOM", exist_ok=True)
         dicomify_base(outdir, rootzbrainfolder, subj, ses, px_demo=px_demo)
