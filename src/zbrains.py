@@ -523,9 +523,10 @@ def check_sub(args, sub, ses=None):
             hippunfold_path = os.path.join(hippunfold_path, ses)
     if not os.path.isdir(micapipe_path):
         # print(f'Non proccessable micapipe output at {micapipe_path} for {sub}{f"-{ses}" if ses else ""}, skipping')
-        return False
+        if "proc" in args.run:
+            return False
     if "proc" in args.run:
-        
+
         if "cortex" in args.struct or "subcortex" in args.struct:
             if not os.path.exists(micapipe_path) or not os.path.isdir(micapipe_path):
                 print(
@@ -540,7 +541,6 @@ def check_sub(args, sub, ses=None):
                     f'No hippunfold at {hippunfold_path} for {sub}{f"-{ses}" if ses else ""}, skipping'
                 )
                 return False
-        
 
     return True
 
@@ -560,7 +560,7 @@ def create_jobs(args, subs, ses, run_type):
             if check_sub(args, sub, s):
                 job = copy.copy(args)
                 job.sub, job.ses, job.run = sub, s, run_type
-                if args.patient_prefix in job.sub or run_type == "proc":
+                if args.control_prefix not in job.sub or run_type == "proc":
                     jobs.append(job)
     return jobs
 
@@ -714,7 +714,7 @@ if __name__ == "__main__":
         type=str,
         default="/data/mica1/01_programs/workbench-1.4.2/bin_linux64",
     )
-    parser.add_argument("--patient_prefix", type=str, default="PX")
+    parser.add_argument("--control_prefix", type=str, default="HC")
     parser.add_argument("--verbose", type=int, default=-1)
     parser.add_argument("--version", action="version", version="1.0.0")
     parser.add_argument("--dicoms", type=int, default=1)

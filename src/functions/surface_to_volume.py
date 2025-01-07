@@ -16,14 +16,14 @@ hemis = ["L", "R"]
 settozero = True
 
 
-def fixmatrix(path, subject, session, temppath, wb_path, rootzbrainfolder):
+def fixmatrix(subject, session, temppath, wb_path, rootzbrainfolder):
     # Load the .mat file
     mat = scipy.io.loadmat(
         os.path.join(
-            path,
-            "xfm",
+            rootzbrainfolder,
+            "structural",
             f"{subject}_{session}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_0GenericAffine.mat",
-        )
+        ),
     )
 
     # Extract variables from the .mat file
@@ -56,15 +56,16 @@ def fixmatrix(path, subject, session, temppath, wb_path, rootzbrainfolder):
         "-convert-warpfield",
         "-from-itk",
         os.path.join(
-            path,
-            "xfm",
+            rootzbrainfolder,
+            "structural",
             f"{subject}_{session}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_1Warp.nii.gz",
         ),
         "-to-world",
         os.path.join(temppath, "real_warp.nii.gz"),
     ]
-    subprocess.run(command)
-    command3 = [
+    # command = [f'"{arg}"' for arg in command]
+    subprocess.run(" ".join(command), shell=True)
+    command2 = [
         os.path.join(wb_path, "wb_command"),
         "-volume-resample",
         f"{rootzbrainfolder}/structural/{subject}_{session}_space-nativepro_T1w_brain.nii.gz",
@@ -76,7 +77,7 @@ def fixmatrix(path, subject, session, temppath, wb_path, rootzbrainfolder):
         "-warp",
         os.path.join(temppath, "real_warp.nii.gz"),
     ]
-    subprocess.run(command3)
+    subprocess.run(" ".join(command2), shell=True)
     command3 = [
         os.path.join(wb_path, "wb_command"),
         "-volume-resample",
@@ -90,7 +91,7 @@ def fixmatrix(path, subject, session, temppath, wb_path, rootzbrainfolder):
         os.path.join(temppath, "real_warp.nii.gz"),
     ]
 
-    subprocess.run(command3)
+    subprocess.run(" ".join(command3), shell=True)
 
 
 def float_array_to_hot_nonrgb(array):
@@ -1054,7 +1055,7 @@ def surface_to_volume(
     # dicomify_base(outdir, rootzbrainfolder, subj=subj, ses=ses, px_demo=px_demo)
 
     micapiperootfolder = os.path.join(rootfolder, micapipename, subj, ses)
-    fixmatrix(micapiperootfolder, subj, ses, tmp, workbench_path, rootzbrainfolder)
+    fixmatrix(subj, ses, tmp, workbench_path, rootzbrainfolder)
     Parallel(n_jobs=n_jobs)(
         delayed(process)(
             feature,
@@ -1103,7 +1104,7 @@ def surface_to_volume(
     )
     if dicoms == 1:
         os.makedirs(f"{outdir}/DICOM", exist_ok=True)
-        dicomify_base(outdir, subj, ses, tmp, thresh, px_demo=px_demo)
+        dicomify_base(outdir, rootzbrainfolder, subj, ses, px_demo=px_demo)
         print("Converting to DICOM")
         timepre = time()
         Parallel(n_jobs=n_jobs)(

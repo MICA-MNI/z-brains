@@ -655,6 +655,31 @@ def run(
                     f"{BIDS_ID}_hemi-{hemi}_space-T1w_den-0p5mm_label-hipp_{surf}.surf.gii",
                 ),
             )
+        shutil.copyfile(
+            os.path.join(
+                subject_micapipe_dir,
+                "xfm",
+                f"{BIDS_ID}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_0GenericAffine.mat",
+            ),
+            os.path.join(
+                subject_output_dir,
+                "structural",
+                f"{BIDS_ID}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_0GenericAffine.mat",
+            ),
+        )
+        shutil.copyfile(
+            os.path.join(
+                subject_micapipe_dir,
+                "xfm",
+                f"{BIDS_ID}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_1Warp.nii.gz",
+            ),
+            os.path.join(
+                subject_output_dir,
+                "structural",
+                f"{BIDS_ID}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_1Warp.nii.gz",
+            ),
+        )
+
     # do the mapping
     for feat in features:
         if structure == "cortex":
