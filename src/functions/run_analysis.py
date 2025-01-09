@@ -87,9 +87,11 @@ def main(
     }
 
     # Rename covariates for normative modeling
-    cov_normative = normative
+    cov_normative = normative.split("-") if normative is not None else None
     if cov_normative is not None:
-        cov_normative = [actual_to_expected.get(col, col) for col in cov_normative]
+        cov_normative = [
+            actual_to_expected.get(col, col).upper() for col in cov_normative
+        ]
 
     # Rename covariates for deconfounding
     cov_deconfound = deconfound
@@ -242,7 +244,7 @@ def main(
         label_ctx=lab_ctx,
         label_hip=lab_hip,
         tmp_dir=tmp,
-        feature_means=feature_means
+        feature_means=feature_means,
     )
 
 

@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import nibabel as nib
 import copy
+from sklearn.linear_model import LinearRegression
 from .utilities import (
     add_field_to_xml,
     replace_field_in_xml,
@@ -1044,29 +1045,44 @@ def run_analysis(
         else:
             available_features[struct][resol][label] = data_mahalanobis["feat"]
 
-
         # Mahalanobis
         if len(data_mahalanobis["feat"]) < 2:
             continue
+        if cov_normative:
+            for e, feat in enumerate(data_mahalanobis["feat"]):
+                alldata = data_mahalanobis["data_cn"][e]
+                numvertex = alldata.shape[1]
+                for i in range(numvertex):
+                    data_vertex = alldata[:, i]
+                    data_norms = data_mahalanobis["df_cn"][e][cov_normative].to_numpy()
+                    for t in range(data_norms.shape[0]):
+                        data_norms[t, :][data_norms[t, :] == "M"] = 1
+                        data_norms[t, :][data_norms[t, :] == "F"] = 0
+                    data_norms = np.asarray(data_norms, dtype=float)
+                    # Create a boolean mask where True indicates rows without NaNs
+                    mask = ~np.isnan(data_norms).any(axis=1)
+
+                    # Use the mask to filter out rows with NaNs
+                    data_norms = data_norms[mask]
+                    data_vertex = np.asarray(data_vertex[mask])
+
+                    # Fit a linear regression model
+                    model = LinearRegression()
+                    model.fit(data_norms, data_vertex)
+                    print("Intercept (β0):", model.intercept_)
+                    print("Age coefficient (β1):", model.coef_[0][0])
+                    print("Sex coefficient (β2):", model.coef_[0][1])
+                    print(
+                        "STD of residuals:",
+                        np.std(model.predict(data_norms) - data_vertex),
+                    )
+                    print("here")
 
         # Analysis: mahalanobis distance
         res = _subject_mahalanobis(data=data_mahalanobis, analyses=analyses)
-        
+
         # Save results
         kwds.update({"feat": data_mahalanobis["feat"]})
-        # if struct == "subcortex":
-        #         feature_means[struct] = {}
-        #         for analysis in analyses:
-        #             print("mahalmeans")
-        #             print(res[analysis]['md'])
-        #             feature_means[struct][analysis] = np.mean(res[analysis]['md'])
-        # else:
-        #     feature_means[struct][resol][label] = {}
-        #     for analysis in analyses:
-        #         print("mahalmeans")
-        #         print(res[analysis]['md'])
-        #         print("length", len(res[analysis]['md']))
-        #         feature_means[struct][resol][label][analysis] = np.mean(res[analysis]['md'])
 
         n_available_cn = 0
         for analysis in analyses:
@@ -1076,7 +1092,7 @@ def run_analysis(
 
             if analysis == "regional" and struct != "subcortex":
                 md = md.reshape(2, -1)
-            
+
             _save(pth_analysis, x=md, sid=px_sid, ses=px_ses, analysis=analysis, **kwds)
 
         # n_available_cn = res['data_cn'].shape[0]

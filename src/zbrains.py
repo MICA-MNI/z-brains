@@ -497,7 +497,12 @@ def main_func(args):
                     args_list.extend(["--demo", args.demo])
 
                 if args.normative:
-                    args_list.extend(["--normative", args.normative])
+                    args_list.extend(
+                        [
+                            "--normative",
+                            args.normative[0],
+                        ]
+                    )
 
                 if args.deconfound:
                     args_list.extend(["--deconfound", args.deconfound])
