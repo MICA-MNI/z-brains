@@ -170,7 +170,7 @@ def main(
             struct,
             smooth_ctx,
             smooth_hip,
-            zbrains_ref,
+            zbrains,
             px_id,
             px_ses,
             px_demo,
