@@ -87,7 +87,7 @@ def main(
     }
 
     # Rename covariates for normative modeling
-    cov_normative = normative.split("-") if normative is not None else None
+    cov_normative = (normative.split(" ") if " " in normative else normative.split("-")) if normative is not None else None
     if cov_normative is not None:
         cov_normative = [
             actual_to_expected.get(col, col).upper() for col in cov_normative
@@ -398,6 +398,7 @@ if __name__ == "__main__":
     args.demo_ref = args.demo_ref.split("-")
     args.zbrains_ref = args.zbrains_ref.split("-")
     args.resolution = args.resolution.split("-")
+    
     print(args.labels_ctx)
     run(
         subject_id=args.subject_id,
