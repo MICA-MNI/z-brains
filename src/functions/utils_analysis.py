@@ -889,9 +889,24 @@ def process_feature(
 def w_score(data_mahalanobis, cov_normative, px_demo, normative_data=None):
     # Initialize normative_data
     if normative_data is None:
+        if len(data_mahalanobis["data_px"][0].shape) == 1:
+            for e, feat in enumerate(data_mahalanobis["feat"]):
+                data_mahalanobis["data_px"][e] = np.expand_dims(
+                    data_mahalanobis["data_px"][e], -1
+                )
+                data_mahalanobis["data_cn"][e] = np.expand_dims(
+                    data_mahalanobis["data_cn"][e], -1
+                )
+
         normative_data = {
-            k: np.zeros([data_mahalanobis["data_px"][0].shape[0], 4])
-            for k in data_mahalanobis["feat"]
+            k: np.zeros(
+                [
+                    data_mahalanobis["data_px"][en].shape[0],
+                    data_mahalanobis["data_px"][en].shape[1],
+                    4,
+                ]
+            )
+            for en, k in enumerate(data_mahalanobis["feat"])
         }
 
         for e, feat in enumerate(data_mahalanobis["feat"]):
@@ -919,21 +934,29 @@ def w_score(data_mahalanobis, cov_normative, px_demo, normative_data=None):
                 coefficients = np.linalg.inv(X.T @ X) @ X.T @ data_vertex
 
                 # Extract the intercept and coefficients
-                intercept = coefficients[0][0]
-                age_coefficient = coefficients[1][0]
-                sex_coefficient = coefficients[2][0]
+                if coefficients.shape[1] > 1:
+                    intercept = coefficients.squeeze()[0]
+                    age_coefficient = coefficients.squeeze()[1]
+                    sex_coefficient = coefficients.squeeze()[2]
+                    # Calculate the residuals and their standard deviation
+                    residuals = data_vertex - X @ coefficients
+                    std_residuals = np.std(residuals, axis=0)
 
-                # Calculate the residuals and their standard deviation
-                residuals = data_vertex - X @ coefficients
-                std_residuals = np.std(residuals)
+                else:
+                    intercept = coefficients.squeeze()[0]
+                    age_coefficient = coefficients.squeeze()[1]
+                    sex_coefficient = coefficients.squeeze()[2]
+
+                    # Calculate the residuals and their standard deviation
+                    residuals = data_vertex - X @ coefficients
+                    std_residuals = np.std(residuals)
 
                 # Append the results to normative_data
                 normative_data[feat][i] = np.array(
                     [intercept, age_coefficient, sex_coefficient, std_residuals]
                 )
 
-            normative_data[feat] = np.array(normative_data[feat])
-
+            normative_data[feat] = np.array(normative_data[feat]).transpose(0, 2, 1)
 
     # Initialize w_scored_data
     w_scored_data = {
@@ -963,7 +986,9 @@ def w_score(data_mahalanobis, cov_normative, px_demo, normative_data=None):
         w_scored_data[feat] = dataoutput
 
     # Return w_scored_data to data_mahalanobis as data_px
-    data_mahalanobis["data_px"] = [w_scored_data[feat] for feat in data_mahalanobis["feat"]]
+    data_mahalanobis["data_px"] = [
+        w_scored_data[feat] for feat in data_mahalanobis["feat"]
+    ]
 
     return normative_data, data_mahalanobis
 
@@ -1132,21 +1157,33 @@ def run_analysis(
         if len(data_mahalanobis["feat"]) < 2:
             continue
         if cov_normative:
-            if os.path.exists(os.path.join(px_zbrains, f"normative_data_{struct}_{resol}_{label}.pkl")):
-                with open(os.path.join(px_zbrains, f"normative_data_{struct}_{resol}_{label}.pkl"), "rb") as f:
+            if os.path.exists(
+                os.path.join(px_zbrains, f"normative_data_{struct}_{resol}_{label}.pkl")
+            ):
+                with open(
+                    os.path.join(
+                        px_zbrains, f"normative_data_{struct}_{resol}_{label}.pkl"
+                    ),
+                    "rb",
+                ) as f:
                     normative_data = pkl.load(f)
-                data_mahalanobis = w_score(
-                    data_mahalanobis, cov_normative, px_demo, normative_data=normative_data
+                data_mahalanobis, data_mahalanobis = w_score(
+                    data_mahalanobis,
+                    cov_normative,
+                    px_demo,
+                    normative_data=normative_data,
                 )
             else:
                 normative_data, data_mahalanobis = w_score(
                     data_mahalanobis, cov_normative, px_demo
                 )
-                with open(os.path.join(px_zbrains, f"normative_data_{struct}_{resol}_{label}.pkl"), "wb") as f:
+                with open(
+                    os.path.join(
+                        px_zbrains, f"normative_data_{struct}_{resol}_{label}.pkl"
+                    ),
+                    "wb",
+                ) as f:
                     pkl.dump(normative_data, f)
-
-
-    
 
         # Analysis: mahalanobis distance
         res = _subject_mahalanobis(data=data_mahalanobis, analyses=analyses)
