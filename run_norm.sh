@@ -4,11 +4,9 @@
 set -e
 
 # Set the path to the dataset, or the folder containing the 'derivatives' folder
-pth_dataset_ref="/data/mica3/BIDS_MICs"
-pth_dataset="/data/mica3/BIDS_PNI"
+pth_dataset="/data/mica3/BIDS_MICs"
 # Set the directories for micapipe, hippunfold, and zbrains, which will be looked for in the 'derivates' folder
-zbrains_dir="zbrains_clinical"
-zbrains_dir_ref="zbrains_clinical"
+zbrains_dir="wbrains"
 micapipe_dir="micapipe_v0.2.0"
 hippunfold_dir="hippunfold_v1.3.0"
 
@@ -17,16 +15,16 @@ hippunfold_dir="hippunfold_v1.3.0"
 # The demo_patients can be provided if desired, which will run all the patients in the list when the "all" keyword is used,
 # otherwise the 'all' keyword will run every patient possible, given the micapipe and hippunfold availability, or, for the analysis
 # it will run on all patients who have had zbrains proc run before.
-# demo_controls="/host/oncilla/local_raid/oualid/zbrains_csvs/participants_mics_hc.csv"
-demo_controls="/data/mica1/03_projects/ian/participants_7T_hc.csv"
+demo_controls="/host/oncilla/local_raid/oualid/zbrains_csvs/participants_mics_hc.csv"
+demo="/host/verges/tank/data/ian/participants_mics_px.csv"
 # Set the subject IDs and session IDs to 'all', using all patients defined in the PX_participants file.
-subject_ids="sub-PNE006"
+subject_ids="sub-PX010"
 session_ids="all"
 
 # The code below runs zbrains preserving the old behaviour, with a smooth_ctx of 10, a smooth_hip of 5, and a label_ctx of 'white'
 # The new defaults for this are a smooth_ctx of 5, a smooth_hip of 2, and a label_ctx of 'midthickness'
 # Much of the new volumetric code is dependent on cortical midthickness, so it is recommended.
-./zbrains --run "proc analysis"\
+./zbrains --run "analysis"\
         --sub "${subject_ids}" \
         --ses "${session_ids}" \
         --dataset ${pth_dataset} \
@@ -35,7 +33,8 @@ session_ids="all"
         --hippunfold ${hippunfold_dir} \
         --dataset_ref ${pth_dataset} \
         --zbrains_ref ${zbrains_dir} \
-        --demo_ref ${demo_controls} \
+	--demo ${demo} \
+	--demo_ref ${demo_controls} \
         --column_map participant_id=ID session_id=SES \
         --smooth_ctx 10 \
         --smooth_hip 5 \
@@ -44,11 +43,10 @@ session_ids="all"
         --label_ctx "white" \
 	--wb_path /usr/bin/ \
         --verbose 2 \
-	--control_prefix "PNC" \
         --volumetric 0 \
         --dicoms 0 \
-        --pyinit=/data/mica1/03_projects/ian/anaconda3 
-
+        --pyinit=/data/mica1/03_projects/ian/anaconda3 \
+	--normative "age sex" 
 
 # Pause to keep the terminal open (optional, remove if not needed)
 read -p "Press any key to continue..."

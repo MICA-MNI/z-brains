@@ -199,9 +199,10 @@ def main(
     print(lab_ctx, lab_hip)
     age = None
     sex = None
+    print(px_demo)
     if px_demo is not None:
-        age = px_demo.iloc[0].get("age", None)
-        sex = px_demo.iloc[0].get("sex", None)
+        age = px_demo["AGE"]
+        sex = px_demo["SEX"]
 
     feat_ctx = available_features["cortex"][res_ctx][lab_ctx]
     feat_sctx = available_features["subcortex"]
