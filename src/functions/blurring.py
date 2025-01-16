@@ -60,7 +60,7 @@ def compute_blurring(
         [midthicknessDataArr, midthicknessSurfaceArr],
         [wmBoundaryDataArr, wmBoundarySurfaceArr],
     ]
-    for dist in ["1", "2", "3"]:
+    for dist in ["1", "2"]:
         whiteMatterDataArr = load_gifti_data(
             f"{input_dir}/{bids_id}_hemi-{hemi}_surf-fsnative_label-swm{dist}.0mm_{feat}.func.gii"
         )
