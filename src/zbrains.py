@@ -629,7 +629,12 @@ def main(args):
         args.ses = None
     if not args.ses and args.demo:
         print("Using sessions from demo file")
-        args.ses = list(pd.read_csv(args.demo)[args.column_map["session_id"]].values)
+        sessions = pd.read_csv(args.demo)
+        if args.sub != "all":
+            sessions = sessions[
+                sessions[args.column_map["participant_id"]].isin(args.sub)
+            ]
+        args.ses = list(sessions[args.column_map["session_id"]].values)
     if args.ses and len(args.ses) != len(args.sub):
         print("Number of subs and sessions do not match")
         sys.exit()
