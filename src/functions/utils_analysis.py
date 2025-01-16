@@ -987,7 +987,10 @@ def process_feature(
         z = res[analysis]
         if len(z.shape) > 1:
             if z.shape[1] > 1:
-                z = np.mean(z, axis=1)
+                if isinstance(z, pd.DataFrame):
+                    pass
+                else:
+                    z = np.mean(z, axis=1)
         if analysis == "regional" and struct != "subcortex":
             z = z.reshape(2, -1)
         _save(pth_analysis, x=z, sid=px_sid, ses=px_ses, analysis=analysis, **kwds)
