@@ -138,7 +138,14 @@ def compute_asymmetry(x_lh: np.ndarray, x_rh: np.ndarray) -> np.ndarray:
     return np.divide(x_lh - x_rh, den, out=den, where=den > 0)
 
 
-def zscore(x_train: np.ndarray, x_test: np.ndarray, cov_normative, px_demo) -> np.ndarray:
+def zscore(
+    x_train: np.ndarray,
+    x_test: np.ndarray,
+    cov_normative,
+    px_demo,
+    df_cn=None,
+    normative_data=None,
+) -> np.ndarray:
     """Calculate z-scores for the test data based on the training data.
 
     Parameters
@@ -164,38 +171,48 @@ def zscore(x_train: np.ndarray, x_test: np.ndarray, cov_normative, px_demo) -> n
                 z = np.mean(z, axis=1)
         return z
     else:
-        # W-scoring
-        normative_data = {
-            k: np.zeros([x_train.shape[1], 4])
-            for k in range(x_train.shape[1])
-        }
-
-        for i in range(x_train.shape[1]):
-            data_vertex = x_train[:, i]
-            data_norms = px_demo[cov_normative].to_numpy()
-            for t in range(data_norms.shape[0]):
-                data_norms[t, :][data_norms[t, :] == "M"] = 1
-                data_norms[t, :][data_norms[t, :] == "F"] = 0
-            data_norms = np.asarray(data_norms, dtype=float)
-            mask = ~np.isnan(data_norms).any(axis=1)
-
-            data_norms = data_norms[mask]
-            data_vertex = np.asarray(data_vertex[mask])
-
-            X = np.hstack([np.ones((data_norms.shape[0], 1)), data_norms])
-
-            coefficients = np.linalg.inv(X.T @ X) @ X.T @ data_vertex
-
-            intercept = coefficients.squeeze()[0]
-            age_coefficient = coefficients.squeeze()[1]
-            sex_coefficient = coefficients.squeeze()[2]
-
-            residuals = data_vertex - X @ coefficients
-            std_residuals = np.std(residuals)
-
-            normative_data[i] = np.array(
-                [intercept, age_coefficient, sex_coefficient, std_residuals]
+        if normative_data is None:
+            # W-scoring
+            normative_data = (
+                {
+                    k: np.zeros(
+                        [x_train.shape[1], x_train.shape[2], 4], dtype=np.float32
+                    )
+                    for k in range(x_train.shape[1])
+                }
+                if len(x_train.shape) > 2
+                else {
+                    k: np.zeros([x_train.shape[1], 1, 4])
+                    for k in range(x_train.shape[1])
+                }
             )
+
+            for i in range(x_train.shape[1]):
+                data_vertex = x_train[:, i]
+                data_norms = df_cn[cov_normative].to_numpy()
+                for t in range(data_norms.shape[0]):
+                    data_norms[t, :][data_norms[t, :] == "M"] = 1
+                    data_norms[t, :][data_norms[t, :] == "F"] = 0
+                data_norms = np.asarray(data_norms, dtype=float)
+                mask = ~np.isnan(data_norms).any(axis=1)
+
+                data_norms = data_norms[mask]
+                data_vertex = np.asarray(data_vertex[mask])
+
+                X = np.hstack([np.ones((data_norms.shape[0], 1)), data_norms])
+
+                coefficients = np.linalg.inv(X.T @ X) @ X.T @ data_vertex
+
+                intercept = coefficients.squeeze()[0]
+                age_coefficient = coefficients.squeeze()[1]
+                sex_coefficient = coefficients.squeeze()[2]
+
+                residuals = data_vertex - X @ coefficients
+                std_residuals = np.std(residuals, axis=0).squeeze()
+
+                normative_data[i] = np.array(
+                    [intercept, age_coefficient, sex_coefficient, std_residuals]
+                )
 
         w_scored_data = np.zeros_like(x_test)
         px_demo_data = px_demo[cov_normative].to_numpy()
@@ -206,13 +223,14 @@ def zscore(x_train: np.ndarray, x_test: np.ndarray, cov_normative, px_demo) -> n
 
         for i in range(x_test.shape[0]):
             ns_pred = (
-                normative_data[i, 0]
-                + normative_data[i, 1] * px_demo_data[0]
-                + normative_data[i, 2] * px_demo_data[1]
+                normative_data[i][0]
+                + normative_data[i][1] * px_demo_data[0]
+                + normative_data[i][2] * px_demo_data[1]
             )
-            w_scored_data[i] = (x_test[i] - ns_pred) / normative_data[i, 3]
+            w_scored_data[i] = (x_test[i] - ns_pred) / normative_data[i][3]
 
         return w_scored_data, normative_data
+
 
 def mahalanobis_distance(x_train: np.ndarray, x_test: np.ndarray) -> np.ndarray:
     """Compute mahalanobis distance.
@@ -723,29 +741,44 @@ def _subject_zscore(
     analyses: Optional[List[Analysis]],
     cov_normative=None,
     px_demo=None,
-    version='regional'
+    version="regional",
+    px_zbrains=None,
+    kwds=None,
+    df_cn=None,
 ):
 
     res = {}
-
+    struct = kwds["struct"]
+    resol = kwds["resolution"]
+    smoothing = kwds["smooth"]
+    feature = kwds["feat"]
     if "regional" in analyses:
-        if cov_normative: 
+        if cov_normative:
             if os.path.exists(
-                os.path.join(px_zbrains, f"normative_data_{struct}_{resol}_{label}.pkl")
+                os.path.join(
+                    px_zbrains,
+                    f"normative_data_{struct}_{resol}_{version}_{smoothing}_{feature}.pkl",
+                )
             ):
                 with open(
                     os.path.join(
-                        px_zbrains, f"normative_data_{struct}_{resol}_{label}.pkl"
+                        px_zbrains,
+                        f"normative_data_{struct}_{resol}_{version}_{smoothing}_{feature}.pkl",
                     ),
                     "rb",
                 ) as f:
                     normative_data = pkl.load(f)
-                z, _ = zscore(data_cn, data_px, cov_normative, px_demo)
+                z, _ = zscore(
+                    data_cn, data_px, cov_normative, px_demo, df_cn, normative_data
+                )
             else:
-                z, normative_data = zscore(data_cn, data_px, cov_normative, px_demo)
+                z, normative_data = zscore(
+                    data_cn, data_px, cov_normative, px_demo, df_cn
+                )
                 with open(
                     os.path.join(
-                        px_zbrains, f"normative_data_{struct}_{resol}_{label}.pkl"
+                        px_zbrains,
+                        f"normative_data_{struct}_{resol}_{version}_{smoothing}_{feature}.pkl",
                     ),
                     "wb",
                 ) as f:
@@ -783,7 +816,10 @@ def _subject_zscore(
             analyses=["regional"],
             cov_normative=cov_normative,
             px_demo=px_demo,
-            version='asymmetry'
+            version="asymmetry",
+            px_zbrains=px_zbrains,
+            kwds=kwds,
+            df_cn=df_cn,
         )["regional"]
 
     return res
@@ -937,6 +973,9 @@ def process_feature(
         analyses=analyses,
         cov_normative=cov_normative,
         px_demo=px_demo,
+        px_zbrains=px_zbrains,
+        kwds=kwds,
+        df_cn=df_cn,
     )
 
     log["info"] = (
@@ -947,7 +986,11 @@ def process_feature(
     for analysis in analyses:
         z = res[analysis]
         if analysis == "regional" and struct != "subcortex":
-            z = z.reshape(2, -1)
+            if z.shape[1] > 1:
+                z = np.mean(z, axis=1)
+                z = z.reshape(2, -1)
+            else:
+                z = z.reshape(2, -1)
         _save(pth_analysis, x=z, sid=px_sid, ses=px_ses, analysis=analysis, **kwds)
 
     # store for mahalanobis
@@ -963,7 +1006,6 @@ def process_feature(
     for k, v in res.items():
         data_mahalanobis[k].append(v)
     return data_mahalanobis, log
-
 
 
 def w_score(data_mahalanobis, cov_normative, px_demo, normative_data=None):
@@ -1014,7 +1056,7 @@ def w_score(data_mahalanobis, cov_normative, px_demo, normative_data=None):
                 coefficients = np.linalg.inv(X.T @ X) @ X.T @ data_vertex
 
                 # Extract the intercept and coefficients
-                
+
                 intercept = coefficients.squeeze()[0]
                 age_coefficient = coefficients.squeeze()[1]
                 sex_coefficient = coefficients.squeeze()[2]
@@ -1025,7 +1067,6 @@ def w_score(data_mahalanobis, cov_normative, px_demo, normative_data=None):
                     std_residuals = np.std(residuals, axis=0)
                 else:
                     std_residuals = np.std(residuals)
-
 
                 # Append the results to normative_data
                 normative_data[feat][i] = np.array(
@@ -1233,34 +1274,34 @@ def run_analysis(
         # Mahalanobis
         if len(data_mahalanobis["feat"]) < 2:
             continue
-        if cov_normative:
-            if os.path.exists(
-                os.path.join(px_zbrains, f"normative_data_{struct}_{resol}_{label}.pkl")
-            ):
-                with open(
-                    os.path.join(
-                        px_zbrains, f"normative_data_{struct}_{resol}_{label}.pkl"
-                    ),
-                    "rb",
-                ) as f:
-                    normative_data = pkl.load(f)
-                data_mahalanobis, data_mahalanobis = w_score(
-                    data_mahalanobis,
-                    cov_normative,
-                    px_demo,
-                    normative_data=normative_data,
-                )
-            else:
-                normative_data, data_mahalanobis = w_score(
-                    data_mahalanobis, cov_normative, px_demo
-                )
-                with open(
-                    os.path.join(
-                        px_zbrains, f"normative_data_{struct}_{resol}_{label}.pkl"
-                    ),
-                    "wb",
-                ) as f:
-                    pkl.dump(normative_data, f)
+        # if cov_normative:
+        # if os.path.exists(
+        #     os.path.join(px_zbrains, f"normative_data_{struct}_{resol}_{label}.pkl")
+        # ):
+        #     with open(
+        #         os.path.join(
+        #             px_zbrains, f"normative_data_{struct}_{resol}_{label}.pkl"
+        #         ),
+        #         "rb",
+        #     ) as f:
+        #         normative_data = pkl.load(f)
+        #     data_mahalanobis, data_mahalanobis = w_score(
+        #         data_mahalanobis,
+        #         cov_normative,
+        #         px_demo,
+        #         normative_data=normative_data,
+        #     )
+        # else:
+        #     normative_data, data_mahalanobis = w_score(
+        #         data_mahalanobis, cov_normative, px_demo
+        #     )
+        #     with open(
+        #         os.path.join(
+        #             px_zbrains, f"normative_data_{struct}_{resol}_{label}.pkl"
+        #         ),
+        #         "wb",
+        #     ) as f:
+        #         pkl.dump(normative_data, f)
 
         # Analysis: mahalanobis distance
         res = _subject_mahalanobis(data=data_mahalanobis, analyses=analyses)
