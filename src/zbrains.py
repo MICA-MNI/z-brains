@@ -599,7 +599,9 @@ def main(args):
         args.sub = args.sub.split(" ")
     elif args.demo:
         print("Running analysis on all subjects specified in the demo file")
-        args.sub = list(pd.read_csv(args.demo)["participant_id"].values)
+        args.sub = list(
+            pd.read_csv(args.demo)[args.column_map["participant_id"]].values
+        )
     elif "proc" in args.run:
         print("Running proc on all subjects with micapipe and hippunfold inputs")
         args.sub = [
@@ -625,6 +627,9 @@ def main(args):
 
     if args.ses == ["all"]:
         args.ses = None
+    if not args.ses and args.demo:
+        print("Using sessions from demo file")
+        args.ses = list(pd.read_csv(args.demo)[args.column_map["session_id"]].values)
     if args.ses and len(args.ses) != len(args.sub):
         print("Number of subs and sessions do not match")
         sys.exit()
