@@ -985,7 +985,7 @@ def process_feature(
     # Save results
     for analysis in analyses:
         z = res[analysis]
-        if struct != "subcortex":
+        if len(z.shape) > 1:
             if z.shape[1] > 1:
                 z = np.mean(z, axis=1)
         if analysis == "regional" and struct != "subcortex":
