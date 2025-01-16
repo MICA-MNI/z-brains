@@ -985,12 +985,10 @@ def process_feature(
     # Save results
     for analysis in analyses:
         z = res[analysis]
+        if z.shape[1] > 1:
+            z = np.mean(z, axis=1)
         if analysis == "regional" and struct != "subcortex":
-            if z.shape[1] > 1:
-                z = np.mean(z, axis=1)
-                z = z.reshape(2, -1)
-            else:
-                z = z.reshape(2, -1)
+            z = z.reshape(2, -1)
         _save(pth_analysis, x=z, sid=px_sid, ses=px_ses, analysis=analysis, **kwds)
 
     # store for mahalanobis
