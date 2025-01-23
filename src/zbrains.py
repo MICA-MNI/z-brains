@@ -450,7 +450,7 @@ def main_func(args):
                     "--feat",
                     "-".join(features),
                     "--demo_ref",
-                    "-".join(args.demo_ref),
+                    "¥".join(args.demo_ref),
                     "--zbrains_ref",
                     "-".join(ref_zbrains_paths),
                     "--resolution",

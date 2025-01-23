@@ -400,7 +400,7 @@ if __name__ == "__main__":
     args.labels_ctx = eval(args.labels_ctx)
     args.struct = args.struct.split("-")
     args.feat = args.feat.split("-")
-    args.demo_ref = args.demo_ref.split("-")
+    args.demo_ref = args.demo_ref.split("¥")
     args.zbrains_ref = args.zbrains_ref.split("-")
     args.resolution = args.resolution.split("-")
 
