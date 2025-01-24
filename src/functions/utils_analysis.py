@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import nibabel as nib
 import copy
+import pickle as pkl
 from sklearn.linear_model import LinearRegression
 from .utilities import (
     add_field_to_xml,
@@ -137,7 +138,14 @@ def compute_asymmetry(x_lh: np.ndarray, x_rh: np.ndarray) -> np.ndarray:
     return np.divide(x_lh - x_rh, den, out=den, where=den > 0)
 
 
-def zscore(x_train: np.ndarray, x_test: np.ndarray) -> np.ndarray:
+def zscore(
+    x_train: np.ndarray,
+    x_test: np.ndarray,
+    cov_normative,
+    px_demo,
+    df_cn=None,
+    normative_data=None,
+) -> np.ndarray:
     """Calculate z-scores for the test data based on the training data.
 
     Parameters
@@ -152,17 +160,76 @@ def zscore(x_train: np.ndarray, x_test: np.ndarray) -> np.ndarray:
     z
         Z-scores for the test data. Shape (n_test, n_points) or (n_points,).
     """
+    if cov_normative is None:
+        mask = np.any(x_train != 0, axis=0)  # ignore all zeros
 
-    mask = np.any(x_train != 0, axis=0)  # ignore all zeros
-    # x_train[:, ~mask] = np.finfo(float).eps
+        z = x_test - np.nanmean(x_train, axis=0)
+        z = np.divide(z, np.nanstd(x_train, axis=0), out=z, where=mask)
+        z[..., ~mask] = 0
+        if len(z.shape) > 1:
+            if z.shape[1] != 1:
+                z = np.mean(z, axis=1)
+        return z
+    else:
+        if normative_data is None:
+            # W-scoring
+            normative_data = (
+                {
+                    k: np.zeros(
+                        [x_train.shape[1], x_train.shape[2], 4], dtype=np.float32
+                    )
+                    for k in range(x_train.shape[1])
+                }
+                if len(x_train.shape) > 2
+                else {
+                    k: np.zeros([x_train.shape[1], 1, 4])
+                    for k in range(x_train.shape[1])
+                }
+            )
 
-    z = x_test - np.nanmean(x_train, axis=0)
-    z = np.divide(z, np.nanstd(x_train, axis=0), out=z, where=mask)
-    z[..., ~mask] = 0
-    if len(z.shape) > 1:
-        if z.shape[1] != 1:
-            z = np.mean(z, axis=1)
-    return z
+            for i in range(x_train.shape[1]):
+                data_vertex = x_train[:, i]
+                data_norms = df_cn[cov_normative].to_numpy()
+                for t in range(data_norms.shape[0]):
+                    data_norms[t, :][data_norms[t, :] == "M"] = 1
+                    data_norms[t, :][data_norms[t, :] == "F"] = 0
+                data_norms = np.asarray(data_norms, dtype=float)
+                mask = ~np.isnan(data_norms).any(axis=1)
+
+                data_norms = data_norms[mask]
+                data_vertex = np.asarray(data_vertex[mask])
+
+                X = np.hstack([np.ones((data_norms.shape[0], 1)), data_norms])
+
+                coefficients = np.linalg.inv(X.T @ X) @ X.T @ data_vertex
+
+                intercept = coefficients.squeeze()[0]
+                age_coefficient = coefficients.squeeze()[1]
+                sex_coefficient = coefficients.squeeze()[2]
+
+                residuals = data_vertex - X @ coefficients
+                std_residuals = np.std(residuals, axis=0).squeeze()
+
+                normative_data[i] = np.array(
+                    [intercept, age_coefficient, sex_coefficient, std_residuals]
+                )
+
+        w_scored_data = np.zeros_like(x_test)
+        px_demo_data = px_demo[cov_normative].to_numpy()
+        for t in range(px_demo_data.shape[0]):
+            px_demo_data[t, :][px_demo_data[t, :] == "M"] = 1
+            px_demo_data[t, :][px_demo_data[t, :] == "F"] = 0
+        px_demo_data = px_demo_data.squeeze()
+
+        for i in range(x_test.shape[0]):
+            ns_pred = (
+                normative_data[i][0]
+                + normative_data[i][1] * px_demo_data[0]
+                + normative_data[i][2] * px_demo_data[1]
+            )
+            w_scored_data[i] = (x_test[i] - ns_pred) / normative_data[i][3]
+
+        return w_scored_data, normative_data
 
 
 def mahalanobis_distance(x_train: np.ndarray, x_test: np.ndarray) -> np.ndarray:
@@ -672,12 +739,52 @@ def _subject_zscore(
     index_df=None,
     cols_df=None,
     analyses: Optional[List[Analysis]],
+    cov_normative=None,
+    px_demo=None,
+    version="regional",
+    px_zbrains=None,
+    kwds=None,
+    df_cn=None,
 ):
 
     res = {}
-
+    struct = kwds["struct"]
+    resol = kwds["resolution"]
+    smoothing = kwds["smooth"]
+    feature = kwds["feat"]
     if "regional" in analyses:
-        z = zscore(data_cn, data_px)
+        if cov_normative:
+            if os.path.exists(
+                os.path.join(
+                    px_zbrains,
+                    f"normative_data_{struct}_{resol}_{version}_{smoothing}_{feature}.pkl",
+                )
+            ):
+                with open(
+                    os.path.join(
+                        px_zbrains,
+                        f"normative_data_{struct}_{resol}_{version}_{smoothing}_{feature}.pkl",
+                    ),
+                    "rb",
+                ) as f:
+                    normative_data = pkl.load(f)
+                z, _ = zscore(
+                    data_cn, data_px, cov_normative, px_demo, df_cn, normative_data
+                )
+            else:
+                z, normative_data = zscore(
+                    data_cn, data_px, cov_normative, px_demo, df_cn
+                )
+                with open(
+                    os.path.join(
+                        px_zbrains,
+                        f"normative_data_{struct}_{resol}_{version}_{smoothing}_{feature}.pkl",
+                    ),
+                    "wb",
+                ) as f:
+                    pkl.dump(normative_data, f)
+        else:
+            z = zscore(data_cn, data_px, cov_normative, px_demo)
         if index_df is not None:
             z = pd.DataFrame(z.reshape(1, -1), index=index_df, columns=cols_df)
 
@@ -707,6 +814,12 @@ def _subject_zscore(
             index_df=index_df,
             cols_df=cols_df,
             analyses=["regional"],
+            cov_normative=cov_normative,
+            px_demo=px_demo,
+            version="asymmetry",
+            px_zbrains=px_zbrains,
+            kwds=kwds,
+            df_cn=df_cn,
         )["regional"]
 
     return res
@@ -801,6 +914,7 @@ def process_feature(
     list_df_cn,
     tmp,
     cov_deconfound,
+    cov_normative,
     px_demo,
     px_zbrains,
     px_sid,
@@ -857,6 +971,11 @@ def process_feature(
         index_df=index_df,
         cols_df=cols_df,
         analyses=analyses,
+        cov_normative=cov_normative,
+        px_demo=px_demo,
+        px_zbrains=px_zbrains,
+        kwds=kwds,
+        df_cn=df_cn,
     )
 
     log["info"] = (
@@ -866,6 +985,12 @@ def process_feature(
     # Save results
     for analysis in analyses:
         z = res[analysis]
+        if len(z.shape) > 1:
+            if z.shape[1] > 1:
+                if isinstance(z, pd.DataFrame):
+                    pass
+                else:
+                    z = np.mean(z, axis=1)
         if analysis == "regional" and struct != "subcortex":
             z = z.reshape(2, -1)
         _save(pth_analysis, x=z, sid=px_sid, ses=px_ses, analysis=analysis, **kwds)
@@ -885,53 +1010,72 @@ def process_feature(
     return data_mahalanobis, log
 
 
-def w_score(data_mahalanobis, cov_normative, px_demo):
+def w_score(data_mahalanobis, cov_normative, px_demo, normative_data=None):
     # Initialize normative_data
-    normative_data = {
-        k: np.zeros([data_mahalanobis["data_px"][0].shape[0], 4])
-        for k in data_mahalanobis["feat"]
-    }
+    if normative_data is None:
+        if len(data_mahalanobis["data_px"][0].shape) == 1:
+            for e, feat in enumerate(data_mahalanobis["feat"]):
+                data_mahalanobis["data_px"][e] = np.expand_dims(
+                    data_mahalanobis["data_px"][e], -1
+                )
+                data_mahalanobis["data_cn"][e] = np.expand_dims(
+                    data_mahalanobis["data_cn"][e], -1
+                )
 
-    for e, feat in enumerate(data_mahalanobis["feat"]):
-        alldata = data_mahalanobis["data_cn"][e]
-        numvertex = alldata.shape[1]
-
-        for i in range(numvertex):
-            data_vertex = alldata[:, i]
-            data_norms = data_mahalanobis["df_cn"][e][cov_normative].to_numpy()
-            for t in range(data_norms.shape[0]):
-                data_norms[t, :][data_norms[t, :] == "M"] = 1
-                data_norms[t, :][data_norms[t, :] == "F"] = 0
-            data_norms = np.asarray(data_norms, dtype=float)
-            # Create a boolean mask where True indicates rows without NaNs
-            mask = ~np.isnan(data_norms).any(axis=1)
-
-            # Use the mask to filter out rows with NaNs
-            data_norms = data_norms[mask]
-            data_vertex = np.asarray(data_vertex[mask])
-
-            # Add a column of ones to data_norms for the intercept term
-            X = np.hstack([np.ones((data_norms.shape[0], 1)), data_norms])
-
-            # Compute the coefficients using the normal equation
-            coefficients = np.linalg.inv(X.T @ X) @ X.T @ data_vertex
-
-            # Extract the intercept and coefficients
-            intercept = coefficients[0][0]
-            age_coefficient = coefficients[1][0]
-            sex_coefficient = coefficients[2][0]
-
-            # Calculate the residuals and their standard deviation
-            residuals = data_vertex - X @ coefficients
-            std_residuals = np.std(residuals)
-
-            # Append the results to normative_data
-            normative_data[feat][i] = np.array(
-                [intercept, age_coefficient, sex_coefficient, std_residuals]
+        normative_data = {
+            k: np.zeros(
+                [
+                    data_mahalanobis["data_px"][en].shape[0],
+                    data_mahalanobis["data_px"][en].shape[1],
+                    4,
+                ]
             )
+            for en, k in enumerate(data_mahalanobis["feat"])
+        }
 
-        normative_data[feat] = np.array(normative_data[feat])
-        print("here")
+        for e, feat in enumerate(data_mahalanobis["feat"]):
+            alldata = data_mahalanobis["data_cn"][e]
+            numvertex = alldata.shape[1]
+
+            for i in range(numvertex):
+                data_vertex = alldata[:, i]
+                data_norms = data_mahalanobis["df_cn"][e][cov_normative].to_numpy()
+                for t in range(data_norms.shape[0]):
+                    data_norms[t, :][data_norms[t, :] == "M"] = 1
+                    data_norms[t, :][data_norms[t, :] == "F"] = 0
+                data_norms = np.asarray(data_norms, dtype=float)
+                # Create a boolean mask where True indicates rows without NaNs
+                mask = ~np.isnan(data_norms).any(axis=1)
+
+                # Use the mask to filter out rows with NaNs
+                data_norms = data_norms[mask]
+                data_vertex = np.asarray(data_vertex[mask])
+
+                # Add a column of ones to data_norms for the intercept term
+                X = np.hstack([np.ones((data_norms.shape[0], 1)), data_norms])
+
+                # Compute the coefficients using the normal equation
+                coefficients = np.linalg.inv(X.T @ X) @ X.T @ data_vertex
+
+                # Extract the intercept and coefficients
+
+                intercept = coefficients.squeeze()[0]
+                age_coefficient = coefficients.squeeze()[1]
+                sex_coefficient = coefficients.squeeze()[2]
+                # Calculate the residuals and their standard deviation
+                residuals = data_vertex - X @ coefficients
+
+                if coefficients.shape[1] > 1:
+                    std_residuals = np.std(residuals, axis=0)
+                else:
+                    std_residuals = np.std(residuals)
+
+                # Append the results to normative_data
+                normative_data[feat][i] = np.array(
+                    [intercept, age_coefficient, sex_coefficient, std_residuals]
+                )
+
+            normative_data[feat] = np.array(normative_data[feat]).transpose(0, 2, 1)
 
     # Initialize w_scored_data
     w_scored_data = {
@@ -960,7 +1104,12 @@ def w_score(data_mahalanobis, cov_normative, px_demo):
             dataoutput[i] = (ns - ns_pred) / std_residuals[i]
         w_scored_data[feat] = dataoutput
 
-    return normative_data, w_scored_data
+    # Return w_scored_data to data_mahalanobis as data_px
+    data_mahalanobis["data_px"] = [
+        w_scored_data[feat] for feat in data_mahalanobis["feat"]
+    ]
+
+    return normative_data, data_mahalanobis
 
 
 def run_analysis(
@@ -1089,6 +1238,7 @@ def run_analysis(
                 list_df_cn,
                 tmp,
                 cov_deconfound,
+                cov_normative,
                 px_demo,
                 px_zbrains,
                 px_sid,
@@ -1126,32 +1276,34 @@ def run_analysis(
         # Mahalanobis
         if len(data_mahalanobis["feat"]) < 2:
             continue
-        if cov_normative:
-            data_mahalanobis_asymmety = copy.deepcopy(data_mahalanobis)
-            normative_data, w_scored_data = w_score(
-                data_mahalanobis_asymmety, cov_normative, px_demo
-            )
-
-            for en, x in enumerate(data_mahalanobis_asymmety["data_cn"]):
-                if x.shape[2] > 1:
-                    previousshape = x.shape[1]
-                    data_mahalanobis_asymmety["data_cn"][en] = (
-                        data_mahalanobis_asymmety["data_cn"][en].reshape(x.shape[0], -1)
-                    )
-            for en, x in enumerate(data_mahalanobis_asymmety["data_px"]):
-                if x.shape[1] > 1:
-                    previousshape = x.shape[0]
-
-                    data_mahalanobis_asymmety["data_px"][en] = (
-                        data_mahalanobis_asymmety["data_px"][en].reshape(-1)
-                    )
-
-            data_mahalanobis_asymmety["data_px"] = [
-                compute_asymmetry(x.reshape(2, -1)[0, :], x.reshape(2, -1)[1, :])
-                for x in data_mahalanobis_asymmety["data_px"]
-            ]
-
-            print("here")
+        # if cov_normative:
+        # if os.path.exists(
+        #     os.path.join(px_zbrains, f"normative_data_{struct}_{resol}_{label}.pkl")
+        # ):
+        #     with open(
+        #         os.path.join(
+        #             px_zbrains, f"normative_data_{struct}_{resol}_{label}.pkl"
+        #         ),
+        #         "rb",
+        #     ) as f:
+        #         normative_data = pkl.load(f)
+        #     data_mahalanobis, data_mahalanobis = w_score(
+        #         data_mahalanobis,
+        #         cov_normative,
+        #         px_demo,
+        #         normative_data=normative_data,
+        #     )
+        # else:
+        #     normative_data, data_mahalanobis = w_score(
+        #         data_mahalanobis, cov_normative, px_demo
+        #     )
+        #     with open(
+        #         os.path.join(
+        #             px_zbrains, f"normative_data_{struct}_{resol}_{label}.pkl"
+        #         ),
+        #         "wb",
+        #     ) as f:
+        #         pkl.dump(normative_data, f)
 
         # Analysis: mahalanobis distance
         res = _subject_mahalanobis(data=data_mahalanobis, analyses=analyses)
