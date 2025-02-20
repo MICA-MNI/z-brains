@@ -558,8 +558,8 @@ def _load_data_sctx(
     x = pd.read_csv(sctx_file, header=[0], index_col=0).to_numpy().ravel()
     if threshold is not None:
         x[np.abs(x) < threshold] *= threshold_alpha
-    if analysis == "asymmetry":
-        print("e")
+    # if analysis == "asymmetry":
+    #     print("e")
     # Array of data
     array_16 = np.full(16, np.nan)
     array_16[0:7] = x[0:7]
@@ -1033,7 +1033,7 @@ def generate_clinical_report(
     label_hip="midthickness",
     color_bar="bottom",
     cmap="cmo.balance",
-    color_range=(-2, 2),
+    color_range=(-3, 3),
     cmap_asymmetry="cmo.balance_r",
     tmp_dir: PathType = "/tmp",
     subject_dir=None,

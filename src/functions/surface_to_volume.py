@@ -380,13 +380,13 @@ def process_cortex(
     ]
 
     # Run the commands
-    subprocess.run(command_struct)
+    subprocess.run(command_struct, shell=True)
     # subprocess.run(command_struct_native)
 
-    subprocess.run(command1)
-    subprocess.run(command_struct_2)
-    subprocess.run(command2)
-    subprocess.run(command3)
+    subprocess.run(command1, shell=True)
+    subprocess.run(command_struct_2, shell=True)
+    subprocess.run(command2, shell=True)
+    subprocess.run(command3, shell=True)
     os.replace(
         f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
         f"{outdir}/{subj}_{ses}_hemi-{hemi}_surf-fsLR-32k_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.nii.gz",
@@ -1015,7 +1015,7 @@ def surface_to_volume(
         None
     """
     rootfolder = os.path.join(rootfolder, "derivatives")
-    zbrainsdir = zbrainsdir[0]
+    # zbrainsdir = zbrainsdir
     smooth_ctx = f"{str(smooth_ctx)}mm"
     smooth_hipp = f"{str(smooth_hipp)}mm"
 
