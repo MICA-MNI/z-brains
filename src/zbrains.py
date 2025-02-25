@@ -145,6 +145,9 @@ def parse_args(args):
     structures = args.struct
 
     features = args.feat or ["all"]
+    if isinstance(features, list) and len(features) == 1:
+        features = features[0].split(" ")
+
     if "all" in features:
         features = LIST_FEATURES
     if not args.plugin:
@@ -208,6 +211,7 @@ def check_files_and_directories(args, tasks, structures, sid, ses):
     px_zbrains_path = os.path.join(dataset_path, args.zbrains)
 
     BIDS_ID = f"{sid}_{ses}" if ses else sid
+
     SUBJECT_OUTPUT_DIR = (
         os.path.join(px_zbrains_path, sid, ses)
         if ses
@@ -441,8 +445,6 @@ def main_func(args):
                 args_list = [
                     "--sub",
                     sid,
-                    "--ses",
-                    ses,
                     "--zbrains",
                     px_zbrains_path,
                     "--struct",
@@ -506,6 +508,9 @@ def main_func(args):
 
                 if args.deconfound:
                     args_list.extend(["--deconfound", args.deconfound])
+                if ses:
+                    args_list.extend(["--ses", ses])
+                args_list = [arg for arg in args_list if arg is not None]
                 subprocess.call(
                     ["python", "-m", "src.functions.run_analysis", *args_list]
                 )
@@ -561,7 +566,7 @@ def create_jobs(args, subs, ses, run_type):
             if run_type == "analysis"
             else os.path.join(args.dataset, "derivatives", args.micapipe, sub)
         )
-        for s in os.listdir(directory) if not ses else [s]:
+        for s in os.listdir(directory) if ses == ["all"] else [s]:
             if check_sub(args, sub, s):
                 job = copy.copy(args)
                 job.sub, job.ses, job.run = sub, s, run_type
@@ -597,11 +602,22 @@ def main(args):
     args.ses = args.ses.split(" ") if args.ses else None
     if args.sub != "all":
         args.sub = args.sub.split(" ")
-    elif args.demo:
-        print("Running analysis on all subjects specified in the demo file")
-        args.sub = list(
-            pd.read_csv(args.demo)[args.column_map["participant_id"]].values
-        )
+    elif args.demo or args.demo_ref:
+        print("Running analysis on all subjects specified in the demo files")
+        all_sub = []
+        if args.demo:
+            px_list = list(
+                pd.read_csv(args.demo)[args.column_map["participant_id"]].values
+            )
+            [all_sub.append(x) for x in px_list]
+        if args.demo_ref:
+            ref_subs = list(
+                pd.read_csv(args.demo_ref[0])[args.column_map["participant_id"]].values
+            )
+            [all_sub.append(x) for x in ref_subs]
+
+        args.sub = all_sub
+
     elif "proc" in args.run:
         print("Running proc on all subjects with micapipe and hippunfold inputs")
         args.sub = [
@@ -625,9 +641,7 @@ def main(args):
             if check_sub(args, sub)
         ]
 
-    if args.ses == ["all"]:
-        args.ses = None
-    if not args.ses and args.demo:
+    if args.ses == ["all"] and args.demo:
         print("Using sessions from demo file")
         sessions = pd.read_csv(args.demo)
         if args.sub != "all":

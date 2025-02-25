@@ -16,14 +16,14 @@ hemis = ["L", "R"]
 settozero = True
 
 
-def fixmatrix(subject, session, temppath, wb_path, rootzbrainfolder):
+def fixmatrix(bids_id, temppath, wb_path, rootzbrainfolder):
     # Load the .mat file
     mat = scipy.io.loadmat(
         os.path.join(
             rootzbrainfolder,
             "structural",
-            f"{subject}_{session}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_0GenericAffine.mat",
-        ),
+            f"{bids_id}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_0GenericAffine.mat",
+        )
     )
 
     # Extract variables from the .mat file
@@ -58,7 +58,7 @@ def fixmatrix(subject, session, temppath, wb_path, rootzbrainfolder):
         os.path.join(
             rootzbrainfolder,
             "structural",
-            f"{subject}_{session}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_1Warp.nii.gz",
+            f"{bids_id}_from-nativepro_brain_to-MNI152_0.8mm_mode-image_desc-SyN_1Warp.nii.gz",
         ),
         "-to-world",
         os.path.join(temppath, "real_warp.nii.gz"),
@@ -68,10 +68,10 @@ def fixmatrix(subject, session, temppath, wb_path, rootzbrainfolder):
     command2 = [
         os.path.join(wb_path, "wb_command"),
         "-volume-resample",
-        f"{rootzbrainfolder}/structural/{subject}_{session}_space-nativepro_T1w_brain.nii.gz",
+        f"{rootzbrainfolder}/structural/{bids_id}_space-nativepro_T1w_brain.nii.gz",
         "src/data/MNI152_T1_0.8mm_brain.nii.gz",
         "CUBIC",
-        f"{rootzbrainfolder}/structural/{subject}_{session}_space-nativepro_T1w_brain_MNI152.nii.gz",
+        f"{rootzbrainfolder}/structural/{bids_id}_space-nativepro_T1w_brain_MNI152.nii.gz",
         "-affine",
         os.path.join(temppath, "real_world_affine.txt"),
         "-warp",
@@ -81,10 +81,10 @@ def fixmatrix(subject, session, temppath, wb_path, rootzbrainfolder):
     command3 = [
         os.path.join(wb_path, "wb_command"),
         "-volume-resample",
-        f"{rootzbrainfolder}/structural/{subject}_{session}_space-nativepro_T1w.nii.gz",
+        f"{rootzbrainfolder}/structural/{bids_id}_space-nativepro_T1w.nii.gz",
         "src/data/MNI152_T1_0.8mm_brain.nii.gz",
         "CUBIC",
-        f"{rootzbrainfolder}/structural/{subject}_{session}_space-nativepro_T1w_MNI152.nii.gz",
+        f"{rootzbrainfolder}/structural/{bids_id}_space-nativepro_T1w_MNI152.nii.gz",
         "-affine",
         os.path.join(temppath, "real_world_affine.txt"),
         "-warp",
@@ -278,8 +278,7 @@ def process_cortex(
     rootzbrainfolder,
     rootmicafolder,
     outdir,
-    subj,
-    ses,
+    bids_id,
     struct,
     workbench_path,
     tmp,
@@ -309,13 +308,13 @@ def process_cortex(
     """
     if analysis == "asymmetry" and hemi == "R":
         return
-    metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{subj}_{ses}_hemi-{hemi}_surf-fsLR-32k_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.func.gii"
+    metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{bids_id}_hemi-{hemi}_surf-fsLR-32k_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.func.gii"
     metricsphere = f"src/data/fsLR-32k.{hemi}.sphere.reg.surf.gii"
-    nativesphere = f"{rootzbrainfolder}/structural/{subj}_{ses}_hemi-{hemi}_surf-fsnative_label-sphere.surf.gii"
-    boundingpattern = f"{rootzbrainfolder}/structural/{subj}_{ses}_hemi-{hemi}_space-nativepro_surf-fsnative_label-"
+    nativesphere = f"{rootzbrainfolder}/structural/{bids_id}_hemi-{hemi}_surf-fsnative_label-sphere.surf.gii"
+    boundingpattern = f"{rootzbrainfolder}/structural/{bids_id}_hemi-{hemi}_space-nativepro_surf-fsnative_label-"
     if not os.path.isfile(metricfile):
         print(
-            f"{feature} is not available for {subj}_{ses}_{hemi} at {smooth} smoothing in the {struct}, skipping path: {metricfile}"
+            f"{feature} is not available for {bids_id}_{hemi} at {smooth} smoothing in the {struct}, skipping path: {metricfile}"
         )
         return
 
@@ -358,7 +357,7 @@ def process_cortex(
         "-metric-to-volume-mapping",
         outputmetric,
         f"{boundingpattern}midthickness.surf.gii",
-        f"{rootzbrainfolder}/structural/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz",  # the structural image that the metric map is based off
+        f"{rootzbrainfolder}/structural/{bids_id}_space-nativepro_T1w_brain.nii.gz",  # the structural image that the metric map is based off
         f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp_pretransform.nii.gz",  # the output file (mine gets renamed later)
         "-ribbon-constrained",
         f"{boundingpattern}white.surf.gii",  # white surf
@@ -389,7 +388,7 @@ def process_cortex(
     subprocess.run(command3, shell=True)
     os.replace(
         f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
-        f"{outdir}/{subj}_{ses}_hemi-{hemi}_surf-fsLR-32k_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.nii.gz",
+        f"{outdir}/{bids_id}_hemi-{hemi}_surf-fsLR-32k_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.nii.gz",
     )
 
 
@@ -401,8 +400,7 @@ def process_hippocampus(
     rootzbrainfolder,
     rootmicafolder,
     outdir,
-    subj,
-    ses,
+    bids_id,
     struct,
     micapipename,
     rootfolder,
@@ -436,18 +434,17 @@ def process_hippocampus(
     """
     if analysis == "asymmetry" and hemi == "R":
         return
-    metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{subj}_{ses}_hemi-{hemi}_den-0p5mm_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.func.gii"
-    boundingpattern = f"{rootzbrainfolder}/structural/{subj}_{ses}_hemi-{hemi}_space-T1w_den-0p5mm_label-hipp_"
-    micapipefolder = os.path.join(rootfolder, micapipename, subj, ses)
+    metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{bids_id}_hemi-{hemi}_den-0p5mm_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.func.gii"
+    boundingpattern = f"{rootzbrainfolder}/structural/{bids_id}_hemi-{hemi}_space-T1w_den-0p5mm_label-hipp_"
 
     if not os.path.isfile(metricfile):
         print(
-            f"{feature} is not available for {subj}_{ses}_{hemi} at {smooth} smoothing in the {struct}, skipping"
+            f"{feature} is not available for {bids_id}_{hemi} at {smooth} smoothing in the {struct}, skipping"
         )
         if not settozero:
             return
         else:
-            metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{subj}_{ses}_hemi-{hemi}_den-0p5mm_label-midthickness_feature-T1map_smooth-{smooth}_analysis-{analysis}.func.gii"
+            metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{bids_id}_hemi-{hemi}_den-0p5mm_label-midthickness_feature-T1map_smooth-{smooth}_analysis-{analysis}.func.gii"
 
     command_struct = [
         os.path.join(workbench_path, "wb_command"),
@@ -461,7 +458,7 @@ def process_hippocampus(
         "-metric-to-volume-mapping",
         metricfile,
         f"{boundingpattern}midthickness.surf.gii",
-        f"{rootzbrainfolder}/structural/{subj}_{ses}_space-nativepro_T1w_brain.nii.gz",
+        f"{rootzbrainfolder}/structural/{bids_id}_space-nativepro_T1w_brain.nii.gz",
         f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp_pretransform.nii.gz",
         "-ribbon-constrained",
         f"{boundingpattern}inner.surf.gii",
@@ -489,7 +486,7 @@ def process_hippocampus(
 
     os.replace(
         f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
-        f"{outdir}/{subj}_{ses}_hemi-{hemi}_den-0p5mm_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.nii.gz",
+        f"{outdir}/{bids_id}_hemi-{hemi}_den-0p5mm_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.nii.gz",
     )
 
 
@@ -500,8 +497,7 @@ def process_subcortex(
     rootzbrainfolder,
     rootmicafolder,
     outdir,
-    subj,
-    ses,
+    bids_id,
     struct,
     workbench_path,
     tmp,
@@ -532,13 +528,13 @@ def process_subcortex(
     if hemi == "R":
         return
 
-    metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{subj}_{ses}_feature-{feature}_analysis-{analysis}.csv"
+    metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{bids_id}_feature-{feature}_analysis-{analysis}.csv"
     if not os.path.isfile(metricfile):
-        print(f"{feature} is not available for {subj}_{ses} in the {struct}, skipping")
+        print(f"{feature} is not available for {bids_id} in the {struct}, skipping")
         if not settozero:
             return
         else:
-            metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{subj}_{ses}_feature-T1map_analysis-{analysis}.csv"
+            metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{bids_id}_feature-T1map_analysis-{analysis}.csv"
     STRUCTURES = {
         "Laccumb": 26,
         "Lamyg": 18,
@@ -557,7 +553,7 @@ def process_subcortex(
     }
 
     atlas = nib.load(
-        f"{rootzbrainfolder}/structural/{subj}_{ses}_space-nativepro_T1w_atlas-subcortical.nii.gz"
+        f"{rootzbrainfolder}/structural/{bids_id}_space-nativepro_T1w_atlas-subcortical.nii.gz"
     )
     atlasdata = atlas.get_fdata()
     metricdata = pd.read_csv(metricfile).to_dict()
@@ -590,7 +586,7 @@ def process_subcortex(
     subprocess.run(command3)
     os.replace(
         f"{tmp}/{feature}_{analysis}_{struct}_temp.nii.gz",
-        f"{outdir}/{subj}_{ses}_feature-{feature}_analysis-{analysis}.nii.gz",
+        f"{outdir}/{bids_id}_feature-{feature}_analysis-{analysis}.nii.gz",
     )
 
 
@@ -638,12 +634,16 @@ def process(
         None
     """
     outdir = os.path.join(outdir, struct)
-
+    bids_id = f"{subj}_{ses}" if ses else subj
     print(f"Processing structure: {struct}")
     if struct == "cortex":
         subdir = micapipename
         smooth = smooth_ctx
-        rootsubdir = os.path.join(rootfolder, subdir, subj, ses)
+        rootsubdir = (
+            os.path.join(rootfolder, subdir, subj, ses)
+            if ses
+            else os.path.join(rootfolder, subdir, subj)
+        )
         print(f"Processing cortex with smoothing level: {smooth}")
         process_cortex(
             feature,
@@ -653,8 +653,7 @@ def process(
             rootzbrainfolder,
             rootsubdir,
             outdir,
-            subj,
-            ses,
+            bids_id,
             struct,
             workbench_path,
             tmp,
@@ -662,7 +661,11 @@ def process(
     elif struct == "hippocampus":
         subdir = f"{hippunfoldname}/hippunfold"
         smooth = smooth_hipp
-        rootsubdir = os.path.join(rootfolder, subdir, subj, ses)
+        rootsubdir = (
+            os.path.join(rootfolder, subdir, subj, ses)
+            if ses
+            else os.path.join(rootfolder, subdir, subj)
+        )
         print(f"Processing hippocampus with smoothing level: {smooth}")
         process_hippocampus(
             feature,
@@ -672,8 +675,7 @@ def process(
             rootzbrainfolder,
             rootsubdir,
             outdir,
-            subj,
-            ses,
+            bids_id,
             struct,
             micapipename,
             rootfolder,
@@ -683,7 +685,11 @@ def process(
     elif struct == "subcortex":
         subdir = micapipename
         smooth = None
-        rootsubdir = os.path.join(rootfolder, subdir, subj, ses)
+        rootsubdir = (
+            os.path.join(rootfolder, subdir, subj, ses)
+            if ses
+            else os.path.join(rootfolder, subdir, subj)
+        )
         print("Processing subcortex without smoothing")
         process_subcortex(
             feature,
@@ -692,8 +698,7 @@ def process(
             rootzbrainfolder,
             rootsubdir,
             outdir,
-            subj,
-            ses,
+            bids_id,
             struct,
             workbench_path,
             tmp,
@@ -1024,7 +1029,11 @@ def surface_to_volume(
         px_demo = px_demo[px_demo["participant_id"] == subj]
         # px_demo = px_demo[px_demo["session_id"] == ses]
         px_demo = px_demo.reset_index(drop=True)
-    rootzbrainfolder = os.path.join(rootfolder, zbrainsdir, subj, ses)
+    rootzbrainfolder = (
+        os.path.join(rootfolder, zbrainsdir, subj, ses)
+        if ses
+        else os.path.join(rootfolder, zbrainsdir, subj)
+    )
     outdir = os.path.join(rootzbrainfolder, "norm-z-volumetric")
     if not os.path.exists(outdir):
         os.makedirs(outdir)
@@ -1054,8 +1063,13 @@ def surface_to_volume(
     print("feats: ", features)
     # dicomify_base(outdir, rootzbrainfolder, subj=subj, ses=ses, px_demo=px_demo)
 
-    micapiperootfolder = os.path.join(rootfolder, micapipename, subj, ses)
-    fixmatrix(subj, ses, tmp, workbench_path, rootzbrainfolder)
+    micapiperootfolder = (
+        os.path.join(rootfolder, micapipename, subj, ses)
+        if ses
+        else os.path.join(rootfolder, micapipename, subj)
+    )
+    bids_id = f"{subj}_{ses}" if ses else subj
+    fixmatrix(bids_id, tmp, workbench_path, rootzbrainfolder)
     Parallel(n_jobs=n_jobs)(
         delayed(process)(
             feature,
