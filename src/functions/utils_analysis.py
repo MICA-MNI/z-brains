@@ -830,9 +830,9 @@ def fixblur(data, px=False):
             if arr.shape[-1] > 1:
                 for i in range(arr.shape[-1]):
                     if len(arr.shape) == 3:
-                        output.append(arr[:, :, i])
+                        output.append(arr[:, :, i].squeeze())
                     elif len(arr.shape) == 2:
-                        output.append(arr[:, i])
+                        output.append(arr[:, i].squeeze())
             else:
                 output.append(arr.squeeze())
         else:
