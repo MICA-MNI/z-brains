@@ -28,7 +28,8 @@ zbrains.py
                                                         performed beforehand.
                                     - all           : perform all tasks
 
-\t{gcolor}--ses{nc} [ses]               : Identifier for a session in the target subject data. If omitted, all sessions will be used. Example: 'ses-001'.
+\t{gcolor}--ses{nc} [ses]               : Identifier for a session in the target subject data. If omitted, all sessions will be used. Example: 'ses-01'. 
+                                    Leave blank if no session is available.
 \t{gcolor}--micapipe{nc} [dir]          : Name of the micapipe derivative folder in the target BIDS dataset. Required
                                     only for post-processing. Example: '--micapipe micapipedir' for
                                     '/path/to/BIDSDataset/derivatives/micapipedir'.
@@ -83,6 +84,7 @@ zbrains.py
                                     - {bcolor}all{nc}           : all features (default)
                                     - plugin-*      : when pulling data from a plugin, feature names must be given the 
                                                     'plugin-' prefix (but this is not needed in the actual file name)
+                                    Features can be provided as a list separated by spaces. Example: '--feat "ADC FA"'.
 \t{gcolor}--normative{nc} [cov ...]     : Normative modeling based on provided covariates. Covariates must match
                                     columns in --demo and --demo_ref files. Note that --normative expects some
                                     covariates to have specific names (see --column_map).

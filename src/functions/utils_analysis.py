@@ -754,35 +754,33 @@ def _subject_zscore(
     feature = kwds["feat"]
     if "regional" in analyses:
         if cov_normative:
-            if os.path.exists(
-                os.path.join(
-                    px_zbrains,
-                    f"normative_data_{struct}_{resol}_{version}_{smoothing}_{feature}.pkl",
-                )
-            ):
-                with open(
-                    os.path.join(
-                        px_zbrains,
-                        f"normative_data_{struct}_{resol}_{version}_{smoothing}_{feature}.pkl",
-                    ),
-                    "rb",
-                ) as f:
-                    normative_data = pkl.load(f)
-                z, _ = zscore(
-                    data_cn, data_px, cov_normative, px_demo, df_cn, normative_data
-                )
-            else:
-                z, normative_data = zscore(
-                    data_cn, data_px, cov_normative, px_demo, df_cn
-                )
-                with open(
-                    os.path.join(
-                        px_zbrains,
-                        f"normative_data_{struct}_{resol}_{version}_{smoothing}_{feature}.pkl",
-                    ),
-                    "wb",
-                ) as f:
-                    pkl.dump(normative_data, f)
+            # if os.path.exists(
+            #     os.path.join(
+            #         px_zbrains,
+            #         f"normative_data_{struct}_{resol}_{version}_{smoothing}_{feature}.pkl",
+            #     )
+            # ):
+            #     with open(
+            #         os.path.join(
+            #             px_zbrains,
+            #             f"normative_data_{struct}_{resol}_{version}_{smoothing}_{feature}.pkl",
+            #         ),
+            #         "rb",
+            #     ) as f:
+            #         normative_data = pkl.load(f)
+            #     z, _ = zscore(
+            #         data_cn, data_px, cov_normative, px_demo, df_cn, normative_data
+            #     )
+            # else:
+            z, normative_data = zscore(data_cn, data_px, cov_normative, px_demo, df_cn)
+            # with open(
+            #     os.path.join(
+            #         px_zbrains,
+            #         f"normative_data_{struct}_{resol}_{version}_{smoothing}_{feature}.pkl",
+            #     ),
+            #     "wb",
+            # ) as f:
+            #     pkl.dump(normative_data, f)
         else:
             z = zscore(data_cn, data_px, cov_normative, px_demo)
         if index_df is not None:
@@ -832,9 +830,9 @@ def fixblur(data, px=False):
             if arr.shape[-1] > 1:
                 for i in range(arr.shape[-1]):
                     if len(arr.shape) == 3:
-                        output.append(arr[:, :, i])
+                        output.append(arr[:, :, i].squeeze())
                     elif len(arr.shape) == 2:
-                        output.append(arr[:, i])
+                        output.append(arr[:, i].squeeze())
             else:
                 output.append(arr.squeeze())
         else:

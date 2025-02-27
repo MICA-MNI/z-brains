@@ -121,7 +121,11 @@ def main(
         px_demo = load_demo(demo, rename=actual_to_expected, dtypes=col_dtypes, tmp=tmp)
         # px_demo = px_demo.loc[(px_demo["participant_id"] == px_id)]
         px_demo = px_demo.loc[
-            (px_demo["participant_id"] == px_id) & (px_demo["session_id"] == px_ses)
+            (
+                (px_demo["participant_id"] == px_id) & (px_demo["session_id"] == px_ses)
+                if px_ses is not None
+                else (px_demo["participant_id"] == px_id)
+            )
         ]
 
         # If no such row exists, create an empty DataFrame with the same columns
@@ -366,7 +370,7 @@ if __name__ == "__main__":
     # Parse the command line arguments.
     parser = argparse.ArgumentParser()
     parser.add_argument("--subject_id", required=True)
-    parser.add_argument("--session", required=True)
+    parser.add_argument("--session", default=None)
     parser.add_argument("--zbrains_ref", required=True)
     parser.add_argument("--demo_ref", required=True)
     parser.add_argument("--zbrains", required=True)
