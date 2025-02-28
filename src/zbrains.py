@@ -385,7 +385,7 @@ def main_func(args):
     with tempdir(SUBJECT_OUTPUT_DIR, prefix="z_brains_temp.") as tmp_dir:
         print(f"Temporary directory: {structures} {features} {resolutions} {tasks}")
         try:
-            os.chmod(SUBJECT_OUTPUT_DIR, 0o770)
+            # os.chmod(SUBJECT_OUTPUT_DIR, 0o770)
 
             # -------------------------------------------------- Postprocessing ------------------------------------------------- #
             if "proc" in tasks:
@@ -610,11 +610,13 @@ def main(args):
                 pd.read_csv(args.demo)[args.column_map["participant_id"]].values
             )
             [all_sub.append(x) for x in px_list]
-        if args.demo_ref:
-            ref_subs = list(
-                pd.read_csv(args.demo_ref[0])[args.column_map["participant_id"]].values
-            )
-            [all_sub.append(x) for x in ref_subs]
+
+        if "analysis" not in args.run:
+            if args.demo_ref:
+                ref_subs = list(
+                    pd.read_csv(args.demo_ref[0])[args.column_map["participant_id"]].values
+                )
+                [all_sub.append(x) for x in ref_subs]
 
         args.sub = all_sub
 
