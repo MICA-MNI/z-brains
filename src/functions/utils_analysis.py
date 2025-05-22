@@ -227,7 +227,10 @@ def zscore(
                 + normative_data[i][1] * px_demo_data[0]
                 + normative_data[i][2] * px_demo_data[1]
             )
-            w_scored_data[i] = (x_test[i] - ns_pred) / normative_data[i][3]
+            if len(ns_pred.shape) > 0:
+                if ns_pred.shape[0] > 3:
+                    ns_pred = ns_pred[:3]
+            w_scored_data[i] = (x_test[i] - ns_pred) / normative_data[i][3][:3] if isinstance(normative_data[i][3], np.ndarray) else (x_test[i] - ns_pred) / normative_data[i][3]
 
         return w_scored_data, normative_data
 
@@ -800,7 +803,10 @@ def _subject_zscore(
         if data_cn.shape[-1] == 1:
             xh_px = data_px.reshape(2, -1)
         elif len(data_px.shape) > 1:
-            xh_px = data_px.reshape(2, -1, data_cn.shape[-1])
+            if data_cn.shape[-1] > 3:
+                xh_px = data_px.reshape(2, -1, 3)
+            else:
+                xh_px = data_px.reshape(2, -1, data_cn.shape[-1])
         else:
             xh_px = data_px.reshape(2, -1)
         data_px_asym = compute_asymmetry(xh_px[0], xh_px[1])
@@ -826,6 +832,9 @@ def _subject_zscore(
 def fixblur(data, px=False):
     output = []
     for arr in data:
+        if len(arr.shape) > 2:
+            if arr.shape[-1] == 4:
+                arr = arr[:, :, :3]
         if len(arr.shape) > 1 if px else len(arr.shape) > 2:
             if arr.shape[-1] > 1:
                 for i in range(arr.shape[-1]):
