@@ -442,6 +442,9 @@ def main_func(args):
                     )
                     for idx in range(len(args.dataset_ref))
                 ]
+                approach = "zscore"
+                if args.normative:
+                    approach = "norm"
                 args_list = [
                     "--sub",
                     sid,
@@ -468,7 +471,7 @@ def main_func(args):
                     "--threshold",
                     str(threshold),
                     "--approach",
-                    "zscore",
+                    approach,
                     "--logfile",
                     logfile,
                     "--tmp",
@@ -557,21 +560,36 @@ def check_sub(args, sub, ses=None):
 
 def create_jobs(args, subs, ses, run_type):
     jobs = []
+    print(f"Creating {run_type} jobs for subjects: {subs}, sessions: {ses}")
     for enum, sub in enumerate(subs):
         s = None
         if args.ses is not None:
             s = args.ses[enum]
+        
         directory = (
             os.path.join(args.dataset, "derivatives", args.zbrains, sub)
             if run_type == "analysis"
             else os.path.join(args.dataset, "derivatives", args.micapipe, sub)
         )
-        for s in os.listdir(directory) if ses == ["all"] else [s]:
-            if check_sub(args, sub, s):
-                job = copy.copy(args)
-                job.sub, job.ses, job.run = sub, s, run_type
-                if args.control_prefix not in job.sub or run_type == "proc":
-                    jobs.append(job)
+        print(f"Checking directory: {directory} - Exists: {os.path.exists(directory)}")
+        
+        try:
+            session_list = os.listdir(directory) if ses == ["all"] else [s]
+            print(f"Sessions to process: {session_list}")
+            for s in session_list:
+                print(f"Checking if subject {sub} session {s} passes validation...")
+                if check_sub(args, sub, s):
+                    job = copy.copy(args)
+                    job.sub, job.ses, job.run = sub, s, run_type
+                    if args.control_prefix not in job.sub or run_type == "proc":
+                        jobs.append(job)
+                        print(f"Added job for {sub} {s}")
+                else:
+                    print(f"Subject {sub} session {s} failed validation in check_sub()")
+        except Exception as e:
+            print(f"Error processing {sub}: {e}")
+    
+    print(f"Created {len(jobs)} jobs")
     return jobs
 
 
@@ -682,8 +700,26 @@ def main(args):
     show_note("", "")
 
     if "proc" in args.run:
-        procjobs = create_jobs(args, args.sub, args.ses, "proc")
-        Parallel(n_jobs=args.n_jobs)(delayed(_jobloop)(job) for job in procjobs)
+        # Debug directory existence
+        micapipe_dir = os.path.join(os.path.expanduser(args.dataset), "derivatives", args.micapipe)
+        print(f"Checking micapipe directory: {micapipe_dir} - Exists: {os.path.exists(micapipe_dir)}")
+        
+        if "hippocampus" in args.struct:
+            hippunfold_dir = os.path.join(os.path.expanduser(args.dataset), "derivatives", args.hippunfold, "hippunfold")
+            print(f"Checking hippunfold directory: {hippunfold_dir} - Exists: {os.path.exists(hippunfold_dir)}")
+        
+        # Try to create jobs with more verbose output
+        try:
+            print(f"Attempting to create jobs for subjects: {args.sub}")
+            procjobs = create_jobs(args, args.sub, args.ses, "proc")
+            print(f"Created {len(procjobs)} processing jobs")
+            if len(procjobs) == 0:
+                print("No jobs were created! Check if directories exist and meet requirements.")
+            Parallel(n_jobs=args.n_jobs)(delayed(_jobloop)(job) for job in procjobs)
+        except Exception as e:
+            print(f"Error creating or running jobs: {e}")
+            import traceback
+            traceback.print_exc()
     if "analysis" in args.run:
 
         analysisjobs = create_jobs(args, args.sub, args.ses, "analysis")
