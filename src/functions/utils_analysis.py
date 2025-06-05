@@ -160,7 +160,11 @@ def zscore(
     z
         Z-scores for the test data. Shape (n_test, n_points) or (n_points,).
     """
+
     if cov_normative is None:
+        if len(x_train.shape) > 2:
+            if x_train.shape[2] > 3:
+                x_train = x_train[:, :, :3]  # only use first 3 features
         mask = np.any(x_train != 0, axis=0)  # ignore all zeros
 
         z = x_test - np.nanmean(x_train, axis=0)
@@ -176,7 +180,7 @@ def zscore(
             normative_data = (
                 {
                     k: np.zeros(
-                        [x_train.shape[1], x_train.shape[2], 4], dtype=np.float32
+                        [x_train.shape[1], x_train.shape[2], 4], dtype=np.float16
                     )
                     for k in range(x_train.shape[1])
                 }

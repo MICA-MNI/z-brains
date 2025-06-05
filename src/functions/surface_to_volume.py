@@ -64,7 +64,7 @@ def fixmatrix(bids_id, temppath, wb_path, rootzbrainfolder):
         os.path.join(temppath, "real_warp.nii.gz"),
     ]
     # command = [f'"{arg}"' for arg in command]
-    subprocess.run(" ".join(command), shell=True)
+    subprocess.run(command, shell=False)
     command2 = [
         os.path.join(wb_path, "wb_command"),
         "-volume-resample",
@@ -77,7 +77,7 @@ def fixmatrix(bids_id, temppath, wb_path, rootzbrainfolder):
         "-warp",
         os.path.join(temppath, "real_warp.nii.gz"),
     ]
-    subprocess.run(" ".join(command2), shell=True)
+    subprocess.run(command2, shell=False)
     command3 = [
         os.path.join(wb_path, "wb_command"),
         "-volume-resample",
@@ -91,7 +91,7 @@ def fixmatrix(bids_id, temppath, wb_path, rootzbrainfolder):
         os.path.join(temppath, "real_warp.nii.gz"),
     ]
 
-    subprocess.run(" ".join(command3), shell=True)
+    subprocess.run(command3, shell=False)
 
 
 def float_array_to_hot_nonrgb(array):
@@ -282,6 +282,7 @@ def process_cortex(
     struct,
     workbench_path,
     tmp,
+    approach
 ):
     """
     Processes cortex data for a specific feature and analysis.
@@ -308,7 +309,7 @@ def process_cortex(
     """
     if analysis == "asymmetry" and hemi == "R":
         return
-    metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{bids_id}_hemi-{hemi}_surf-fsLR-32k_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.func.gii"
+    metricfile = f"{rootzbrainfolder}/{approach}/{struct}/{bids_id}_hemi-{hemi}_surf-fsLR-32k_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.func.gii"
     metricsphere = f"src/data/fsLR-32k.{hemi}.sphere.reg.surf.gii"
     nativesphere = f"{rootzbrainfolder}/structural/{bids_id}_hemi-{hemi}_surf-fsnative_label-sphere.surf.gii"
     boundingpattern = f"{rootzbrainfolder}/structural/{bids_id}_hemi-{hemi}_space-nativepro_surf-fsnative_label-"
@@ -379,13 +380,13 @@ def process_cortex(
     ]
 
     # Run the commands
-    subprocess.run(command_struct, shell=True)
+    subprocess.run(command_struct, shell=False)
     # subprocess.run(command_struct_native)
 
-    subprocess.run(command1, shell=True)
-    subprocess.run(command_struct_2, shell=True)
-    subprocess.run(command2, shell=True)
-    subprocess.run(command3, shell=True)
+    subprocess.run(command1, shell=False)
+    subprocess.run(command_struct_2, shell=False)
+    subprocess.run(command2, shell=False)
+    subprocess.run(command3, shell=False)
     os.replace(
         f"{tmp}/{feature}_{analysis}_{struct}_{smooth}_{hemi}_temp.nii.gz",
         f"{outdir}/{bids_id}_hemi-{hemi}_surf-fsLR-32k_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.nii.gz",
@@ -406,6 +407,7 @@ def process_hippocampus(
     rootfolder,
     workbench_path,
     tmp,
+    approach
 ):
     """
     Processes hippocampus data for a specific feature and analysis.
@@ -434,7 +436,7 @@ def process_hippocampus(
     """
     if analysis == "asymmetry" and hemi == "R":
         return
-    metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{bids_id}_hemi-{hemi}_den-0p5mm_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.func.gii"
+    metricfile = f"{rootzbrainfolder}/{approach}/{struct}/{bids_id}_hemi-{hemi}_den-0p5mm_label-midthickness_feature-{feature}_smooth-{smooth}_analysis-{analysis}.func.gii"
     boundingpattern = f"{rootzbrainfolder}/structural/{bids_id}_hemi-{hemi}_space-T1w_den-0p5mm_label-hipp_"
 
     if not os.path.isfile(metricfile):
@@ -444,7 +446,7 @@ def process_hippocampus(
         if not settozero:
             return
         else:
-            metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{bids_id}_hemi-{hemi}_den-0p5mm_label-midthickness_feature-T1map_smooth-{smooth}_analysis-{analysis}.func.gii"
+            metricfile = f"{rootzbrainfolder}/{approach}/{struct}/{bids_id}_hemi-{hemi}_den-0p5mm_label-midthickness_feature-T1map_smooth-{smooth}_analysis-{analysis}.func.gii"
 
     command_struct = [
         os.path.join(workbench_path, "wb_command"),
@@ -501,6 +503,7 @@ def process_subcortex(
     struct,
     workbench_path,
     tmp,
+    approach
 ):
     """
     Processes subcortex data for a specific feature and analysis.
@@ -528,13 +531,13 @@ def process_subcortex(
     if hemi == "R":
         return
 
-    metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{bids_id}_feature-{feature}_analysis-{analysis}.csv"
+    metricfile = f"{rootzbrainfolder}/{approach}/{struct}/{bids_id}_feature-{feature}_analysis-{analysis}.csv"
     if not os.path.isfile(metricfile):
         print(f"{feature} is not available for {bids_id} in the {struct}, skipping")
         if not settozero:
             return
         else:
-            metricfile = f"{rootzbrainfolder}/norm-z/{struct}/{bids_id}_feature-T1map_analysis-{analysis}.csv"
+            metricfile = f"{rootzbrainfolder}/{approach}/{struct}/{bids_id}_feature-T1map_analysis-{analysis}.csv"
     STRUCTURES = {
         "Laccumb": 26,
         "Lamyg": 18,
@@ -606,6 +609,7 @@ def process(
     smooth_hipp,
     workbench_path,
     tmp,
+    approach
 ):
     """
     Processes different brain structures based on the provided parameters.
@@ -657,6 +661,7 @@ def process(
             struct,
             workbench_path,
             tmp,
+            approach
         )
     elif struct == "hippocampus":
         subdir = f"{hippunfoldname}/hippunfold"
@@ -681,6 +686,7 @@ def process(
             rootfolder,
             workbench_path,
             tmp,
+            approach
         )
     elif struct == "subcortex":
         subdir = micapipename
@@ -702,6 +708,7 @@ def process(
             struct,
             workbench_path,
             tmp,
+            approach
         )
     print("Processing completed.")
 
@@ -989,6 +996,7 @@ def surface_to_volume(
     n_jobs,
     n_jobs_wb,
     workbench_path,
+    approach,
     thresh=3,
     dicoms=None,
 ):
@@ -1034,7 +1042,9 @@ def surface_to_volume(
         if ses
         else os.path.join(rootfolder, zbrainsdir, subj)
     )
-    outdir = os.path.join(rootzbrainfolder, "norm-z-volumetric")
+    if approach == "norm":
+        approach = "norm-normative"
+    outdir = os.path.join(rootzbrainfolder, f"{approach}-volumetric")
     if not os.path.exists(outdir):
         os.makedirs(outdir)
 
@@ -1087,6 +1097,7 @@ def surface_to_volume(
             smooth_hipp,
             workbench_path,
             tmp,
+            approach
         )
         for feature in features
         for hemi in hemis

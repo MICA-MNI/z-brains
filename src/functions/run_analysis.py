@@ -188,6 +188,7 @@ def main(
             n_jobs=n_jobs,
             n_jobs_wb=n_jobs_wb,
             workbench_path=workbench_path,
+            approach=approach,
             dicoms=dicoms,
             thresh=threshold,
         )

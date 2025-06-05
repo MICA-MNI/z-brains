@@ -334,8 +334,12 @@ def report_header_template(
 
     if age is None:
         age = "n/a"
+    else:
+        age = age.values[0]
     if sex is None:
         sex = "n/a"
+    else:
+        sex = sex.values[0]
 
     style = (
         "margin-bottom:0;font-family:gill sans,sans-serif;text-align:center;"
@@ -974,16 +978,28 @@ def report_struct(
 
         file_lh_exists = file_lh.exists() if file_lh is not None else False
         file_rh_exists = file_rh.exists() if file_rh is not None else False
-        html = (
-            '<p style="margin-bottom:0;margin-top:0;'
-            "font-family:gill sans,sans-serif;text-align:left;font-size:14px;"
-            'color:#5d5070"> '
-            # f'<b>{adjectivize_struct(struct)} {feat}</b> | {info} '
-            f"<b>{struct.capitalize()}</b>"
-            # f'{analysis} analysis | approach-{approach} {thr_str}'
-            f"| {approach} approach {info}{f'| left mean={np.mean(feat_lh):.2f} ' if file_lh_exists else ''}{f'| right mean={np.mean(feat_rh):.2f}' if file_rh_exists else ''}"
-            "</p>"
-        )
+        if struct != "subcortex":
+            html = (
+                '<p style="margin-bottom:0;margin-top:0;'
+                "font-family:gill sans,sans-serif;text-align:left;font-size:14px;"
+                'color:#5d5070"> '
+                # f'<b>{adjectivize_struct(struct)} {feat}</b> | {info} '
+                f"<b>{struct.capitalize()}</b>"
+                # f'{analysis} analysis | approach-{approach} {thr_str}'
+                f"| {approach} approach {info}{f'| left mean={np.mean(feat_lh):.2f} ' if file_lh_exists else ''}{f'| right mean={np.mean(feat_rh):.2f}' if file_rh_exists else ''}"
+                "</p>"
+            )
+        else:
+            html = (
+                '<p style="margin-bottom:0;margin-top:0;'
+                "font-family:gill sans,sans-serif;text-align:left;font-size:14px;"
+                'color:#5d5070"> '
+                # f'<b>{adjectivize_struct(struct)} {feat}</b> | {info} '
+                f"<b>{struct.capitalize()}</b>"
+                # f'{analysis} analysis | approach-{approach} {thr_str}'
+                f"| {approach} approach {info}"
+                "</p>"
+            )
 
 
     
