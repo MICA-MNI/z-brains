@@ -9,3 +9,5 @@ run.*
 .vscode
 .pytest_cache/
 /run.bat
+*.csv
+/data/
