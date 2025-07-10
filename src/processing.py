@@ -8,7 +8,153 @@ from src.utils import reshape_distances
 import scipy
 import tempfile
 
+def _process_single_subject(
+    subject,
+    features,
+    blur_features,
+    base_features,
+    output_directory,
+    cortical_smoothing,
+    hippocampal_smoothing,
+    env,
+    micapipe_directory,
+    hippunfold_directory,
+    freesurfer_directory,
+    cortex,
+    hippocampus,
+    subcortical,
+    verbose=False,  # Reduce verbosity in parallel processing to avoid mixed output
+    valid_subjects_dict=None  # Dictionary of valid subjects by feature/structure
+):
+    """
+    Process a single subject. This function is called by each parallel worker.
+    
+    Returns:
+    --------
+    bool
+        True if processing was successful, False otherwise
+    """
+    import shutil
+    
+    participant_id, session_id = subject
+    
+    # Create session-specific tmp directory
+    session_tmp_dir = os.path.join(output_directory, participant_id, session_id, f"tmp_{participant_id}_{session_id}")
+    
+    try:
+        os.makedirs(session_tmp_dir, exist_ok=True)
+        
+        # Apply blurring to features that need it
+        if blur_features:
+            # Check if all base features are available for this subject
+            all_base_available = True
+            if valid_subjects_dict:
+                for feature in base_features:
+                    if subject not in valid_subjects_dict.get(feature, {}).get('all', []):
+                        all_base_available = False
+                        break
+            
+            if all_base_available:
+                apply_blurring(
+                    participant_id=participant_id,
+                    session_id=session_id,
+                    features=base_features,
+                    output_directory=output_directory,
+                    workbench_path=env.connectome_workbench_path,
+                    micapipe_directory=micapipe_directory,
+                    freesurfer_directory=freesurfer_directory,
+                    tmp_dir=session_tmp_dir,
+                    verbose=verbose
+                )
 
+        # Process cortical features if cortex is enabled
+        if cortex and (not valid_subjects_dict or subject in valid_subjects_dict.get('structures', {}).get('cortex', [])):
+            # Filter features to only those valid for this subject's cortex
+            features_to_process = []
+            if valid_subjects_dict:
+                for f in features:
+                    if subject in valid_subjects_dict.get(f, {}).get('structures', {}).get('cortex', []):
+                        features_to_process.append(f)
+            else:
+                features_to_process = features
+            
+            if features_to_process:
+                apply_cortical_processing(
+                    participant_id=participant_id,
+                    session_id=session_id,
+                    features=features_to_process,
+                    output_directory=output_directory,
+                    workbench_path=env.connectome_workbench_path,
+                    micapipe_directory=micapipe_directory,
+                    tmp_dir=session_tmp_dir,
+                    cortical_smoothing=cortical_smoothing,
+                    resolutions=["32k", "5k"],
+                    labels=["midthickness", "white"],
+                    verbose=verbose
+                )
+        
+        # If hippocampus is enabled, process hippocampal data
+        if hippocampus and hippunfold_directory and (not valid_subjects_dict or subject in valid_subjects_dict.get('structures', {}).get('hippocampus', [])):
+            # Filter to non-blur features valid for this subject's hippocampus
+            features_to_process = []
+            if valid_subjects_dict:
+                for f in features:
+                    if not f.endswith("-blur") and subject in valid_subjects_dict.get(f, {}).get('structures', {}).get('hippocampus', []):
+                        features_to_process.append(f)
+            else:
+                features_to_process = [f for f in features if not f.endswith("-blur")]
+            
+            if features_to_process:
+                apply_hippocampal_processing(
+                    participant_id=participant_id,
+                    session_id=session_id,
+                    features=features_to_process,
+                    output_directory=output_directory,
+                    workbench_path=env.connectome_workbench_path,
+                    micapipe_directory=micapipe_directory,
+                    hippunfold_directory=hippunfold_directory,
+                    tmp_dir=session_tmp_dir,
+                    smoothing_fwhm=hippocampal_smoothing,
+                    verbose=verbose
+                )
+
+        # If subcortex is enabled, extract subcortical stats
+        if subcortical and freesurfer_directory and (not valid_subjects_dict or subject in valid_subjects_dict.get('structures', {}).get('subcortical', [])):
+            # Filter to non-blur features valid for this subject's subcortical structures
+            features_to_process = []
+            if valid_subjects_dict:
+                for f in features:
+                    if not f.endswith("-blur") and subject in valid_subjects_dict.get(f, {}).get('structures', {}).get('subcortical', []):
+                        features_to_process.append(f)
+            else:
+                features_to_process = [f for f in features if not f.endswith("-blur")]
+            
+            if features_to_process:
+                apply_subcortical_processing(
+                    participant_id=participant_id,
+                    session_id=session_id,
+                    features=features_to_process,
+                    output_directory=output_directory,
+                    micapipe_directory=micapipe_directory,
+                    freesurfer_directory=freesurfer_directory,
+                    verbose=verbose
+                )
+        
+        return True
+        
+    except Exception as e:
+        if verbose:
+            print(f"Error processing {participant_id}/{session_id}: {e}")
+        return False
+        
+    finally:
+        # Clean up session-specific tmp directory
+        if os.path.exists(session_tmp_dir):
+            try:
+                shutil.rmtree(session_tmp_dir)
+            except Exception as e:
+                if verbose:
+                    print(f"Warning: Could not clean up {session_tmp_dir}: {e}")
 
 def fixmatrix(path, inputmap, outputmap, basemap, BIDS_ID, temppath, wb_path, mat_path):
     """
@@ -188,13 +334,20 @@ def apply_blurring(participant_id, session_id, features, output_directory, workb
             if verbose:
                 print(f"      Processing feature {feature} for {participant_id}/{session_id}, hemisphere {hemi}...")
             
+            # Standardize feature name for consistent file paths
+            feature_lower = feature.lower()
+            
             # Set up volume map path based on feature type
-            if feature.lower() == "t1map" or feature.lower() == "qt1":
+            if feature_lower == "t1map" or feature_lower == "qt1":
                 volumemap = os.path.join(input_dir, "maps", f"{participant_id}_{session_id}_space-nativepro_map-T1map.nii.gz")
-            elif feature.lower() in ["adc", "fa"]:
-                volumemap = os.path.join(input_dir, "maps", f"{participant_id}_{session_id}_space-nativepro_model-DTI_map-{feature.upper()}.nii.gz")
+                # Use qT1 as the feature name for consistency
+                feature_name = "qT1"  # Changed from using feature_lower
+            elif feature_lower in ["adc", "fa"]:
+                volumemap = os.path.join(input_dir, "maps", f"{participant_id}_{session_id}_space-nativepro_model-DTI_map-{feature_lower}.nii.gz")
+                feature_name = feature_lower
             else:
-                volumemap = os.path.join(input_dir, "maps", f"{participant_id}_{session_id}_space-nativepro_map-{feature.lower()}.nii.gz")
+                volumemap = os.path.join(input_dir, "maps", f"{participant_id}_{session_id}_space-nativepro_map-{feature_lower}.nii.gz")
+                feature_name = feature_lower
             
             # Skip if the volume map doesn't exist
             if not os.path.exists(volumemap):
@@ -293,11 +446,12 @@ def apply_blurring(participant_id, session_id, features, output_directory, workb
                     gradient = np.where(distance > 0, intensity_change / distance, 0)
                     gradients[:, e] = gradient
             
-            # Reshape distances and save outputs
+            # Reshape distances and save outputs with STANDARDIZED NAMING
             distances = reshape_distances(distances)
             
-            # Save feature data across surfaces (unsmoothed version)
-            raw_data_path = os.path.join(swm_dir, f"{participant_id}_{session_id}_{hemi}_{feature}-blur_surf-fsnative_raw.func.gii")
+            # Save feature data across surfaces (unsmoothed version) - UPDATED NAMING
+            raw_data_path = os.path.join(swm_dir, 
+                f"{participant_id}_{session_id}_hemi-{hemi}_feature-{feature_name}-blur_surf-fsnative_desc-raw.func.gii")
             data_non_grad = nib.gifti.gifti.GiftiDataArray(
                 data=dataArr_nonmode,
                 intent="NIFTI_INTENT_NORMAL"
@@ -305,7 +459,7 @@ def apply_blurring(participant_id, session_id, features, output_directory, workb
             gii_non_grad = nib.gifti.GiftiImage(darrays=[data_non_grad])
             nib.save(gii_non_grad, raw_data_path)
             
-            # Save distance data
+            # Save distance data - UPDATED NAMING
             data_dist = nib.gifti.gifti.GiftiDataArray(
                 data=distances.astype(np.float32),
                 intent="NIFTI_INTENT_NORMAL"
@@ -313,10 +467,10 @@ def apply_blurring(participant_id, session_id, features, output_directory, workb
             gii_dist = nib.gifti.GiftiImage(darrays=[data_dist])
             nib.save(
                 gii_dist,
-                os.path.join(swm_dir, f"{participant_id}_{session_id}_{hemi}_{feature}-blur_surf-fsnative_dist.func.gii")
+                os.path.join(swm_dir, f"{participant_id}_{session_id}_hemi-{hemi}_feature-{feature_name}-blur_surf-fsnative_desc-dist.func.gii")
             )
             
-            # Save gradient data
+            # Save gradient data - UPDATED NAMING
             data_grad = nib.gifti.gifti.GiftiDataArray(
                 data=gradients.astype(np.float32),
                 intent="NIFTI_INTENT_NORMAL"
@@ -324,11 +478,12 @@ def apply_blurring(participant_id, session_id, features, output_directory, workb
             gii_grad = nib.gifti.GiftiImage(darrays=[data_grad])
             nib.save(
                 gii_grad,
-                os.path.join(swm_dir, f"{participant_id}_{session_id}_{hemi}_{feature}-blur_surf-fsnative_grad.func.gii")
+                os.path.join(swm_dir, f"{participant_id}_{session_id}_hemi-{hemi}_feature-{feature_name}-blur_surf-fsnative_desc-grad.func.gii")
             )
             
-            # Apply smoothing directly in native space
-            smoothed_data_path = os.path.join(swm_dir, f"{participant_id}_{session_id}_{hemi}_{feature}-blur_surf-fsnative.func.gii")
+            # Apply smoothing directly in native space - UPDATED NAMING
+            smoothed_data_path = os.path.join(swm_dir, 
+                f"{participant_id}_{session_id}_hemi-{hemi}_feature-{feature_name}-blur_surf-fsnative_smooth-{smoothing_fwhm}mm.func.gii")
             
             # Apply smoothing to midthickness surface since it's better for smoothing
             subprocess.run([
@@ -350,11 +505,6 @@ def apply_blurring(participant_id, session_id, features, output_directory, workb
             
             if verbose:
                 print(f"      Saved {feature} blur data, distances, gradients, and applied {smoothing_fwhm}mm smoothing for {hemi}")
-    
-    if verbose:
-        feature_str = ", ".join(features)
-        print(f"    Completed blurring processing for {participant_id}/{session_id}, features: {feature_str}")
-    return True
 
 def apply_hippocampal_processing(
     participant_id, 
@@ -440,7 +590,7 @@ def apply_hippocampal_processing(
             output_feat = "thickness"
         elif feature.lower() == "t1map" or feature.lower() == "qt1":
             volumemap = os.path.join(input_dir, "maps", f"{participant_id}_{session_id}_space-nativepro_map-T1map.nii.gz")
-            output_feat = "T1map"
+            output_feat = "qT1"  # Changed from "T1map" to "qT1"
         elif feature.lower() in ["adc", "fa"]:
             volumemap = os.path.join(input_dir, "maps", f"{participant_id}_{session_id}_space-nativepro_model-DTI_map-{feature.upper()}.nii.gz")
             output_feat = feature.upper()
@@ -661,7 +811,7 @@ def apply_subcortical_processing(
             # Feature intensity measurements
             if feat_lower == "t1map" or feat_lower == "qt1":
                 input_file = os.path.join(subject_micapipe_dir, "maps", f"{bids_id}_space-nativepro_map-T1map.nii.gz")
-                output_feat = "T1map"
+                output_feat = "qT1"
             elif feat_lower in ["adc", "fa"]:
                 input_file = os.path.join(subject_micapipe_dir, "maps", f"{bids_id}_space-nativepro_model-DTI_map-{feat_lower.upper()}.nii.gz")
                 output_feat = feat_lower.upper()
@@ -794,7 +944,8 @@ def apply_cortical_processing(
         "flair": {"input": "flair", "output": "flair"},
         "adc": {"input": "ADC", "output": "ADC"},
         "fa": {"input": "FA", "output": "FA"},
-        "qt1": {"input": "T1map", "output": "T1map"}
+        "qt1": {"input": "T1map", "output": "qT1"},  # Changed output from "T1map" to "qT1"
+        "qt1-blur": {"input": "T1map", "output": "qT1-blur"}  # Added for consistency with blur features
     }
     
     # Process each feature
@@ -838,13 +989,9 @@ def apply_cortical_processing(
                 # Use standard fsLR sphere from data directory
                 sphere_fsLR = os.path.join(data_dir, f"fsLR-{resolution}.{hemi}.sphere.reg.surf.gii")
                 
-                if not os.path.exists(sphere_fsLR):
-                    if verbose:
-                        print(f"      Warning: Standard sphere not found: {sphere_fsLR}")
-                    continue
-                
-                # Process each label (surface type)
-                for label in labels:
+                # Process each label (surface type) - For blur features, only use midthickness
+                label_list = ["midthickness"] if is_blur else labels
+                for label in label_list:
                     if verbose:
                         print(f"      Processing {feature} for hemi-{hemi}, {resolution}, label-{label}")
                     
@@ -871,10 +1018,10 @@ def apply_cortical_processing(
                         if verbose:
                             print(f"      Using pre-smoothed blur data for {feature}")
                         
-                        # Use already smoothed blur files generated by apply_blurring
+                        # Use already smoothed blur files generated by apply_blurring - UPDATED PATH
                         blur_file = os.path.join(
                             cortex_dir, 
-                            f"{participant_id}_{session_id}_{hemi}_{feature}_surf-fsnative.func.gii"
+                            f"{participant_id}_{session_id}_hemi-{hemi}_feature-{output_feat}_surf-fsnative_smooth-{cortical_smoothing}mm.func.gii"
                         )
                         
                         if not os.path.exists(blur_file):
