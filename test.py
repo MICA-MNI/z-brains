@@ -1,7 +1,9 @@
 from src.dataset import zbdataset, demographics
 from src.environment import zbenv
 
-features = ["FA", "ADC", "thickness", "qT1", "qT1-blur"]
+features = ["FA", "ADC", "thickness", "qT1", "qT1-blur", "FLAIR", "FLAIR-blur"]
+
+# features = ["FA", "ADC", "thickness", "qT1"]
 
 env = zbenv(connectome_workbench_path="/usr/bin/", num_threads=12)
 
@@ -19,8 +21,8 @@ control_dataset = zbdataset("controls",
 
 control_dataset.process(output_directory="/host/verges/tank/data/ian/zbrains_outputs", 
                         features=features, 
-                        cortical_smoothing=5, 
-                        hippocampal_smoothing=2, 
+                        cortical_smoothing=10, 
+                        hippocampal_smoothing=5, 
                         env=env, 
                         verbose=True)
 
@@ -43,8 +45,8 @@ patient_dataset = zbdataset("patients",
 
 patient_dataset.process(output_directory="/host/verges/tank/data/ian/zbrains_outputs", 
                         features=features, 
-                        cortical_smoothing=5, 
-                        hippocampal_smoothing=2, 
+                        cortical_smoothing=10, 
+                        hippocampal_smoothing=5, 
                         env=env, 
                         verbose=True)
 
@@ -58,7 +60,13 @@ patient_dataset.process(output_directory="/host/verges/tank/data/ian/zbrains_out
 
 patient_dataset.analyze(output_directory="/host/verges/tank/data/ian/zbrains_outputs", reference=control_dataset, method='wscore')
 
-# patient_dataset.generate_report(output_directory="/host/verges/tank/data/ian/zbrains_outputs", verbose=True)
+patient_dataset.clinical_report(
+    output_directory="/host/verges/tank/data/ian/zbrains_outputs", 
+    approach='wscore',
+    analyses=['regional', 'assymmetry'],
+    features=features,
+    verbose=True
+)
 
 # patient_dataset.save_volumes(output_directory="/host/verges/tank/data/ian/zbrains_outputs", verbose=True)
 

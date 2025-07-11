@@ -85,8 +85,8 @@ def laplace(
     source,
     sink,
     kernelSize=3,
-    convergence_threshold=1e-2,
-    max_iters=10,
+    convergence_threshold=1e-4,
+    max_iters=500,
     initial_lr=1,
     lr_decay=0.995,
     verbose=False

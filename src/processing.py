@@ -585,7 +585,7 @@ def apply_hippocampal_processing(
             intermediate_file = os.path.join(
                 hipp_dir, 
                 "surf",
-                f"{participant_id}_{session_id}_hemi-L_den-{resolution}_label-hipp_midthickness_thickness.func.gii"
+                f"{participant_id}_{session_id}_hemi-L_space-T1w_den-{resolution}_label-hipp_thickness.shape.gii"
             )
             output_feat = "thickness"
         elif feature.lower() == "t1map" or feature.lower() == "qt1":
@@ -599,7 +599,12 @@ def apply_hippocampal_processing(
             output_feat = feature.lower()
         
         # Skip if volume map doesn't exist
-        if not os.path.exists(volumemap):
+        if output_feat == "thickness":
+            if not os.path.exists(intermediate_file):
+                if verbose:
+                    print(f"    Warning: Volume map not found for feature {feature}: {intermediate_file}")
+                continue
+        elif not os.path.exists(volumemap):
             if verbose:
                 print(f"    Warning: Volume map not found for feature {feature}: {volumemap}")
             continue
@@ -642,19 +647,19 @@ def apply_hippocampal_processing(
                 hippocampus_dir,
                 f"{participant_id}_{session_id}_hemi-{hemi}_den-{resolution}_label-hipp_midthickness_feature-{output_feat}_smooth-{smoothing_fwhm}mm.func.gii"
             )
-            
-            # Map volume to surface
-            subprocess.run([
-                os.path.join(workbench_path, "wb_command"),
-                "-volume-to-surface-mapping",
-                volumemap,
-                surf_file,
-                intermediate_file,
-                "-ribbon-constrained",
-                inner_surf_file,
-                outer_surf_file,
-            ], check=False)
-            
+            if feature.lower() != "thickness":
+                # Map volume to surface
+                subprocess.run([
+                    os.path.join(workbench_path, "wb_command"),
+                    "-volume-to-surface-mapping",
+                    volumemap,
+                    surf_file,
+                    intermediate_file,
+                    "-ribbon-constrained",
+                    inner_surf_file,
+                    outer_surf_file,
+                ], check=False)
+                
             # Apply smoothing
             subprocess.run([
                 os.path.join(workbench_path, "wb_command"),

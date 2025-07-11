@@ -539,16 +539,11 @@ class zbdataset():
         blur_features = [feature for feature in self.features if feature.endswith("-blur")]
         base_features = [feature.replace("-blur", "") for feature in blur_features]
         
-        # Get valid subjects for processing all features
-        valid_subjects_all = set(self.valid_subjects['base'])
-        for feature in self.features:
-            valid_subjects_all = valid_subjects_all.intersection(set(self.valid_subjects[feature]['all']))
-        
-        # Convert back to list of tuples
-        valid_subjects_to_process = list(valid_subjects_all)
+        # Use all base valid subjects instead of intersection
+        valid_subjects_to_process = self.valid_subjects['base']
         
         if verbose:
-            print(f"Processing {len(valid_subjects_to_process)} subjects with all required features")
+            print(f"Processing {len(valid_subjects_to_process)} subjects (will process available features for each)")
         
         # Process each subject
         for subject in valid_subjects_to_process:
@@ -562,10 +557,12 @@ class zbdataset():
             try:
                 # Apply blurring to features that need it
                 if blur_features:
-                    # Get valid subjects for blur features
-                    valid_blur_subjects = set(self.valid_subjects['base'])
+                    # Check if all base features are available for this subject
+                    valid_blur_subjects = set([subject])
                     for feature in base_features:
-                        valid_blur_subjects = valid_blur_subjects.intersection(set(self.valid_subjects[feature]['all']))
+                        if subject not in self.valid_subjects[feature]['all']:
+                            valid_blur_subjects.discard(subject)
+                            break
                     
                     if subject in valid_blur_subjects:
                         print(f"  Applying additional blur processing for features: {', '.join(blur_features)}")
@@ -705,16 +702,11 @@ class zbdataset():
             # Fall back to sequential processing
             return self._process_sequential(output_directory, features, cortical_smoothing, hippocampal_smoothing, env, verbose)
         
-        # Get valid subjects for processing all features
-        valid_subjects_all = set(self.valid_subjects['base'])
-        for feature in self.features:
-            valid_subjects_all = valid_subjects_all.intersection(set(self.valid_subjects[feature]['all']))
-        
-        # Convert back to list of tuples
-        valid_subjects_to_process = list(valid_subjects_all)
+        # Use all base valid subjects instead of intersection
+        valid_subjects_to_process = self.valid_subjects['base']
         
         if verbose:
-            print(f"Using {n_jobs} parallel processes for {len(valid_subjects_to_process)} subjects")
+            print(f"Using {n_jobs} parallel processes for {len(valid_subjects_to_process)} subjects (will process available features for each)")
 
         # Identify blur features
         blur_features = [feature for feature in self.features if feature.endswith("-blur")]
@@ -1142,3 +1134,157 @@ class zbdataset():
         self.analysis_results = results
         
         return results
+    
+    def clinical_report(self, output_directory=None, approach='wscore', analyses=None, features=None, 
+                       threshold=1.96, threshold_alpha=0.3, color_range=(-3, 3), 
+                       cmap='cmo.balance', cmap_asymmetry='cmo.balance_r', 
+                       color_bar='bottom', tmp_dir='/tmp', verbose=True):
+        """
+        Generate clinical reports for each subject in the dataset.
+        
+        Parameters:
+        -----------
+        output_directory : str, optional
+            Directory where processed data is stored. If None, uses the directory from analysis
+        approach : str, default='wscore'
+            Analysis approach used ('zscore' or 'wscore')
+        analyses : list, optional
+            List of analyses to include in report. If None, uses ['regional']
+        features : list, optional
+            List of features to include in report. If None, uses dataset features
+        threshold : float, default=1.96
+            Threshold for significance in maps
+        threshold_alpha : float, default=0.3
+            Alpha transparency for thresholded regions
+        color_range : tuple, default=(-3, 3)
+            Color range for visualization
+        cmap : str, default='cmo.balance'
+            Colormap for regional analysis
+        cmap_asymmetry : str, default='cmo.balance_r'
+            Colormap for asymmetry analysis
+        color_bar : str, default='bottom'
+            Position of color bar
+        tmp_dir : str, default='/tmp'
+            Temporary directory for file generation
+        verbose : bool, default=True
+            If True, prints detailed information
+            
+        Returns:
+        --------
+        list
+            List of generated PDF report file paths
+        """
+        from src.clinical_reports import generate_clinical_report
+        
+        # Check if analysis has been run
+        if not hasattr(self, 'analysis_results'):
+            raise ValueError("No analysis results found. Please run dataset.analyze() first.")
+            
+        # Use features from the dataset if not specified
+        if features is None:
+            features = list(self.features)
+            
+        # Default analyses
+        if analyses is None:
+            analyses = ['regional']  # Default to regional analysis
+            
+        # Validate output directory
+        if output_directory is None:
+            raise ValueError("output_directory must be specified")
+            
+        # Don't create a separate reports directory - save directly in subject folders
+        generated_reports = []
+        
+        # Extract subjects from analysis results
+        valid_subjects = []
+        for region_type, region_results in self.analysis_results.items():
+            for feature, feature_results in region_results.items():
+                if region_type == "subcortical":
+                    if f'patient_{approach}s' in feature_results:
+                        for result in feature_results[f'patient_{approach}s']:
+                            if 'subject' in result:
+                                valid_subjects.append(result['subject'])
+                else:
+                    for map_key, map_results in feature_results.items():
+                        if f'patient_{approach}s' in map_results:
+                            for result in map_results[f'patient_{approach}s']:
+                                if 'subject' in result:
+                                    valid_subjects.append(result['subject'])
+        
+        # Remove duplicates while preserving order
+        valid_subjects = list(dict.fromkeys(valid_subjects))
+        
+        if not valid_subjects:
+            if verbose:
+                print("No valid subjects found in analysis results. Using all subjects from dataset.")
+            valid_subjects = self.valid_subjects['base']
+        
+        if verbose:
+            print(f"Generating clinical reports for {len(valid_subjects)} subjects...")
+            
+        # Generate report for each subject
+        for participant_id, session_id in valid_subjects:
+            try:
+                # Get demographics for this subject
+                subject_demo = self.demographics.data[
+                    (self.demographics.data['participant_id'] == participant_id) &
+                    (self.demographics.data['session_id'] == session_id)
+                ]
+                
+                if subject_demo.empty:
+                    if verbose:
+                        print(f"Warning: No demographics found for {participant_id}/{session_id}, skipping...")
+                    continue
+                    
+                # Extract demographics
+                age = subject_demo['AGE'].iloc[0] if 'AGE' in subject_demo.columns else None
+                sex = subject_demo['SEX'].iloc[0] if 'SEX' in subject_demo.columns else None
+                
+                # Convert binary sex encoding back to string if needed
+                if sex is not None and isinstance(sex, (int, float)):
+                    if hasattr(self.demographics, 'binary_encodings') and 'SEX' in self.demographics.binary_encodings:
+                        # Find the original value that maps to this binary code
+                        encoding = self.demographics.binary_encodings['SEX']
+                        sex = next((k for k, v in encoding.items() if v == sex), sex)
+                    else:
+                        sex = 'M' if sex == 1 else 'F'  # Default mapping
+                
+                # Subject directory path
+                subject_dir = os.path.join(output_directory, participant_id, session_id)
+                
+                # Generate report - save directly in subject directory, not in separate reports folder
+                report_path = generate_clinical_report(
+                    sid=participant_id,
+                    ses=session_id,
+                    age=age,
+                    sex=sex,
+                    analyses=analyses,
+                    features=features,
+                    approach=approach,
+                    threshold=threshold,
+                    threshold_alpha=threshold_alpha,
+                    color_range=color_range,
+                    cmap=cmap,
+                    cmap_asymmetry=cmap_asymmetry,
+                    color_bar=color_bar,
+                    tmp_dir=tmp_dir,
+                    subject_dir=subject_dir,
+                    output_dir=None,  # Don't use separate output directory
+                    tag=f"{participant_id}_{session_id}_{approach}_clinical_report",
+                    verbose=verbose
+                )
+                
+                generated_reports.append(report_path)
+                
+                if verbose:
+                    print(f"Generated report for {participant_id}/{session_id}: {report_path}")
+                    
+            except Exception as e:
+                if verbose:
+                    print(f"Error generating report for {participant_id}/{session_id}: {e}")
+                continue
+        
+        if verbose:
+            print(f"Generated {len(generated_reports)} clinical reports in subject directories")
+            
+        return generated_reports

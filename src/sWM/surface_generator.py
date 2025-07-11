@@ -90,7 +90,7 @@ def shift_surface(in_surf, in_laplace, out_surf_prefix, depth_mm=[1, 2]):
     # Convert depth values to strings with a specific format
     depth_str = [f"{d:.1f}" for d in depth_mm]  # Use one decimal place
 
-    step_size = 1  # vox
+    step_size = 0.1  # vox
     
     # Pre-compute gradient once
     gradient_start = time.time()
