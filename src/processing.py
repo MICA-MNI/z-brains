@@ -46,19 +46,23 @@ def _process_single_subject(
         
         # Apply blurring to features that need it
         if blur_features:
-            # Check if all base features are available for this subject
-            all_base_available = True
+            # Check which base features are available for this subject and process them individually
+            available_base_features = []
             if valid_subjects_dict:
                 for feature in base_features:
-                    if subject not in valid_subjects_dict.get(feature, {}).get('all', []):
-                        all_base_available = False
-                        break
+                    if subject in valid_subjects_dict.get(feature, {}).get('all', []):
+                        available_base_features.append(feature)
+            else:
+                available_base_features = base_features
             
-            if all_base_available:
+            if available_base_features:
+                if verbose:
+                    print(f"  Applying blur processing for available features: {available_base_features}")
+                
                 apply_blurring(
                     participant_id=participant_id,
                     session_id=session_id,
-                    features=base_features,
+                    features=available_base_features,  # Only process available features
                     output_directory=output_directory,
                     workbench_path=env.connectome_workbench_path,
                     micapipe_directory=micapipe_directory,
@@ -66,6 +70,8 @@ def _process_single_subject(
                     tmp_dir=session_tmp_dir,
                     verbose=verbose
                 )
+            elif verbose:
+                print(f"  No base features available for blur processing: {base_features}")
 
         # Process cortical features if cortex is enabled
         if cortex and (not valid_subjects_dict or subject in valid_subjects_dict.get('structures', {}).get('cortex', [])):
