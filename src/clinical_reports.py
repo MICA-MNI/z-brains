@@ -30,18 +30,18 @@ USAGE:
 """
 
 import glob
-import uuid
 import logging
 import itertools
 from pathlib import Path
 import os
-from typing import List, Union, Tuple, Dict
+from typing import List, Union, Tuple, Dict, Optional
 import cmocean
 import numpy as np
 import pandas as pd
 import nibabel as nib
 from xhtml2pdf import pisa
 import platform
+from datetime import date
 from brainspace.datasets import load_mask
 from brainspace.plotting import plot_hemispheres
 from brainspace.mesh.mesh_io import read_surface
@@ -327,10 +327,13 @@ def report_header_template(
     age: Union[float, None] = None,
     sex: Union[str, None] = None,
     analysis: Analysis,
+    title=None,
 ):
 
     # if ses is None:
     #     ses = ''
+    if title is None:
+        title = f"Clinical Summary &nbsp; | &nbsp; <b> {analysis.capitalize()} analysis </b> "
 
     if age is None:
         age = "n/a"
@@ -363,7 +366,7 @@ def report_header_template(
         f'<img id="top" src="{DATA_PATH}/zbrains_banner.png" alt="zbrains">'
         # Title
         f'<p style="{style.format(fontsize=20, extra="")}">'
-        f"Clinical Summary &nbsp; | &nbsp; <b> {analysis.capitalize()} analysis </b> "
+        f"{title}"
         f"</p>"
         # Subject's ID - Session - Basic demographics
         f'<p style="{style.format(fontsize=14, extra="margin-top:-100px;")}">'
@@ -404,20 +407,115 @@ def report_colors(analysis: Analysis = "regional"):
     return report
 
 
-def feature_header_template(feature: Union[Feature, List[Feature]], extra=""):
+def feature_header_template(
+    feature: Union[str, List[str]] = "",
+    extra: str = "",
+    align: str = "center",
+    size= 14,
+    info: Optional[str] = None
+) -> str:
+    """
+    Generates an HTML header for a feature or list of features, with configurable alignment
+    and the option to provide a custom info string.
+
+    Args:
+        feature (Union[str, List[str]], optional): A single feature or a list of features.
+        extra (str, optional): Additional text to append. Defaults to "".
+        align (str, optional): Text alignment ('left', 'center', etc.). Defaults to "center".
+        info (str, optional): Custom info string to display. If provided, overrides feature/extra.
+
+    Returns:
+        str: HTML string for the feature header.
+    """
     style = (
         "border:0px solid #666;padding-top:10px;padding-left:5px;"
-        "background-color:#eee;font-family:Helvetica,sans-serif;font-size:14px;"
-        "text-align:center;color:#5d5070"
+        f"background-color:#eee;font-family:Helvetica,sans-serif;font-size:{size}px;"
+        f"text-align:{align};color:#5d5070"
     )
 
-    if isinstance(feature, list):
-        info = f'Features: {" & ".join(feature)} {extra}'
+    if info is not None:
+        display_info = info
+    elif isinstance(feature, list):
+        display_info = f'Features: {" & ".join(feature)} {extra}'
     else:
-        info = f"Feature: {feature} {extra}"
+        display_info = f"Feature: {feature} {extra}"
 
-    return f'<p style="{style}">' f"<b> {info} </b>" "</p>"
+    return f'<p style="{style}"><b> {display_info} </b></p>'
 
+def pipeline_info():
+    """
+    Generates an HTML table with project info, styled for tight left alignment.
+
+    Args:
+        workstation (str): Workstation name or identifier.
+        user (str, optional): Username to display. If None, uses os.getlogin().
+
+    Returns:
+        str: HTML string for the info table.
+    """
+    try:
+        user = os.getlogin()
+    except Exception:
+        user = "unknown"
+    try:
+        workstation = os.uname().nodename
+    except Exception:
+        workstation = "unknown"
+
+    # Badge and link HTML
+    version_badge = (
+        '<img src="https://img.shields.io/github/v/tag/MICA-MNI/z-brains" '
+        'alt="Version" style="vertical-align:middle;">'
+    )
+    license_badge = (
+        '<img src="https://img.shields.io/badge/license-BSD-brightgreen" '
+        'alt="License" style="vertical-align:middle;">'
+    )
+    license_link = (
+        '<a href="https://github.com/MICA-MNI/z-brains/blob/main/LICENSE" '
+        'target="_blank" style="text-decoration:none;color:#5d5070;">BSD License</a>'
+    )
+    github_link = (
+        '<a href="https://github.com/MICA-MNI/z-brains" '
+        'target="_blank" style="text-decoration:none;color:#5d5070;">https://github.com/MICA-MNI/z-brains</a>'
+    )
+    docs_link = (
+        '<a href="https://z-brains.readthedocs.io" '
+        'target="_blank" style="text-decoration:none;color:#5d5070;">https://z-brains.readthedocs.io</a>'
+    )
+
+    # Table HTML
+    info_table = (
+        '<p style="font-family:Helvetica, sans-serif;font-size:12px;text-align:left;margin-bottom:0px">'
+        '<b>Project Info</b></p>'
+        '<table style="border:1px solid #666;width:auto;margin-bottom:10px;border-collapse:collapse;">'
+            '<tr>'
+                '<td style="padding:4px 8px;text-align:left;font-weight:bold;">Version</td>'
+                f'<td style="padding:4px 8px;text-align:left;">{version_badge}</td>'
+            '</tr>'
+            '<tr>'
+                '<td style="padding:4px 8px;text-align:left;font-weight:bold;">License</td>'
+                f'<td style="padding:4px 8px;text-align:left;">{license_badge} {license_link}</td>'
+            '</tr>'
+            '<tr>'
+                '<td style="padding:4px 8px;text-align:left;font-weight:bold;">GitHub</td>'
+                f'<td style="padding:4px 8px;text-align:left;">{github_link}</td>'
+            '</tr>'
+            '<tr>'
+                '<td style="padding:4px 8px;text-align:left;font-weight:bold;">Documentation</td>'
+                f'<td style="padding:4px 8px;text-align:left;">{docs_link}</td>'
+            '</tr>'
+            '<tr>'
+                '<td style="padding:4px 8px;text-align:left;font-weight:bold;">Workstation</td>'
+                f'<td style="padding:4px 8px;text-align:left;">{workstation}</td>'
+            '</tr>'
+            '<tr>'
+                '<td style="padding:4px 8px;text-align:left;font-weight:bold;">User</td>'
+                f'<td style="padding:4px 8px;text-align:left;">{user}</td>'
+            '</tr>'
+        '</table>'
+    )
+    return info_table
 
 def report_1x2_table(fig1: PathType, fig2: PathType, height=250):
     style = (
@@ -1268,10 +1366,46 @@ def generate_clinical_report(
             if verbose:
                 print("Warning: pyvirtualdisplay not available, plotting may fail in headless environment")
     
-    # Generate report content
-    report = ""
+    # Generate report content include a footer with the current dat
+    footer_date = date.today().strftime("%B %d, %Y")
+    report = f"""
+    <html>
+    <head>
+    <style>
+    @page {{
+        @bottom-center {{
+            content: "Date: {footer_date}";
+            font-size: 10px;
+            color: #888;
+        }}
+    }}
+    </style>
+    </head>
+    """
     
     try:
+        # Generate FIRST page report header (Basic info)
+        report += report_header_template(
+                sid=sid, 
+                ses=ses, 
+                age=age, 
+                sex=sex, 
+                analysis=analysis,
+                title=f"Subject &nbsp; | &nbsp; <b> Group Mean </b> "
+            )
+        
+        # Add Subtitle section
+        report += feature_header_template(align="left", info="Control Database", size=14)
+
+        # Add Subtitle section
+        report += feature_header_template(align="left", info="Pipeline details", size=12)
+
+        # Add pipeline details
+        report += pipeline_info
+
+        # Add page break
+        report += '<div style="page-break-after: always;"></div>'
+
         # Process each analysis and feature combination
         for analysis, feat, thresh in itertools.product(analyses, features, [None, threshold]):
             if thresh is None and verbose:
@@ -1357,6 +1491,7 @@ def generate_clinical_report(
             file_pdf = os.path.join(subject_dir, f"{bids_id}_approach-{approach}_summary-report.pdf")
         
         # Convert HTML to PDF
+        report += "</html>"
         convert_html_to_pdf(report, file_pdf)
         
         if verbose:
