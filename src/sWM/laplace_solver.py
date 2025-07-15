@@ -205,8 +205,8 @@ def laplace(
 def solve_laplace(
     in_seg,
     out_laplace,
-    convergence_threshold=1e-2,
-    max_iters=10,
+    convergence_threshold=1e-4,
+    max_iters=500,
     kernelSize=3,
     alpha=0.1,
     initial_lr=0.5,

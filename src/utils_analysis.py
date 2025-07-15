@@ -12,14 +12,7 @@ import numpy as np
 import pandas as pd
 import nibabel as nib
 import copy
-import pickle as pkl
-from sklearn.linear_model import LinearRegression
-from .utilities import (
-    add_field_to_xml,
-    replace_field_in_xml,
-    edit_root_attributes_in_xml,
-    remove_doctype_from_xml,
-)
+
 from .constants import ProcessingException
 
 from .constants import (

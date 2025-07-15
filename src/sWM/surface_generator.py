@@ -201,6 +201,6 @@ if __name__ == "__main__":
     if len(sys.argv) > 4:
         depth_mm = arg2float_list(sys.argv[4])
     else:
-        depth_mm = [1, 2, 3]  # default depths in mm
+        depth_mm = [1, 2]  # default depths in mm
 
     shift_surface(in_surf, in_laplace, out_surf_prefix, depth_mm)

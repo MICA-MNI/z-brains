@@ -23,26 +23,42 @@ def _process_single_subject(
     cortex,
     hippocampus,
     subcortical,
-    verbose=False,  # Reduce verbosity in parallel processing to avoid mixed output
-    valid_subjects_dict=None  # Dictionary of valid subjects by feature/structure
-):
-    """
-    Process a single subject. This function is called by each parallel worker.
-    
-    Returns:
-    --------
-    bool
-        True if processing was successful, False otherwise
-    """
-    import shutil
-    
-    participant_id, session_id = subject
-    
-    # Create session-specific tmp directory
-    session_tmp_dir = os.path.join(output_directory, participant_id, session_id, f"tmp_{participant_id}_{session_id}")
-    
+    verbose=False,
+    valid_subjects_dict=None):
+        
     try:
+        participant_id, session_id = subject
+        # Create session-specific tmp directory
+        session_tmp_dir = os.path.join(output_directory, participant_id, session_id, f"tmp_{participant_id}_{session_id}")
         os.makedirs(session_tmp_dir, exist_ok=True)
+        
+        # Copy structural files
+        structural_output_dir = os.path.join(output_directory, participant_id, session_id, "structural")
+        os.makedirs(structural_output_dir, exist_ok=True)
+        
+        # Files to copy
+        surface_files = [
+            f"surf/{participant_id}_{session_id}_hemi-L_space-nativepro_surf-fsLR-32k_label-midthickness.surf.gii",
+            f"surf/{participant_id}_{session_id}_hemi-R_space-nativepro_surf-fsLR-32k_label-midthickness.surf.gii",
+            f"anat/{participant_id}_{session_id}_space-nativepro_T1w.nii.gz"
+        ]
+        
+        for file_path in surface_files:
+            source_file = os.path.join(micapipe_directory, participant_id, session_id, file_path)
+            target_file = os.path.join(structural_output_dir, os.path.basename(file_path))
+            
+            if os.path.exists(source_file):
+                if verbose:
+                    print(f"  Copying structural file: {os.path.basename(source_file)}")
+                try:
+                    import shutil
+                    shutil.copy2(source_file, target_file)
+                except Exception as e:
+                    if verbose:
+                        print(f"  Error copying {source_file}: {e}")
+            else:
+                if verbose:
+                    print(f"  Warning: Structural file not found: {source_file}")
         
         # Apply blurring to features that need it
         if blur_features:
@@ -68,6 +84,7 @@ def _process_single_subject(
                     micapipe_directory=micapipe_directory,
                     freesurfer_directory=freesurfer_directory,
                     tmp_dir=session_tmp_dir,
+                    smoothing_fwhm=cortical_smoothing,
                     verbose=verbose
                 )
             elif verbose:

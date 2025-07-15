@@ -286,6 +286,8 @@ class zbdataset():
             "surf/{participant_id}_{session_id}_hemi-L_space-nativepro_surf-fsnative_label-pial.surf.gii",
             "surf/{participant_id}_{session_id}_hemi-L_space-nativepro_surf-fsnative_label-midthickness.surf.gii",
             "surf/{participant_id}_{session_id}_hemi-L_space-nativepro_surf-fsnative_label-white.surf.gii",
+            "surf/{participant_id}_{session_id}_hemi-L_space-nativepro_surf-fsLR-32k_label-midthickness.surf.gii",
+            "surf/{participant_id}_{session_id}_hemi-R_space-nativepro_surf-fsLR-32k_label-midthickness.surf.gii",
         ]
         
         required_hippocampal_files = [
@@ -555,6 +557,9 @@ class zbdataset():
             os.makedirs(session_tmp_dir, exist_ok=True)
             
             try:
+                # Copy structural files
+                self._copy_structural_files(participant_id, session_id, output_directory, verbose=verbose)
+                
                 # Apply blurring to features that need it
                 if blur_features:
                     # Check if all base features are available for this subject
@@ -1097,7 +1102,7 @@ class zbdataset():
                 for p, s in missing_hippocampus[:5]:
                     print(f"  - {p}/{s}")
                 if len(missing_hippocampus) > 5:
-                    print(f"  - ... and {len(missing_hippocampal) - 5} more")
+                    print(f"  - ... and {len(missing_hippocampus) - 5} more")
                     
             if missing_subcortical and self.subcortical:
                 print(f"Warning: {len(missing_subcortical)} subjects missing subcortical output directory:")
@@ -1271,6 +1276,8 @@ class zbdataset():
                     subject_dir=subject_dir,
                     output_dir=None,  # Don't use separate output directory
                     tag=f"{participant_id}_{session_id}_{approach}_clinical_report",
+                    smooth_ctx=self.cortical_smoothing,
+                    smooth_hip=self.hippocampal_smoothing,
                     verbose=verbose
                 )
                 
@@ -1288,3 +1295,57 @@ class zbdataset():
             print(f"Generated {len(generated_reports)} clinical reports in subject directories")
             
         return generated_reports
+    
+    def _copy_structural_files(self, participant_id, session_id, output_directory, verbose=False):
+        """
+        Copy structural surface files from micapipe directory to output directory.
+        
+        Parameters:
+        -----------
+        participant_id : str
+            Subject ID
+        session_id : str
+            Session ID
+        output_directory : str
+            Base output directory
+        verbose : bool
+            Whether to print verbose messages
+        
+        Returns:
+        --------
+        bool
+            Whether the copying was successful
+        """
+        import shutil
+        
+        # Define source and target paths
+        structural_output_dir = os.path.join(output_directory, participant_id, session_id, "structural")
+        os.makedirs(structural_output_dir, exist_ok=True)
+        
+        # Files to copy
+        surface_files = [
+            f"surf/{participant_id}_{session_id}_hemi-L_space-nativepro_surf-fsLR-32k_label-midthickness.surf.gii",
+            f"surf/{participant_id}_{session_id}_hemi-R_space-nativepro_surf-fsLR-32k_label-midthickness.surf.gii",
+            f"anat/{participant_id}_{session_id}_space-nativepro_T1w.nii.gz"
+        ]
+        
+        success = True
+        for file_path in surface_files:
+            source_file = os.path.join(self.micapipe_directory, participant_id, session_id, file_path)
+            target_file = os.path.join(structural_output_dir, os.path.basename(file_path))
+            
+            if os.path.exists(source_file):
+                if verbose:
+                    print(f"  Copying structural file: {os.path.basename(source_file)}")
+                try:
+                    shutil.copy2(source_file, target_file)
+                except Exception as e:
+                    if verbose:
+                        print(f"  Error copying {source_file}: {e}")
+                    success = False
+            else:
+                if verbose:
+                    print(f"  Warning: Structural file not found: {source_file}")
+                success = False
+                
+        return success

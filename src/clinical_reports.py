@@ -494,13 +494,44 @@ def map_subcortical_vertices(x) -> np.ndarray:
 
 
 # Load surfaces ----------------------------------------------------------------
-def _load_surfaces_ctx(resolution: Resolution = "high"):
-
+def _load_surfaces_ctx(
+    resolution: Resolution = "high",
+    subject_dir=None,
+    participant_id=None,
+    session_id=None
+):
+    """Load cortical surfaces - prioritize native subject surfaces if available"""
+    
+    # Try to load native subject-specific surfaces if subject info is provided
+    if subject_dir and participant_id and session_id:
+        native_lh_path = os.path.join(
+            subject_dir, 
+            "structural", 
+            f"{participant_id}_{session_id}_hemi-L_space-nativepro_surf-fsLR-32k_label-midthickness.surf.gii"
+        )
+        native_rh_path = os.path.join(
+            subject_dir, 
+            "structural", 
+            f"{participant_id}_{session_id}_hemi-R_space-nativepro_surf-fsLR-32k_label-midthickness.surf.gii"
+        )
+        
+        if os.path.exists(native_lh_path) and os.path.exists(native_rh_path):
+            try:
+                print(f"Loading native cortical surfaces for {participant_id}/{session_id}")
+                inf_lh = read_surface(native_lh_path)
+                inf_rh = read_surface(native_rh_path)
+                
+                # Create a mask - since these are native surfaces, we assume all vertices are valid
+                mask = np.ones(inf_lh.n_points + inf_rh.n_points, dtype=bool)
+                return inf_lh, inf_rh, mask
+            except Exception as e:
+                print(f"Failed to load native surfaces: {e}. Falling back to template surfaces.")
+    
+    # Fall back to template surfaces if native surfaces aren't available or failed to load
+    print("Using template cortical surfaces")
     res_ctx = map_resolution("cortex", resolution)
-
     inf_lh = read_surface(f"{DATA_PATH}/fsLR-{res_ctx}.L.inflated.surf.gii")
     inf_rh = read_surface(f"{DATA_PATH}/fsLR-{res_ctx}.R.inflated.surf.gii")
-
     mask = load_mask(join=True)
     return inf_lh, inf_rh, mask
 
@@ -636,9 +667,17 @@ def _make_png_ctx(
     cmap="cmo.balance",
     color_range=(-2, 2),
     color_bar="bottom",
+    subject_dir=None,
+    participant_id=None,
+    session_id=None
 ):
 
-    slh, srh, mask = _load_surfaces_ctx(resolution=res)
+    slh, srh, mask = _load_surfaces_ctx(
+        resolution=res,
+        subject_dir=subject_dir,
+        participant_id=participant_id,
+        session_id=session_id
+    )
 
     # Replace values in f with NaN where mask_32k is False
     feat_map = np.hstack(np.concatenate((data_lh, data_rh), axis=0))
@@ -862,6 +901,9 @@ def make_png(
     color_range=(-2, 2),
     color_bar="bottom",
     analysis=None,
+    subject_dir=None,
+    participant_id=None,
+    session_id=None,
 ):
 
     if struct == "cortex":
@@ -874,6 +916,9 @@ def make_png(
             cmap=cmap,
             color_range=color_range,
             color_bar=color_bar,
+            subject_dir=subject_dir,
+            participant_id=participant_id,
+            session_id=session_id,
         )
 
     if struct == "hippocampus":
@@ -925,7 +970,8 @@ def report_struct(
     color_range=(-2, 2),
     color_bar="bottom",
     tmp_dir: PathType = "/tmp",
-    feature_means=None
+    feature_means=None,
+    subject_dir=None
 ):
     """
     Generate report section for a specific brain structure adapted for zbdataset structure.
@@ -1079,6 +1125,9 @@ def report_struct(
             color_range=color_range,
             color_bar=color_bar,
             analysis=analysis,
+            subject_dir=subject_dir,
+            participant_id=sid,
+            session_id=ses,
         )
         
         html += png_block
@@ -1309,6 +1358,7 @@ def generate_clinical_report(
                 cmap=cmap_asymmetry if analysis == "asymmetry" else cmap,
                 color_bar=color_bar,
                 tmp_dir=tmp_dir,
+                subject_dir=subject_dir,
             )
             
             # Generate cortical report section
@@ -1349,8 +1399,7 @@ def generate_clinical_report(
         
         # Generate output filename
         if output_dir and tag:
-            # Save in the subject directory instead of a separate reports folder
-            file_pdf = os.path.join(subject_dir, f"{tag}.pdf")
+            file_pdf = os.path.join(output_dir, f"{tag}.pdf")
             if os.path.exists(file_pdf):
                 os.remove(file_pdf)
         else:

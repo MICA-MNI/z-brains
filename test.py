@@ -3,9 +3,7 @@ from src.environment import zbenv
 
 features = ["FA", "ADC", "thickness", "qT1", "qT1-blur", "FLAIR", "FLAIR-blur"]
 
-# features = ["FA", "ADC", "thickness", "qT1"]
-
-env = zbenv(connectome_workbench_path="/usr/bin/", num_threads=12)
+env = zbenv(connectome_workbench_path="/usr/bin/", num_threads=24)
 
 control = demographics("data/participants_mics_hc_all.csv", normative_columns=["AGE", "SEX"], normative_dtypes=["int", "binary"])
 
@@ -52,9 +50,9 @@ patient_dataset.process(output_directory="/host/verges/tank/data/ian/zbrains_out
 
 
 # patient_dataset.validate(output_directory="/host/verges/tank/data/ian/zbrains_outputs", 
-#                         features=["FA", "ADC", "thickness", "qT1", "qT1-blur"], 
-#                         cortical_smoothing=5, 
-#                         hippocampal_smoothing=2, 
+#                         features=features, 
+#                         cortical_smoothing=10, 
+#                         hippocampal_smoothing=5, 
 #                         verbose=True)
 
 
