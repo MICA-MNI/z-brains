@@ -61,13 +61,9 @@ from .constants import (
     Resolution,
     Structure,
     Feature,
-    struct_to_folder,
-    approach_to_folder,
 )
 from .utils_analysis import (
-    get_bids_id,
     map_resolution,
-    get_analysis_path_from_template,
     get_subject_dir,
     PathType,
 )
@@ -76,9 +72,6 @@ cmaps = cmocean.cm.cmap_d
 
 
 DATA_PATH = Path(__file__).resolve().parent.parent / "data"
-
-
-# logger = logging.getLogger('analysis_logger')
 
 
 def plot_hemisphere_lh(
@@ -703,7 +696,7 @@ def _make_png_ctx(
             layout_style="grid",
             label_text={"left": ["Lateral", "Medial"], "top": [""]},
             share=None,
-            zoom=1.25,
+            zoom=1.1,
             size=(600, 600),
             filename=out_png,
             **kwds,
@@ -716,7 +709,7 @@ def _make_png_ctx(
             layout_style="grid",
             label_text={"left": ["Lateral", "Medial"], "top": ["Left", "Right"]},
             share=None,
-            zoom=1.25,
+            zoom=1.1,
             size=(600, 600),
             filename=out_png,
             **kwds,
@@ -743,7 +736,7 @@ def _make_png_ctx(
             },
             # share='both', zoom=2.95, size=(550, 350),
             share="both",
-            zoom=1.25,
+            zoom=1.1,
             size=(550, 450),
             filename=out_png2,
             **kwds,
@@ -764,7 +757,7 @@ def _make_png_ctx(
             },
             # share='both', zoom=2.95, size=(550, 350),
             share="both",
-            zoom=2.75,
+            zoom=2.5,
             size=(550, 350),
             filename=out_png2,
             **kwds,
@@ -1001,50 +994,45 @@ def report_struct(
     # Build file paths based on structure type and zbdataset naming conventions
     file_lh = None
     file_rh = None
-    
+
     if struct == "subcortex":
-        # For subcortical, look for CSV files
-        file_lh = os.path.join(path_analysis, struct_dir, f"{bids_id}_feature-{feat}.csv")
+        # For subcortical, look for CSV files with analysis type
+        file_lh = os.path.join(path_analysis, struct_dir, f"{bids_id}_feature-{feat}_analysis-{analysis}.csv")
     else:
         # For cortical and hippocampal, build surface file paths
         if struct == "cortex":
             # Map resolution for cortical files
             res_mapped = "32k" if res == "high" else "5k"
             
-            # Cortical files
+            # Cortical files - always include analysis type
+            file_lh = os.path.join(
+                path_analysis, struct_dir,
+                f"{bids_id}_hemi-L_surf-fsLR-{res_mapped}_label-{label}_feature-{feat}_smooth-{smooth}mm_analysis-{analysis}.func.gii"
+            )
+            
             if analysis != "asymmetry":
-                file_lh = os.path.join(
-                    path_analysis, struct_dir,
-                    f"{bids_id}_hemi-L_surf-fsLR-{res_mapped}_label-{label}_feature-{feat}_smooth-{smooth}mm.func.gii"
-                )
                 file_rh = os.path.join(
                     path_analysis, struct_dir,
-                    f"{bids_id}_hemi-R_surf-fsLR-{res_mapped}_label-{label}_feature-{feat}_smooth-{smooth}mm.func.gii"
+                    f"{bids_id}_hemi-R_surf-fsLR-{res_mapped}_label-{label}_feature-{feat}_smooth-{smooth}mm_analysis-{analysis}.func.gii"
                 )
-            else:
-                file_lh = os.path.join(
-                    path_analysis, struct_dir,
-                    f"{bids_id}_hemi-L_surf-fsLR-{res_mapped}_label-{label}_feature-{feat}_smooth-{smooth}mm.func.gii"
-                )
+            # For asymmetry, we only need the left hemisphere file
+            
         elif struct == "hippocampus":
             # Map resolution for hippocampal files
             res_mapped = "0p5" if res == "high" else "1p0"
             
-            # Hippocampal files
+            # Hippocampal files - always include analysis type
+            file_lh = os.path.join(
+                path_analysis, struct_dir,
+                f"{sid}_{ses}_hemi-L_den-{res_mapped}mm_label-hipp_{label}_feature-{feat}_smooth-{smooth}mm_analysis-{analysis}.func.gii"
+            )
+            
             if analysis != "asymmetry":
-                file_lh = os.path.join(
-                    path_analysis, struct_dir,
-                    f"{sid}_{ses}_hemi-L_den-{res_mapped}mm_label-hipp_{label}_feature-{feat}_smooth-{smooth}mm.func.gii"
-                )
                 file_rh = os.path.join(
                     path_analysis, struct_dir,
-                    f"{sid}_{ses}_hemi-R_den-{res_mapped}mm_label-hipp_{label}_feature-{feat}_smooth-{smooth}mm.func.gii"
+                    f"{sid}_{ses}_hemi-R_den-{res_mapped}mm_label-hipp_{label}_feature-{feat}_smooth-{smooth}mm_analysis-{analysis}.func.gii"
                 )
-            else:
-                file_lh = os.path.join(
-                    path_analysis, struct_dir,
-                    f"{sid}_{ses}_hemi-L_den-{res_mapped}mm_label-hipp_{label}_feature-{feat}_smooth-{smooth}mm.func.gii"
-                )
+            # For asymmetry, we only need the left hemisphere file
     
     # Generate info string
     thr_str = "" if thr is None else f" | threshold={thr}"

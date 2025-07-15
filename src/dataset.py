@@ -1,10 +1,39 @@
 import os
-from src.processing import apply_blurring, apply_hippocampal_processing, apply_subcortical_processing, apply_cortical_processing, _process_single_subject
+import sys
+import datetime
+from src.processing import apply_blurring, apply_hippocampal_processing, apply_subcortical_processing, apply_cortical_processing
 from src.analysis import analyze_dataset
 import shutil
 import multiprocessing
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from functools import partial
+from joblib import Parallel, delayed
+
+class LogRedirect:
+    """
+    Class for redirecting stdout/stderr to a log file while still displaying output.
+    """
+    def __init__(self, log_file):
+        self.log_file = log_file
+        self.terminal_stdout = sys.stdout
+        
+        # Remove old log file if it exists
+        if os.path.exists(log_file):
+            os.remove(log_file)
+            
+        # Open in write mode to create a new file
+        self.log = open(self.log_file, "w", encoding="utf-8")
+        
+    def __del__(self):
+        if hasattr(self, 'log') and self.log:
+            self.log.close()
+        
+    def write(self, message):
+        self.terminal_stdout.write(message)
+        self.log.write(message)
+        self.log.flush()
+        
+    def flush(self):
+        self.terminal_stdout.flush()
+        self.log.flush()
 
 class demographics():
     def __init__(self, csv_file, column_mapping=None, normative_columns=None, normative_dtypes=None, reference=None):
@@ -531,136 +560,10 @@ class zbdataset():
         
         return self
 
-     # Update the process method to use the blurring functionality
-    
-    def _process_sequential(self, output_directory, features, cortical_smoothing, hippocampal_smoothing, env, verbose):
-        """Original sequential processing method for fallback or when n_jobs=1"""
-        import shutil
-        
-        # Identify blur features
-        blur_features = [feature for feature in self.features if feature.endswith("-blur")]
-        base_features = [feature.replace("-blur", "") for feature in blur_features]
-        
-        # Use all base valid subjects instead of intersection
-        valid_subjects_to_process = self.valid_subjects['base']
-        
-        if verbose:
-            print(f"Processing {len(valid_subjects_to_process)} subjects (will process available features for each)")
-        
-        # Process each subject
-        for subject in valid_subjects_to_process:
-            participant_id, session_id = subject
-            print(f"Processing subject {participant_id}/{session_id}...")
-            
-            # Create session-specific tmp directory
-            session_tmp_dir = os.path.join(output_directory, participant_id, session_id, f"tmp_{participant_id}_{session_id}")
-            os.makedirs(session_tmp_dir, exist_ok=True)
-            
-            try:
-                # Copy structural files
-                self._copy_structural_files(participant_id, session_id, output_directory, verbose=verbose)
-                
-                # Apply blurring to features that need it
-                if blur_features:
-                    # Check if all base features are available for this subject
-                    valid_blur_subjects = set([subject])
-                    for feature in base_features:
-                        if subject not in self.valid_subjects[feature]['all']:
-                            valid_blur_subjects.discard(subject)
-                            break
-                    
-                    if subject in valid_blur_subjects:
-                        print(f"  Applying additional blur processing for features: {', '.join(blur_features)}")
-                        
-                        apply_blurring(
-                            participant_id=participant_id,
-                            session_id=session_id,
-                            features=base_features,
-                            output_directory=output_directory,
-                            workbench_path=env.connectome_workbench_path,
-                            micapipe_directory=self.micapipe_directory,
-                            freesurfer_directory=self.freesurfer_directory,
-                            tmp_dir=session_tmp_dir,
-                            verbose=verbose
-                        )
-
-                # Process cortical features if cortex is enabled
-                if self.cortex and subject in self.valid_subjects['structures']['cortex']:
-                    # Get valid features for cortex for this subject
-                    valid_cortical_features = [f for f in self.features if subject in self.valid_subjects[f]['structures']['cortex']]
-                    
-                    if valid_cortical_features:
-                        print(f"  Processing cortical data for features: {', '.join(valid_cortical_features)}")
-                        
-                        apply_cortical_processing(
-                            participant_id=participant_id,
-                            session_id=session_id,
-                            features=valid_cortical_features,
-                            output_directory=output_directory,
-                            workbench_path=env.connectome_workbench_path,
-                            micapipe_directory=self.micapipe_directory,
-                            tmp_dir=session_tmp_dir,
-                            cortical_smoothing=cortical_smoothing,
-                            resolutions=["32k", "5k"],
-                            labels=["midthickness", "white"],
-                            verbose=verbose
-                        )
-                
-                # If hippocampus is enabled, process hippocampal data
-                if self.hippocampus and self.hippunfold_directory and subject in self.valid_subjects['structures']['hippocampus']:
-                    # Get non-blur features for hippocampus
-                    valid_hipp_features = [f for f in self.features 
-                                           if not f.endswith("-blur") 
-                                           and subject in self.valid_subjects[f]['structures']['hippocampus']]
-                    
-                    if valid_hipp_features:
-                        print(f"  Processing hippocampal data for features: {', '.join(valid_hipp_features)}")
-                        
-                        apply_hippocampal_processing(
-                            participant_id=participant_id,
-                            session_id=session_id,
-                            features=valid_hipp_features,
-                            output_directory=output_directory,
-                            workbench_path=env.connectome_workbench_path,
-                            micapipe_directory=self.micapipe_directory,
-                            hippunfold_directory=self.hippunfold_directory,
-                            tmp_dir=session_tmp_dir,
-                            smoothing_fwhm=hippocampal_smoothing,
-                            verbose=verbose
-                        )
-
-                # If subcortex is enabled, extract subcortical stats
-                if self.subcortical and self.freesurfer_directory and subject in self.valid_subjects['structures']['subcortical']:
-                    # Get non-blur features for subcortical
-                    valid_subcort_features = [f for f in self.features 
-                                              if not f.endswith("-blur") 
-                                              and subject in self.valid_subjects[f]['structures']['subcortical']]
-                    
-                    if valid_subcort_features:
-                        print(f"  Processing subcortical data for features: {', '.join(valid_subcort_features)}")
-                        
-                        apply_subcortical_processing(
-                            participant_id=participant_id,
-                            session_id=session_id,
-                            features=valid_subcort_features,
-                            output_directory=output_directory,
-                            micapipe_directory=self.micapipe_directory,
-                            freesurfer_directory=self.freesurfer_directory,
-                            verbose=verbose
-                        )
-            
-            finally:
-                # Clean up session-specific tmp directory
-                if os.path.exists(session_tmp_dir):
-                    shutil.rmtree(session_tmp_dir)
-                    if verbose:
-                        print(f"  Cleaned up temporary directory: {session_tmp_dir}")
-        
-        return self
-
     def process(self, output_directory, features, cortical_smoothing=5, hippocampal_smoothing=2, env=None, verbose=True, n_jobs=None):
         """
-        Process the dataset with specified features and smoothing parameters using parallel processing.
+        Process the dataset with specified features and smoothing parameters using joblib parallelization.
+        Logs all output to a log file in each subject's session directory.
         
         Parameters:
         -----------
@@ -678,14 +581,15 @@ class zbdataset():
             If True, prints detailed processing information
         n_jobs : int, optional
             Number of parallel jobs to run. If None, uses all available CPU cores.
-            If 1, runs sequentially (original behavior).
+            If 1, runs sequentially.
             
         Returns:
         --------
         self
             The dataset object
         """
-
+        self.cortical_smoothing = cortical_smoothing
+        self.hippocampal_smoothing = hippocampal_smoothing
         self.add_features(*features, verbose=verbose)
         
         if verbose:
@@ -700,72 +604,200 @@ class zbdataset():
         else:
             print(f"Output directory already exists: {output_directory}")
 
+        # Create main log file
+        timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        main_log_file = os.path.join(output_directory, f"processing_{self.name}_{timestamp}.log")
+        with open(main_log_file, 'w', encoding='utf-8') as f:
+            f.write(f"===== Processing dataset {self.name} =====\n")
+            f.write(f"Date/Time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"Output directory: {output_directory}\n")
+            f.write(f"Features: {features}\n")
+            f.write(f"Cortical smoothing: {cortical_smoothing}\n")
+            f.write(f"Hippocampal smoothing: {hippocampal_smoothing}\n")
+        print(f"Main processing log started at: {main_log_file}")
+
         # Determine number of jobs
         if n_jobs is None:
             n_jobs = env.num_threads or multiprocessing.cpu_count()
-        if n_jobs == 1:
-            # Fall back to sequential processing
-            return self._process_sequential(output_directory, features, cortical_smoothing, hippocampal_smoothing, env, verbose)
         
-        # Use all base valid subjects instead of intersection
+        # Use all base valid subjects
         valid_subjects_to_process = self.valid_subjects['base']
         
         if verbose:
-            print(f"Using {n_jobs} parallel processes for {len(valid_subjects_to_process)} subjects (will process available features for each)")
+            print(f"Using {n_jobs if n_jobs > 1 else 'sequential'} processing for {len(valid_subjects_to_process)} subjects")
 
         # Identify blur features
         blur_features = [feature for feature in self.features if feature.endswith("-blur")]
         base_features = [feature.replace("-blur", "") for feature in blur_features]
         
-        # Process subjects in parallel
-        failed_subjects = []
-        
-        with ProcessPoolExecutor(max_workers=n_jobs) as executor:
-            # Create a partial function with fixed parameters
-            process_func = partial(
-                _process_single_subject,
-                features=self.features,
-                blur_features=blur_features,
-                base_features=base_features,
-                output_directory=output_directory,
-                cortical_smoothing=cortical_smoothing,
-                hippocampal_smoothing=hippocampal_smoothing,
-                env=env,
-                micapipe_directory=self.micapipe_directory,
-                hippunfold_directory=self.hippunfold_directory,
-                freesurfer_directory=self.freesurfer_directory,
-                cortex=self.cortex,
-                hippocampus=self.hippocampus,
-                subcortical=self.subcortical,
-                verbose=verbose,
-                valid_subjects_dict=self.valid_subjects
-            )
+        # Define a function to process a single subject
+        def process_single_subject(subject):
+            participant_id, session_id = subject
             
-            # Submit all jobs
-            future_to_subject = {
-                executor.submit(process_func, subject): subject 
-                for subject in valid_subjects_to_process
-            }
+            # Create session-specific directories
+            session_output_dir = os.path.join(output_directory, participant_id, session_id)
+            os.makedirs(session_output_dir, exist_ok=True)
             
-            # Process completed jobs
-            for future in as_completed(future_to_subject):
-                subject = future_to_subject[future]
-                participant_id, session_id = subject
+            # Create session log file
+            log_file = os.path.join(session_output_dir, f"{participant_id}_{session_id}_processing.log")
+            
+            # Create session-specific tmp directory
+            session_tmp_dir = os.path.join(session_output_dir, f"tmp_{participant_id}_{session_id}")
+            os.makedirs(session_tmp_dir, exist_ok=True)
+            
+            # Redirect stdout to log file for this subject
+            original_stdout = sys.stdout
+            log_redirect = None
+            try:
+                # Create log file
+                log_redirect = LogRedirect(log_file)
+                sys.stdout = log_redirect
+                
+                print(f"Processing subject {participant_id}/{session_id}...")
+                print(f"Started at: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                print(f"Features: {features}")
+                print(f"Cortical smoothing: {cortical_smoothing}mm")
+                print(f"Hippocampal smoothing: {hippocampal_smoothing}mm")
+                print(f"Log file: {log_file}")
+                print("-" * 50)
                 
                 try:
-                    success = future.result()
-                    if success:
-                        if verbose:
-                            print(f"✓ Completed processing {participant_id}/{session_id}")
-                    else:
-                        failed_subjects.append(subject)
-                        if verbose:
-                            print(f"✗ Failed processing {participant_id}/{session_id}")
-                except Exception as e:
-                    failed_subjects.append(subject)
-                    if verbose:
-                        print(f"✗ Error processing {participant_id}/{session_id}: {e}")
+                    # Copy structural files
+                    self._copy_structural_files(participant_id, session_id, output_directory, verbose=verbose)
+                    
+                    # Apply blurring to features that need it
+                    if blur_features:
+                        # Check which base features are available for this subject
+                        available_features = []
+                        for feature in base_features:
+                            if subject in self.valid_subjects[feature]['all']:
+                                available_features.append(feature)
+                        
+                        if available_features:  # If ANY features are available, proceed with blurring
+                            if verbose:
+                                print(f"  Applying additional blur processing for features: {', '.join([f+'-blur' for f in available_features])}")
+                            
+                            apply_blurring(
+                                participant_id=participant_id,
+                                session_id=session_id,
+                                features=available_features,  # Only process available features
+                                output_directory=output_directory,
+                                workbench_path=env.connectome_workbench_path,
+                                micapipe_directory=self.micapipe_directory,
+                                freesurfer_directory=self.freesurfer_directory,
+                                tmp_dir=session_tmp_dir,
+                                smoothing_fwhm=self.cortical_smoothing,
+                                verbose=verbose
+                            )
 
+                    # Process cortical features if cortex is enabled
+                    if self.cortex and subject in self.valid_subjects['structures']['cortex']:
+                        # Get valid features for cortex for this subject
+                        valid_cortical_features = [f for f in self.features if subject in self.valid_subjects[f]['structures']['cortex']]
+                        
+                        if valid_cortical_features:
+                            if verbose:
+                                print(f"  Processing cortical data for features: {', '.join(valid_cortical_features)}")
+                            
+                            apply_cortical_processing(
+                                participant_id=participant_id,
+                                session_id=session_id,
+                                features=valid_cortical_features,
+                                output_directory=output_directory,
+                                workbench_path=env.connectome_workbench_path,
+                                micapipe_directory=self.micapipe_directory,
+                                tmp_dir=session_tmp_dir,
+                                cortical_smoothing=cortical_smoothing,
+                                resolutions=["32k", "5k"],
+                                labels=["midthickness", "white"],
+                                verbose=verbose
+                            )
+                
+                    # If hippocampus is enabled, process hippocampal data
+                    if self.hippocampus and self.hippunfold_directory and subject in self.valid_subjects['structures']['hippocampus']:
+                        # Get non-blur features for hippocampus
+                        valid_hipp_features = [f for f in self.features 
+                                            if not f.endswith("-blur") 
+                                            and subject in self.valid_subjects[f]['structures']['hippocampus']]
+                        
+                        if valid_hipp_features:
+                            if verbose:
+                                print(f"  Processing hippocampal data for features: {', '.join(valid_hipp_features)}")
+                            
+                            apply_hippocampal_processing(
+                                participant_id=participant_id,
+                                session_id=session_id,
+                                features=valid_hipp_features,
+                                output_directory=output_directory,
+                                workbench_path=env.connectome_workbench_path,
+                                micapipe_directory=self.micapipe_directory,
+                                hippunfold_directory=self.hippunfold_directory,
+                                tmp_dir=session_tmp_dir,
+                                smoothing_fwhm=hippocampal_smoothing,
+                                verbose=verbose
+                            )
+
+                    # If subcortex is enabled, extract subcortical stats
+                    if self.subcortical and self.freesurfer_directory and subject in self.valid_subjects['structures']['subcortical']:
+                        # Get non-blur features for subcortical
+                        valid_subcort_features = [f for f in self.features 
+                                                if not f.endswith("-blur") 
+                                                and subject in self.valid_subjects[f]['structures']['subcortical']]
+                        
+                        if valid_subcort_features:
+                            if verbose:
+                                print(f"  Processing subcortical data for features: {', '.join(valid_subcort_features)}")
+                            
+                            apply_subcortical_processing(
+                                participant_id=participant_id,
+                                session_id=session_id,
+                                features=valid_subcort_features,
+                                output_directory=output_directory,
+                                micapipe_directory=self.micapipe_directory,
+                                freesurfer_directory=self.freesurfer_directory,
+                                verbose=verbose
+                            )
+                    
+                    print(f"Completed processing {participant_id}/{session_id} at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                    return (participant_id, session_id, True)
+                
+                except Exception as e:
+                    if verbose:
+                        print(f"Error processing {participant_id}/{session_id}: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    return (participant_id, session_id, False)
+                
+                finally:
+                    # Clean up session-specific tmp directory
+                    if os.path.exists(session_tmp_dir):
+                        shutil.rmtree(session_tmp_dir)
+                        if verbose:
+                            print(f"  Cleaned up temporary directory: {session_tmp_dir}")
+                    
+                    print("-" * 50)
+                    print(f"Processing finished at: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            finally:
+                sys.stdout = original_stdout
+                # Ensure log is closed
+                if log_redirect and hasattr(log_redirect, 'log'):
+                    log_redirect.log.close()
+            
+            return (participant_id, session_id, True)
+        
+        # Process subjects using joblib (or sequentially if n_jobs=1)
+        if n_jobs == 1:
+            print(f"Running sequential processing for {len(valid_subjects_to_process)} subjects")
+            results = [process_single_subject(subject) for subject in valid_subjects_to_process]
+        else:
+            print(f"Running parallel processing with {n_jobs} jobs for {len(valid_subjects_to_process)} subjects")
+            results = Parallel(n_jobs=n_jobs, verbose=10 if verbose else 0)(
+                delayed(process_single_subject)(subject) for subject in valid_subjects_to_process
+            )
+        
+        # Process results
+        failed_subjects = [(pid, sid) for pid, sid, success in results if not success]
+        
         # Report results
         if verbose:
             successful_count = len(valid_subjects_to_process) - len(failed_subjects)
@@ -776,7 +808,19 @@ class zbdataset():
                 for participant_id, session_id in failed_subjects:
                     print(f"  - {participant_id}/{session_id}")
 
+        # Append summary to main log
+        with open(main_log_file, 'a', encoding='utf-8') as f:
+            f.write("\n===== PROCESSING SUMMARY =====\n")
+            f.write(f"Completed at: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"Subjects processed successfully: {len(valid_subjects_to_process) - len(failed_subjects)}/{len(valid_subjects_to_process)}\n")
+            if failed_subjects:
+                f.write(f"Failed subjects ({len(failed_subjects)}):\n")
+                for participant_id, session_id in failed_subjects:
+                    f.write(f"  - {participant_id}/{session_id}\n")
+
         print(f"Dataset {self.name} processed successfully.")
+        print(f"Processing summary written to: {main_log_file}")
+        
         self.validate(
             features=self.features,
             output_directory=output_directory,
@@ -921,11 +965,11 @@ class zbdataset():
                             hippo_file = os.path.join(
                                 hippocampus_dir,
                                 f"{participant_id}_{session_id}_hemi-{hemi}_den-0p5mm_label-hipp_midthickness_feature-{output_feat}_smooth-{hippocampal_smoothing}mm.func.gii"
-                            )
-                            all_files_count += 1
-                            if not os.path.exists(hippo_file):
-                                subject_missing_files.append(hippo_file)
-                                missing_files_count += 1
+                        )
+                        all_files_count += 1
+                        if not os.path.exists(hippo_file):
+                            subject_missing_files.append(hippo_file)
+                            missing_files_count += 1
             
             # 4. Check subcortical feature files
             if self.subcortical and self.freesurfer_directory:
@@ -1140,10 +1184,10 @@ class zbdataset():
         
         return results
     
-    def clinical_report(self, output_directory=None, approach='wscore', analyses=None, features=None, 
-                       threshold=1.96, threshold_alpha=0.3, color_range=(-3, 3), 
-                       cmap='cmo.balance', cmap_asymmetry='cmo.balance_r', 
-                       color_bar='bottom', tmp_dir='/tmp', verbose=True):
+    def clinical_report(self, output_directory=None, approach='wscore', analyses=['regional','asymmetry'], features=None, 
+                    threshold=1.96, threshold_alpha=0.3, color_range=(-3, 3), 
+                    cmap='cmo.balance', cmap_asymmetry='cmo.balance_r', 
+                    color_bar='bottom', tmp_dir=None, verbose=True):
         """
         Generate clinical reports for each subject in the dataset.
         
@@ -1169,8 +1213,8 @@ class zbdataset():
             Colormap for asymmetry analysis
         color_bar : str, default='bottom'
             Position of color bar
-        tmp_dir : str, default='/tmp'
-            Temporary directory for file generation
+        tmp_dir : str, optional
+            Base temporary directory. If None, uses session directory
         verbose : bool, default=True
             If True, prints detailed information
             
@@ -1257,6 +1301,10 @@ class zbdataset():
                 # Subject directory path
                 subject_dir = os.path.join(output_directory, participant_id, session_id)
                 
+                # Create session-specific temporary directory
+                session_tmp_dir = os.path.join(subject_dir, "tmp_clinical_report")
+                os.makedirs(session_tmp_dir, exist_ok=True)
+                
                 # Generate report - save directly in subject directory, not in separate reports folder
                 report_path = generate_clinical_report(
                     sid=participant_id,
@@ -1272,7 +1320,7 @@ class zbdataset():
                     cmap=cmap,
                     cmap_asymmetry=cmap_asymmetry,
                     color_bar=color_bar,
-                    tmp_dir=tmp_dir,
+                    tmp_dir=session_tmp_dir,  # Use session-specific tmp directory
                     subject_dir=subject_dir,
                     output_dir=None,  # Don't use separate output directory
                     tag=f"{participant_id}_{session_id}_{approach}_clinical_report",
@@ -1285,10 +1333,22 @@ class zbdataset():
                 
                 if verbose:
                     print(f"Generated report for {participant_id}/{session_id}: {report_path}")
+                
+                # Clean up temporary directory after successful report generation
+                import shutil
+                if os.path.exists(session_tmp_dir):
+                    shutil.rmtree(session_tmp_dir)
+                    if verbose:
+                        print(f"  Cleaned up temporary directory: {session_tmp_dir}")
                     
             except Exception as e:
                 if verbose:
                     print(f"Error generating report for {participant_id}/{session_id}: {e}")
+                # Clean up temporary directory even on error
+                import shutil
+                session_tmp_dir = os.path.join(output_directory, participant_id, session_id, "tmp_clinical_report")
+                if os.path.exists(session_tmp_dir):
+                    shutil.rmtree(session_tmp_dir)
                 continue
         
         if verbose:

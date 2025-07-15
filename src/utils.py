@@ -5,7 +5,8 @@ def reshape_distances(distances_array):
             len(distances_array),
             12,
             distances_array.shape[2] if len(distances_array.shape) > 2 else 1,
-        )
+        ),
+        dtype=distances_array.dtype,
     )
     for en, x in enumerate(distances_array):
         if len(x.shape) == 1:

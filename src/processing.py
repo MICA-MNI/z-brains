@@ -8,177 +8,6 @@ from src.utils import reshape_distances
 import scipy
 import tempfile
 
-def _process_single_subject(
-    subject,
-    features,
-    blur_features,
-    base_features,
-    output_directory,
-    cortical_smoothing,
-    hippocampal_smoothing,
-    env,
-    micapipe_directory,
-    hippunfold_directory,
-    freesurfer_directory,
-    cortex,
-    hippocampus,
-    subcortical,
-    verbose=False,
-    valid_subjects_dict=None):
-        
-    try:
-        participant_id, session_id = subject
-        # Create session-specific tmp directory
-        session_tmp_dir = os.path.join(output_directory, participant_id, session_id, f"tmp_{participant_id}_{session_id}")
-        os.makedirs(session_tmp_dir, exist_ok=True)
-        
-        # Copy structural files
-        structural_output_dir = os.path.join(output_directory, participant_id, session_id, "structural")
-        os.makedirs(structural_output_dir, exist_ok=True)
-        
-        # Files to copy
-        surface_files = [
-            f"surf/{participant_id}_{session_id}_hemi-L_space-nativepro_surf-fsLR-32k_label-midthickness.surf.gii",
-            f"surf/{participant_id}_{session_id}_hemi-R_space-nativepro_surf-fsLR-32k_label-midthickness.surf.gii",
-            f"anat/{participant_id}_{session_id}_space-nativepro_T1w.nii.gz"
-        ]
-        
-        for file_path in surface_files:
-            source_file = os.path.join(micapipe_directory, participant_id, session_id, file_path)
-            target_file = os.path.join(structural_output_dir, os.path.basename(file_path))
-            
-            if os.path.exists(source_file):
-                if verbose:
-                    print(f"  Copying structural file: {os.path.basename(source_file)}")
-                try:
-                    import shutil
-                    shutil.copy2(source_file, target_file)
-                except Exception as e:
-                    if verbose:
-                        print(f"  Error copying {source_file}: {e}")
-            else:
-                if verbose:
-                    print(f"  Warning: Structural file not found: {source_file}")
-        
-        # Apply blurring to features that need it
-        if blur_features:
-            # Check which base features are available for this subject and process them individually
-            available_base_features = []
-            if valid_subjects_dict:
-                for feature in base_features:
-                    if subject in valid_subjects_dict.get(feature, {}).get('all', []):
-                        available_base_features.append(feature)
-            else:
-                available_base_features = base_features
-            
-            if available_base_features:
-                if verbose:
-                    print(f"  Applying blur processing for available features: {available_base_features}")
-                
-                apply_blurring(
-                    participant_id=participant_id,
-                    session_id=session_id,
-                    features=available_base_features,  # Only process available features
-                    output_directory=output_directory,
-                    workbench_path=env.connectome_workbench_path,
-                    micapipe_directory=micapipe_directory,
-                    freesurfer_directory=freesurfer_directory,
-                    tmp_dir=session_tmp_dir,
-                    smoothing_fwhm=cortical_smoothing,
-                    verbose=verbose
-                )
-            elif verbose:
-                print(f"  No base features available for blur processing: {base_features}")
-
-        # Process cortical features if cortex is enabled
-        if cortex and (not valid_subjects_dict or subject in valid_subjects_dict.get('structures', {}).get('cortex', [])):
-            # Filter features to only those valid for this subject's cortex
-            features_to_process = []
-            if valid_subjects_dict:
-                for f in features:
-                    if subject in valid_subjects_dict.get(f, {}).get('structures', {}).get('cortex', []):
-                        features_to_process.append(f)
-            else:
-                features_to_process = features
-            
-            if features_to_process:
-                apply_cortical_processing(
-                    participant_id=participant_id,
-                    session_id=session_id,
-                    features=features_to_process,
-                    output_directory=output_directory,
-                    workbench_path=env.connectome_workbench_path,
-                    micapipe_directory=micapipe_directory,
-                    tmp_dir=session_tmp_dir,
-                    cortical_smoothing=cortical_smoothing,
-                    resolutions=["32k", "5k"],
-                    labels=["midthickness", "white"],
-                    verbose=verbose
-                )
-        
-        # If hippocampus is enabled, process hippocampal data
-        if hippocampus and hippunfold_directory and (not valid_subjects_dict or subject in valid_subjects_dict.get('structures', {}).get('hippocampus', [])):
-            # Filter to non-blur features valid for this subject's hippocampus
-            features_to_process = []
-            if valid_subjects_dict:
-                for f in features:
-                    if not f.endswith("-blur") and subject in valid_subjects_dict.get(f, {}).get('structures', {}).get('hippocampus', []):
-                        features_to_process.append(f)
-            else:
-                features_to_process = [f for f in features if not f.endswith("-blur")]
-            
-            if features_to_process:
-                apply_hippocampal_processing(
-                    participant_id=participant_id,
-                    session_id=session_id,
-                    features=features_to_process,
-                    output_directory=output_directory,
-                    workbench_path=env.connectome_workbench_path,
-                    micapipe_directory=micapipe_directory,
-                    hippunfold_directory=hippunfold_directory,
-                    tmp_dir=session_tmp_dir,
-                    smoothing_fwhm=hippocampal_smoothing,
-                    verbose=verbose
-                )
-
-        # If subcortex is enabled, extract subcortical stats
-        if subcortical and freesurfer_directory and (not valid_subjects_dict or subject in valid_subjects_dict.get('structures', {}).get('subcortical', [])):
-            # Filter to non-blur features valid for this subject's subcortical structures
-            features_to_process = []
-            if valid_subjects_dict:
-                for f in features:
-                    if not f.endswith("-blur") and subject in valid_subjects_dict.get(f, {}).get('structures', {}).get('subcortical', []):
-                        features_to_process.append(f)
-            else:
-                features_to_process = [f for f in features if not f.endswith("-blur")]
-            
-            if features_to_process:
-                apply_subcortical_processing(
-                    participant_id=participant_id,
-                    session_id=session_id,
-                    features=features_to_process,
-                    output_directory=output_directory,
-                    micapipe_directory=micapipe_directory,
-                    freesurfer_directory=freesurfer_directory,
-                    verbose=verbose
-                )
-        
-        return True
-        
-    except Exception as e:
-        if verbose:
-            print(f"Error processing {participant_id}/{session_id}: {e}")
-        return False
-        
-    finally:
-        # Clean up session-specific tmp directory
-        if os.path.exists(session_tmp_dir):
-            try:
-                shutil.rmtree(session_tmp_dir)
-            except Exception as e:
-                if verbose:
-                    print(f"Warning: Could not clean up {session_tmp_dir}: {e}")
-
 def fixmatrix(path, inputmap, outputmap, basemap, BIDS_ID, temppath, wb_path, mat_path):
     """
     Transform a volume using an affine transformation matrix.
@@ -271,6 +100,7 @@ def fixmatrix(path, inputmap, outputmap, basemap, BIDS_ID, temppath, wb_path, ma
 def apply_blurring(participant_id, session_id, features, output_directory, workbench_path, micapipe_directory, freesurfer_directory, tmp_dir, smoothing_fwhm=5, verbose=True):
     """
     Apply depth-dependent blurring to one or more features for a subject.
+    Memory-optimized implementation to reduce RAM usage.
     Only generates 1mm and 2mm superficial white matter surfaces.
     Calculates intensity gradients between adjacent surfaces.
     Applies surface smoothing to the blur features directly.
@@ -298,6 +128,8 @@ def apply_blurring(participant_id, session_id, features, output_directory, workb
     verbose : bool, default=True
         Print detailed information during processing
     """
+    import gc  # For garbage collection
+    
     # Convert single feature to list if needed
     if isinstance(features, str):
         features = [features]
@@ -349,7 +181,7 @@ def apply_blurring(participant_id, session_id, features, output_directory, workb
                 os.path.join(input_dir, "surf", f"{participant_id}_{session_id}_hemi-{hemi}_space-nativepro_surf-fsnative_label-white.surf.gii"),
                 output_path,
                 os.path.join(struct_dir, f"{participant_id}_{session_id}_{hemi}_sfwm-"),
-                [1.0, 2.0], 
+                [1.0, 2.0]
             )
         
         # Process each feature
@@ -363,8 +195,7 @@ def apply_blurring(participant_id, session_id, features, output_directory, workb
             # Set up volume map path based on feature type
             if feature_lower == "t1map" or feature_lower == "qt1":
                 volumemap = os.path.join(input_dir, "maps", f"{participant_id}_{session_id}_space-nativepro_map-T1map.nii.gz")
-                # Use qT1 as the feature name for consistency
-                feature_name = "qT1"  # Changed from using feature_lower
+                feature_name = "qT1"
             elif feature_lower in ["adc", "fa"]:
                 volumemap = os.path.join(input_dir, "maps", f"{participant_id}_{session_id}_space-nativepro_model-DTI_map-{feature_lower}.nii.gz")
                 feature_name = feature_lower
@@ -377,15 +208,14 @@ def apply_blurring(participant_id, session_id, features, output_directory, workb
                 if verbose:
                     print(f"      Warning: Volume map not found for feature {feature}, skipping")
                 continue
-                
-            # Generate multi-depth data
-            surfarr = []
             
-            # Load midthickness surface and map data
+            # Define temporary file paths
             midthickness_surf = os.path.join(input_dir, "surf", f"{participant_id}_{session_id}_hemi-{hemi}_space-nativepro_surf-fsnative_label-midthickness.surf.gii")
             midthickness_func = os.path.join(tmp_dir, f"{participant_id}_{session_id}_hemi-{hemi}_{feature}_midthickness.func.gii")
+            white_surf = os.path.join(input_dir, "surf", f"{participant_id}_{session_id}_hemi-{hemi}_space-nativepro_surf-fsnative_label-white.surf.gii")
+            white_func = os.path.join(tmp_dir, f"{participant_id}_{session_id}_hemi-{hemi}_{feature}_white.func.gii")
             
-            # Map volume to midthickness surface
+            # Map volume to surfaces
             subprocess.run([
                 os.path.join(workbench_path, "wb_command"),
                 "-volume-to-surface-mapping",
@@ -395,16 +225,6 @@ def apply_blurring(participant_id, session_id, features, output_directory, workb
                 "-trilinear"
             ])
             
-            # Load data from midthickness
-            pial_data = nib.load(midthickness_func).darrays[0].data
-            pial_surface = nib.load(midthickness_surf).darrays[0].data
-            surfarr.append([pial_data, pial_surface])
-            
-            # Load white matter boundary surface and map data
-            white_surf = os.path.join(input_dir, "surf", f"{participant_id}_{session_id}_hemi-{hemi}_space-nativepro_surf-fsnative_label-white.surf.gii") 
-            white_func = os.path.join(tmp_dir, f"{participant_id}_{session_id}_hemi-{hemi}_{feature}_white.func.gii")
-            
-            # Map volume to white surface
             subprocess.run([
                 os.path.join(workbench_path, "wb_command"),
                 "-volume-to-surface-mapping",
@@ -414,17 +234,52 @@ def apply_blurring(participant_id, session_id, features, output_directory, workb
                 "-trilinear"
             ])
             
-            # Load data from white surface
-            white_data = nib.load(white_func).darrays[0].data
-            white_surface = nib.load(white_surf).darrays[0].data
-            surfarr.append([white_data, white_surface])
+            # Load surface data one at a time to minimize memory usage
+            pial_data = nib.load(midthickness_func).darrays[0].data.astype(np.float32)
+            pial_surface = nib.load(midthickness_surf).darrays[0].data.astype(np.float32)
+            white_data = nib.load(white_func).darrays[0].data.astype(np.float32)
+            white_surface = nib.load(white_surf).darrays[0].data.astype(np.float32)
             
-            # Map data to ONLY 1mm and 2mm shifted white matter surfaces
-            for surf_dist in [1.0, 2.0]:  # Only process 1mm and 2mm
+            # Get number of vertices
+            num_vertices = len(pial_data)
+            
+            # Initialize arrays with minimal memory footprint
+            surface_data = np.zeros((num_vertices, 4), dtype=np.float32)  # pial, white, 1mm, 2mm
+            surface_data[:, 0] = pial_data
+            surface_data[:, 1] = white_data
+            
+            # Clean up after loading initial surfaces
+            del pial_data, white_data
+            gc.collect()
+            
+            # Initialize arrays for distances and gradients
+            distances = np.zeros((num_vertices, 3), dtype=np.float32)  # pial-white, white-1mm, 1mm-2mm
+            gradients = np.zeros((num_vertices, 3), dtype=np.float32)
+            
+            # Calculate pial-white distance and gradient
+            dist_pial_white = np.sqrt(np.sum((pial_surface - white_surface)**2, axis=1)).astype(np.float32)
+            distances[:, 0] = dist_pial_white
+            
+            # Calculate gradient with safe division
+            with np.errstate(divide='ignore', invalid='ignore'):
+                gradient = np.where(dist_pial_white > 0, 
+                                   (surface_data[:, 1] - surface_data[:, 0]) / dist_pial_white, 0).astype(np.float32)
+            gradients[:, 0] = gradient
+            
+            # Clean up after pial-white processing
+            del gradient, dist_pial_white
+            gc.collect()
+            
+            # Process shifted surfaces one at a time
+            prev_surface = white_surface
+            prev_data = surface_data[:, 1].copy()
+            
+            for i, surf_dist in enumerate([1.0, 2.0]):
+                # Define shifted surface paths
                 swm_surf = os.path.join(struct_dir, f"{participant_id}_{session_id}_{hemi}_sfwm-{surf_dist}mm.surf.gii")
-                swm_func = os.path.join(swm_dir, f"{participant_id}_{session_id}_{hemi}_{feature}_sfwm-{surf_dist}mm_metric.func.gii")
+                swm_func = os.path.join(tmp_dir, f"{participant_id}_{session_id}_{hemi}_{feature}_sfwm-{surf_dist}mm.func.gii")
                 
-                # Map data to shifted surface
+                # Map volume to shifted surface
                 subprocess.run([
                     os.path.join(workbench_path, "wb_command"),
                     "-volume-to-surface-mapping",
@@ -434,81 +289,84 @@ def apply_blurring(participant_id, session_id, features, output_directory, workb
                     "-trilinear"
                 ])
                 
-                # Add to surface array
-                surfarr.append([
-                    nib.load(swm_func).darrays[0].data,
-                    nib.load(swm_surf).darrays[0].data
-                ])
-            
-            # Calculate distances between surfaces
-            distances = np.zeros(shape=(len(pial_data), len(surfarr) - 1))
-            dataArr_nonmode = np.zeros(shape=(len(pial_data), len(surfarr)), dtype=np.float32)
-            
-            # Calculate gradients between adjacent surfaces (intensity change / distance)
-            gradients = np.zeros(shape=(len(pial_data), len(surfarr) - 1), dtype=np.float32)
-            
-            # Calculate Euclidean distances and intensity values
-            for e, ds in enumerate(surfarr):
-                data, surf = ds
-                dataArr_nonmode[:, e] = data
+                # Load current surface data
+                curr_data = nib.load(swm_func).darrays[0].data.astype(np.float32)
+                curr_surface = nib.load(swm_surf).darrays[0].data.astype(np.float32)
                 
-                if e == len(surfarr) - 1:
-                    break
-                    
-                nextdata, nextsurt = surfarr[e + 1]
+                # Store in main array
+                surface_data[:, i + 2] = curr_data
                 
-                # Calculate distance between surfaces
-                distance = np.sqrt(np.sum((surf - nextsurt) ** 2, axis=1))  # Euclidean distance
-                distances[:, e] = distance
+                # Calculate distance and gradient to previous surface
+                dist = np.sqrt(np.sum((prev_surface - curr_surface)**2, axis=1)).astype(np.float32)
+                distances[:, i + 1] = dist
                 
-                # Calculate intensity gradient (change in intensity / distance)
-                intensity_change = nextdata - data  # Change in intensity
-                
-                # Avoid division by zero
+                # Calculate gradient with safe division
                 with np.errstate(divide='ignore', invalid='ignore'):
-                    gradient = np.where(distance > 0, intensity_change / distance, 0)
-                    gradients[:, e] = gradient
+                    grad = np.where(dist > 0, (curr_data - prev_data) / dist, 0).astype(np.float32)
+                gradients[:, i + 1] = grad
+                
+                # Update for next iteration
+                prev_surface = curr_surface
+                prev_data = curr_data
+                
+                # Clean up variables after each iteration
+                del curr_data, curr_surface, dist, grad
+                gc.collect()
             
-            # Reshape distances and save outputs with STANDARDIZED NAMING
+            # Clean up remaining variables
+            del pial_surface, white_surface, prev_surface, prev_data
+            gc.collect()
+            
+            # Reshape distances using utility function
             distances = reshape_distances(distances)
             
-            # Save feature data across surfaces (unsmoothed version) - UPDATED NAMING
+            # Define output paths
             raw_data_path = os.path.join(swm_dir, 
                 f"{participant_id}_{session_id}_hemi-{hemi}_feature-{feature_name}-blur_surf-fsnative_desc-raw.func.gii")
-            data_non_grad = nib.gifti.gifti.GiftiDataArray(
-                data=dataArr_nonmode,
-                intent="NIFTI_INTENT_NORMAL"
-            )
-            gii_non_grad = nib.gifti.GiftiImage(darrays=[data_non_grad])
-            nib.save(gii_non_grad, raw_data_path)
-            
-            # Save distance data - UPDATED NAMING
-            data_dist = nib.gifti.gifti.GiftiDataArray(
-                data=distances.astype(np.float32),
-                intent="NIFTI_INTENT_NORMAL"
-            )
-            gii_dist = nib.gifti.GiftiImage(darrays=[data_dist])
-            nib.save(
-                gii_dist,
-                os.path.join(swm_dir, f"{participant_id}_{session_id}_hemi-{hemi}_feature-{feature_name}-blur_surf-fsnative_desc-dist.func.gii")
-            )
-            
-            # Save gradient data - UPDATED NAMING
-            data_grad = nib.gifti.gifti.GiftiDataArray(
-                data=gradients.astype(np.float32),
-                intent="NIFTI_INTENT_NORMAL"
-            )
-            gii_grad = nib.gifti.GiftiImage(darrays=[data_grad])
-            nib.save(
-                gii_grad,
-                os.path.join(swm_dir, f"{participant_id}_{session_id}_hemi-{hemi}_feature-{feature_name}-blur_surf-fsnative_desc-grad.func.gii")
-            )
-            
-            # Apply smoothing directly in native space - UPDATED NAMING
+            dist_file_path = os.path.join(swm_dir, 
+                f"{participant_id}_{session_id}_hemi-{hemi}_feature-{feature_name}-blur_surf-fsnative_desc-dist.func.gii")
+            grad_file_path = os.path.join(swm_dir, 
+                f"{participant_id}_{session_id}_hemi-{hemi}_feature-{feature_name}-blur_surf-fsnative_desc-grad.func.gii")
             smoothed_data_path = os.path.join(swm_dir, 
                 f"{participant_id}_{session_id}_hemi-{hemi}_feature-{feature_name}-blur_surf-fsnative_smooth-{smoothing_fwhm}mm.func.gii")
             
-            # Apply smoothing to midthickness surface since it's better for smoothing
+            # Save surface data and clean up immediately
+            data_array = nib.gifti.gifti.GiftiDataArray(
+                data=surface_data,
+                intent="NIFTI_INTENT_NORMAL"
+            )
+            gii_data = nib.gifti.GiftiImage(darrays=[data_array])
+            nib.save(gii_data, raw_data_path)
+            
+            # Clean up surface data
+            del data_array, gii_data
+            gc.collect()
+            
+            # Save distance data and clean up
+            dist_array = nib.gifti.gifti.GiftiDataArray(
+                data=distances,
+                intent="NIFTI_INTENT_NORMAL"
+            )
+            gii_dist = nib.gifti.GiftiImage(darrays=[dist_array])
+            nib.save(gii_dist, dist_file_path)
+            
+            # Clean up distance data
+            del distances, dist_array, gii_dist
+            gc.collect()
+            
+            # Save gradient data and clean up
+            grad_array = nib.gifti.gifti.GiftiDataArray(
+                data=gradients,
+                intent="NIFTI_INTENT_NORMAL"
+            )
+            gii_grad = nib.gifti.GiftiImage(darrays=[grad_array])
+            nib.save(gii_grad, grad_file_path)
+            
+            # Clean up gradient data
+            del gradients, grad_array, gii_grad
+            gc.collect()
+            
+            # Apply smoothing
             subprocess.run([
                 os.path.join(workbench_path, "wb_command"),
                 "-metric-smoothing",
@@ -523,11 +381,17 @@ def apply_blurring(participant_id, session_id, features, output_directory, workb
                 os.path.join(workbench_path, "wb_command"),
                 "-set-structure",
                 smoothed_data_path,
-                "CORTEX_LEFT" if hemi == "L" else "CORTEX_RIGHT",
+                "CORTEX_LEFT" if hemi == "L" else "CORTEX_RIGHT"
             ], check=False)
+            
+            # Final cleanup
+            del surface_data
+            gc.collect()
             
             if verbose:
                 print(f"      Saved {feature} blur data, distances, gradients, and applied {smoothing_fwhm}mm smoothing for {hemi}")
+    
+    return True
 
 def apply_hippocampal_processing(
     participant_id, 

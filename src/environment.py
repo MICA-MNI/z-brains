@@ -1,5 +1,5 @@
 class zbenv:
-    def __init__(self, connectome_workbench_path, num_threads=None):
+    def __init__(self, connectome_workbench_path, num_threads=1, num_threads_wb=1):
         """
         Initialize the z-brains environment configuration.
         
@@ -13,6 +13,7 @@ class zbenv:
         """
         self.connectome_workbench_path = connectome_workbench_path
         self.num_threads = num_threads
+        self.num_threads_wb = num_threads_wb 
         
     def get_workbench_env(self):
         """
@@ -27,6 +28,6 @@ class zbenv:
         env = os.environ.copy()
         
         if self.num_threads is not None:
-            env['OMP_NUM_THREADS'] = str(self.num_threads)
+            env['OMP_NUM_THREADS'] = str(self.num_threads_wb)
             
         return env
