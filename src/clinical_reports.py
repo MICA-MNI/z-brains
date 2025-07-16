@@ -74,12 +74,12 @@ from .utils_analysis import (
 
 cmaps = cmocean.cm.cmap_d
 
-
-DATA_PATH = Path(__file__).resolve().parent.parent / "data"
-
-
-# logger = logging.getLogger('analysis_logger')
-
+# Get the data path
+if '__file__' in globals():
+    DATA_PATH = Path(__file__).resolve().parent.parent / "data"
+else:
+    # Fallback for interactive environments
+    DATA_PATH = Path.cwd().parent / "data"
 
 def plot_hemisphere_lh(
     surf_lh,
