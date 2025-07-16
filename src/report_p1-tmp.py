@@ -8,14 +8,14 @@ from datetime import date
 from typing import List, Union, Optional
 from pathlib import Path
 from xhtml2pdf import pisa
+import inspect
 
 # -----------------------------------------------------------------------------
 # global variables
-if '__file__' in globals():
+try:
     DATA_PATH = Path(__file__).resolve().parent.parent / "data"
-else:
-    # Fallback for interactive environments
-    DATA_PATH = Path.cwd().parent / "data"
+except NameError:
+    DATA_PATH = "/host/yeatman/local_raid/rcruces/git_here/z-brains/data"
     
 Analysis="Regional"
 sid="XX00"
@@ -71,19 +71,19 @@ def report_header_template(
 
     ses_str = "" if ses is None else f" &nbsp; <b>Session</b>: {ses},"
 
-    # Header
+    # Responsive banner and spacing
     report_header = (
-        # Banner
-        f'<img id="top" src="{DATA_PATH}/zbrains_banner.png" alt="zbrains">'
-        # Title
-        f'<p style="{style.format(fontsize=20, extra="")}">'
+        f'<div style="margin-bottom:30px;">'
+        f'<img id="top" src="{DATA_PATH}/zbrains_banner.png" alt="zbrains" '
+        f'style="display:block;margin-left:auto;margin-right:auto;width:100%;height:auto;margin-bottom:10px;">'
+        f'<p style="{style.format(fontsize=20, extra="margin-bottom:10px;")}">'
         f"{title}"
         f"</p>"
-        # Subject's ID - Session - Basic demographics
-        f'<p style="{style.format(fontsize=14, extra="margin-top:-100px;")}">'
+        f'<p style="{style.format(fontsize=14, extra="margin-top:-10px;margin-bottom:20px;")}">'
         f"<b>Subject</b>: {sid},{ses_str} "
         f"&nbsp; <b>Sex</b>: {sex}, &nbsp; <b>Age</b>: {age}"
         f"</p>"
+        f'</div>'
     )
 
     return report_header
@@ -110,7 +110,7 @@ def feature_header_template(
     """
     style = (
         "border:0px solid #666;padding-top:10px;padding-left:5px;"
-        f"background-color:#eee;font-family:Helvetica,sans-serif;font-size:{size}px;"
+        f"background-color:#eee;font-family:gill sans,sans-serif;font-size:{size}px;"
         f"text-align:{align};color:#5d5070"
     )
 
@@ -154,22 +154,21 @@ def pipeline_info():
     )
     license_link = (
         '<a href="https://github.com/MICA-MNI/z-brains/blob/main/LICENSE" '
-        'target="_blank" style="text-decoration:none;color:#5d5070;">BSD License</a>'
+        'target="_blank" style="text-decoration:none;color:#5d5070;">  </a>'
     )
     github_link = (
         '<a href="https://github.com/MICA-MNI/z-brains" '
-        'target="_blank" style="text-decoration:none;color:#5d5070;">https://github.com/MICA-MNI/z-brains</a>'
+        'target="_blank" style="text-decoration:none;color:#5d5070;">github.com/MICA-MNI/z-brains</a>'
     )
     docs_link = (
         '<a href="https://z-brains.readthedocs.io" '
-        'target="_blank" style="text-decoration:none;color:#5d5070;">https://z-brains.readthedocs.io</a>'
+        'target="_blank" style="text-decoration:none;color:#5d5070;">z-brains.readthedocs.io</a>'
     )
-
+    today_date = date.today().strftime("%B %d, %Y")
+    
     # Table HTML
     info_table = (
-        '<p style="font-family:Helvetica, sans-serif;font-size:12px;text-align:left;margin-bottom:0px">'
-        '<b>Project Info</b></p>'
-        '<table style="border:1px solid #666;width:auto;margin-bottom:10px;border-collapse:collapse;">'
+        '<table style="border-collapse:collapse; font-family:gill sans, sans-serif; font-size:11px; ">'
             '<tr>'
                 '<td style="padding:4px 8px;text-align:left;font-weight:bold;">Version</td>'
                 f'<td style="padding:4px 8px;text-align:left;">{version_badge}</td>'
@@ -187,18 +186,22 @@ def pipeline_info():
                 f'<td style="padding:4px 8px;text-align:left;">{docs_link}</td>'
             '</tr>'
             '<tr>'
-                '<td style="padding:4px 8px;text-align:left;font-weight:bold;">Workstation</td>'
-                f'<td style="padding:4px 8px;text-align:left;">{workstation}</td>'
+                '<td style="padding:4px 8px;text-align:left;font-weight:bold;">Date</td>'
+                f'<td style="padding:4px 8px;text-align:left;">{today_date}</td>'
             '</tr>'
             '<tr>'
                 '<td style="padding:4px 8px;text-align:left;font-weight:bold;">User</td>'
                 f'<td style="padding:4px 8px;text-align:left;">{user}</td>'
             '</tr>'
+            '<tr>'
+                '<td style="padding:4px 8px;text-align:left;font-weight:bold;">Workstation</td>'
+                f'<td style="padding:4px 8px;text-align:left;">{workstation}</td>'
+            '</tr>'
         '</table>'
     )
     return info_table
 
-def controls_summary_html(df):
+def controls_summary_html(df):    
     # --- Compute statistics ---
     mean_age = df['age'].mean()
     sd_age = df['age'].std()
@@ -225,6 +228,16 @@ def controls_summary_html(df):
     ax.set_ylabel('Count')
     ax.legend()
     plt.xticks(rotation=45)
+    
+    # Add vertical line at subject's age
+    try:
+        subject_age = float(age)
+        subject_bin = pd.cut([subject_age], bins=bins, labels=labels, right=True, include_lowest=True)[0]
+        if pd.notna(subject_bin):
+            ax.axvline(x=subject_bin, color="#A93226", linestyle='-', linewidth=2, label="Subject Age")
+    except Exception:
+        pass
+    
     plt.tight_layout()
     # Remove top and right spines (box lines)
     ax.spines['top'].set_visible(False)
@@ -238,11 +251,12 @@ def controls_summary_html(df):
     buf.close()
 
     # --- HTML layout (no border on table) ---
-    html = f"""
-    <table style="width:100%; border-collapse:collapse; font-family:Helvetica, sans-serif; font-size:14px;">
+    html = (
+        f"""
+    <table style="width:100%; border-collapse:collapse; font-family:gill sans, sans-serif; font-size:12px;">
       <tr>
         <td style="vertical-align:top; padding:8px;">
-          <table style="border:none; border-collapse:collapse; font-size:14px;">
+          <table style="border:none; border-collapse:collapse; font-size:12px;">
             <tr>
               <td style="padding:4px 8px; text-align:left; font-weight:bold;">Age</td>
               <td style="padding:4px 8px; text-align:left;">{mean_age:.1f} &plusmn; {sd_age:.1f}</td>
@@ -267,6 +281,7 @@ def controls_summary_html(df):
       </tr>
     </table>
     """
+    )
     return html
 
 # Functions for report
@@ -282,14 +297,14 @@ def convert_html_to_pdf(source_html, output_filename: PathType):
 #               REPORT
 
 # Generate HTML header
-footer_date = date.today().strftime("%B %d, %Y")
+today_date = date.today().strftime("%B %d, %Y")
 report = f"""
 <html>
 <head>
 <style>
 @page {{
         @bottom-center {{
-            content: "Date: {footer_date}";
+            content: "Date: {today_date}";
             font-size: 10px;
             color: #888;
         }}
@@ -299,14 +314,18 @@ report = f"""
 """
 
 # Generate FIRST page report header
-report += report_header_template(
+report = report_header_template(
                 sid=sid, 
                 ses=ses, 
                 age=age, 
                 sex=sex, 
                 analysis=analysis,
-                title=f"Subject &nbsp; | &nbsp; <b> Group Mean </b> "
+                title=f"Clinical Report</b> "
             )
+
+# SUBTITLE section: Control database
+report += feature_header_template(align="left", info="Feature data", size=14)
+
         
 # SUBTITLE section: Control database
 report += feature_header_template(align="left", info="Control Database", size=14)
@@ -316,24 +335,24 @@ report += controls_summary_html(df)
 report += feature_header_template(align="left", info="Pipeline details", size=12)
 
 ### Add pipeline details
-report += pipeline_info
+report += pipeline_info()
 
 # Add page break
 report += '<div style="page-break-after: always;"></div>'
 
 # CLOSE
-report += "</html>"
+#report += "</html>"
 
 
 # -----------------------------------------------------------------------------
 # SAVE HTML
-with open("/Users/rcruces/Desktop/report_p1.html", "w") as f:
+with open("/home/bic/rcruces/Desktop/report_p1.html", "w") as f:
     f.write(report)
     
 
 # -----------------------------------------------------------------------------
 # SAVE PDF
-convert_html_to_pdf(report, file_pdf)
+convert_html_to_pdf(report, '/home/bic/rcruces/Desktop/report_p1.pdf')
 
 
 
