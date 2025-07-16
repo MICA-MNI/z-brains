@@ -317,6 +317,12 @@ class zbdataset():
             "surf/{participant_id}_{session_id}_hemi-L_space-nativepro_surf-fsnative_label-white.surf.gii",
             "surf/{participant_id}_{session_id}_hemi-L_space-nativepro_surf-fsLR-32k_label-midthickness.surf.gii",
             "surf/{participant_id}_{session_id}_hemi-R_space-nativepro_surf-fsLR-32k_label-midthickness.surf.gii",
+            "surf/{participant_id}_{session_id}_hemi-L_space-nativepro_surf-fsLR-32k_label-pial.surf.gii",
+            "surf/{participant_id}_{session_id}_hemi-R_space-nativepro_surf-fsLR-32k_label-pial.surf.gii",
+            "surf/{participant_id}_{session_id}_hemi-L_surf-fsnative_label-sphere.surf.gii",
+            "surf/{participant_id}_{session_id}_hemi-R_surf-fsnative_label-sphere.surf.gii",
+            "surf/{participant_id}_{session_id}_hemi-L_space-nativepro_surf-fsnative_label-pial.surf.gii",
+            "surf/{participant_id}_{session_id}_hemi-R_space-nativepro_surf-fsnative_label-pial.surf.gii",
         ]
         
         required_hippocampal_files = [
@@ -326,6 +332,8 @@ class zbdataset():
             "surf/{participant_id}_{session_id}_hemi-R_space-T1w_den-0p5mm_label-hipp_inner.surf.gii",
             "surf/{participant_id}_{session_id}_hemi-L_space-T1w_den-0p5mm_label-hipp_outer.surf.gii",
             "surf/{participant_id}_{session_id}_hemi-R_space-T1w_den-0p5mm_label-hipp_outer.surf.gii",
+            "surf/{participant_id}_{session_id}_hemi-L_space-unfold_den-0p5mm_label-hipp_midthickness.surf.gii",
+            "surf/{participant_id}_{session_id}_hemi-R_space-unfold_den-0p5mm_label-hipp_midthickness.surf.gii"
         ]
 
         required_subcortical_files = [
@@ -1187,7 +1195,7 @@ class zbdataset():
     def clinical_report(self, output_directory=None, approach='wscore', analyses=['regional','asymmetry'], features=None, 
                     threshold=1.96, threshold_alpha=0.3, color_range=(-3, 3), 
                     cmap='cmo.balance', cmap_asymmetry='cmo.balance_r', 
-                    color_bar='bottom', tmp_dir=None, verbose=True):
+                    color_bar='bottom', tmp_dir=None, env=None, verbose=True):
         """
         Generate clinical reports for each subject in the dataset.
         
@@ -1224,7 +1232,9 @@ class zbdataset():
             List of generated PDF report file paths
         """
         from src.clinical_reports import generate_clinical_report
-        
+        if env == None:
+            raise ValueError("env must be specified to access workbench and other paths")
+
         # Check if analysis has been run
         if not hasattr(self, 'analysis_results'):
             raise ValueError("No analysis results found. Please run dataset.analyze() first.")
@@ -1326,6 +1336,7 @@ class zbdataset():
                     tag=f"{participant_id}_{session_id}_{approach}_clinical_report",
                     smooth_ctx=self.cortical_smoothing,
                     smooth_hip=self.hippocampal_smoothing,
+                    env=env,
                     verbose=verbose
                 )
                 
@@ -1384,14 +1395,26 @@ class zbdataset():
         
         # Files to copy
         surface_files = [
-            f"surf/{participant_id}_{session_id}_hemi-L_space-nativepro_surf-fsLR-32k_label-midthickness.surf.gii",
-            f"surf/{participant_id}_{session_id}_hemi-R_space-nativepro_surf-fsLR-32k_label-midthickness.surf.gii",
-            f"anat/{participant_id}_{session_id}_space-nativepro_T1w.nii.gz"
+            os.path.join(self.micapipe_directory, participant_id, session_id, f"surf/{participant_id}_{session_id}_hemi-L_space-nativepro_surf-fsLR-32k_label-midthickness.surf.gii"),
+            os.path.join(self.micapipe_directory, participant_id, session_id, f"surf/{participant_id}_{session_id}_hemi-R_space-nativepro_surf-fsLR-32k_label-midthickness.surf.gii"),
+            os.path.join(self.micapipe_directory, participant_id, session_id, f"surf/{participant_id}_{session_id}_hemi-L_surf-fsnative_label-sphere.surf.gii"),
+            os.path.join(self.micapipe_directory, participant_id, session_id, f"surf/{participant_id}_{session_id}_hemi-R_surf-fsnative_label-sphere.surf.gii"),
+            os.path.join(self.micapipe_directory, participant_id, session_id, f"surf/{participant_id}_{session_id}_hemi-L_space-nativepro_surf-fsnative_label-pial.surf.gii"),
+            os.path.join(self.micapipe_directory, participant_id, session_id, f"surf/{participant_id}_{session_id}_hemi-R_space-nativepro_surf-fsnative_label-pial.surf.gii"),
+            os.path.join(self.micapipe_directory, participant_id, session_id, f"surf/{participant_id}_{session_id}_hemi-L_space-nativepro_surf-fsLR-32k_label-pial.surf.gii"),
+            os.path.join(self.micapipe_directory, participant_id, session_id, f"surf/{participant_id}_{session_id}_hemi-R_space-nativepro_surf-fsLR-32k_label-pial.surf.gii"),
+            os.path.join(self.micapipe_directory, participant_id, session_id, f"anat/{participant_id}_{session_id}_space-nativepro_T1w.nii.gz")
         ]
         
+        if self.hippocampus:
+            surface_files.append(os.path.join(self.hippunfold_directory, "hippunfold", participant_id, session_id, f"surf/{participant_id}_{session_id}_hemi-L_space-unfold_den-0p5mm_label-hipp_midthickness.surf.gii"))
+            surface_files.append(os.path.join(self.hippunfold_directory, "hippunfold", participant_id, session_id, f"surf/{participant_id}_{session_id}_hemi-R_space-unfold_den-0p5mm_label-hipp_midthickness.surf.gii"))
+            surface_files.append(os.path.join(self.hippunfold_directory, "hippunfold", participant_id, session_id, f"surf/{participant_id}_{session_id}_hemi-L_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii"))
+            surface_files.append(os.path.join(self.hippunfold_directory, "hippunfold", participant_id, session_id, f"surf/{participant_id}_{session_id}_hemi-R_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii"))
+
         success = True
         for file_path in surface_files:
-            source_file = os.path.join(self.micapipe_directory, participant_id, session_id, file_path)
+            source_file = os.path.join(file_path)
             target_file = os.path.join(structural_output_dir, os.path.basename(file_path))
             
             if os.path.exists(source_file):

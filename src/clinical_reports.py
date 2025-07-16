@@ -1,34 +1,3 @@
-"""
-Generate the clinical reports for ZBRAINS
-
-zbrains MUST exist on the global environment
-
-USAGE:
-    
-    outdir='<PATH to output directory>/derivatives/z-brains'
-    zbrains='<PATH to repository>/z-brains'
-
-    # Run the function per norm ['z', 'normative'] to create one PDF per norm
-    clinical_reports(norm='z', 
-                     sub='sub-PX069', 
-                     ses='ses-01', 
-                     outdir=outdir, 
-                     cmap='cmo.balance', 
-                     cmap_asymmetry='PRGn',
-                     Range=(-3,3),
-                     thr=1.96, 
-                     thr_alpha=0.3, 
-                     color_bar='left', 
-                     den='0p5', 
-                     tmp='/tmp', 
-                     sex='F', 
-                     age='40',
-                     analysis=['asymmetry', 'regional'], 
-                     feature=['ADC', 'FA', 'T1map', 'flair', 'thickness', 'volume']
-                     )
-
-"""
-
 import glob
 import uuid
 import logging
@@ -46,6 +15,7 @@ from brainspace.datasets import load_mask
 from brainspace.plotting import plot_hemispheres
 from brainspace.mesh.mesh_io import read_surface
 from brainspace.plotting.surface_plotting import plot_surf
+from brainspace.mesh.mesh_creation import build_polydata
 from scipy.spatial.transform import Rotation
 
 if (
@@ -67,12 +37,61 @@ from .utils_analysis import (
     get_subject_dir,
     PathType,
 )
+import copy
 
 cmaps = cmocean.cm.cmap_d
 
 
 DATA_PATH = Path(__file__).resolve().parent.parent / "data"
 
+def inflate_surf(orig_lh, orig_rh, ref_lh, ref_rh, W=0.15):
+    """
+    This functions inflates a surface a determined amount [W{0:1}] to a reference
+    
+    Parameters
+    ----------
+        orig_lh : vtkPolyData or VTKObjectWrapper
+                    left input original surface
+        orig_rh : vtkPolyData or VTKObjectWrapper
+                    right input original surface
+        ref_lh  : vtkPolyData or VTKObjectWrapper
+                    left input reference surface
+        ref_rh  : vtkPolyData or VTKObjectWrapper
+                    right input reference surface
+        W       : float value from 0 to 1
+        
+    Returns
+    -------
+        new_lh : vtkPolyData or VTKObjectWrapper
+                    left output inflated surface
+        new_rh : vtkPolyData or VTKObjectWrapper
+                    right output inflated surface
+        
+    """
+    def inflate(orig, ref, Winf):
+        # Convert BSPolyData objects to numpy arrays
+        inf_coord = copy.copy(orig.points)
+        inf_triag = copy.copy(orig.GetCells2D())
+        
+        # Inflated mean surface
+        maxs = np.max(orig.points, axis=0)
+        mins = np.min(orig.points, axis=0)
+        maxsp = np.max(ref.points, axis=0)
+        minsp = np.min(ref.points, axis=0)
+        
+        for i in range(3):
+            inf_coord[:,i] = (((ref.points[:, i] - minsp[i]) / (maxsp[i] - minsp[i]))
+                                 * (maxs[i] - mins[i]) + mins[i]) * Winf + orig.points[:, i] * (1 - Winf)
+        
+        # Create the new surface
+        new_surf = build_polydata(inf_coord, cells=inf_triag)
+        
+        return(new_surf)
+    
+    new_lh = inflate(orig_lh, ref_lh, Winf=W)
+    new_rh = inflate(orig_rh, ref_rh, Winf=W)
+    
+    return(new_lh, new_rh)
 
 def plot_hemisphere_lh(
     surf_lh,
@@ -485,13 +504,40 @@ def map_subcortical_vertices(x) -> np.ndarray:
     else:
         raise ValueError("Input data must have 16 values.")
 
+from scipy.interpolate import griddata
+
+def metric_resample(s32k_metric,native_lh_path, native_rh_path):
+    # Split the metric in L and R
+    s32k_metric_L = s32k_metric[0:32492]
+    s32k_metric_R = s32k_metric[32492:64984]
+    
+    # Initialize lists to store resampled metrics
+    s5k_metric_L = []
+    s5k_metric_R = []
+    
+    for hemi in ['L', 'R']:
+        # Load the fsLR-32k surface
+        s32k_surf = nib.load(f'{DATA_PATH}/fsLR-32k.{hemi}.inflated.surf.gii')
+        s32k_coords = s32k_surf.darrays[0].data
+        
+        # Load the low-resolution surface (s5k)
+        s5k_surf = nib.load(native_rh_path if hemi == 'R' else native_lh_path)
+        s5k_coords = s5k_surf.darrays[0].data
+        
+        # Interpolate the metric data from s32k to s5k
+        if hemi == 'L':
+            s5k_metric_L = griddata(s32k_coords, s32k_metric_L, s5k_coords, method='nearest')
+        else:
+            s5k_metric_R = griddata(s32k_coords, s32k_metric_R, s5k_coords, method='nearest')
+
+    
+    return s5k_metric_L, s5k_metric_R
 
 # Load surfaces ----------------------------------------------------------------
 def _load_surfaces_ctx(
-    resolution: Resolution = "high",
     subject_dir=None,
     participant_id=None,
-    session_id=None
+    session_id=None,
 ):
     """Load cortical surfaces - prioritize native subject surfaces if available"""
     
@@ -500,87 +546,241 @@ def _load_surfaces_ctx(
         native_lh_path = os.path.join(
             subject_dir, 
             "structural", 
-            f"{participant_id}_{session_id}_hemi-L_space-nativepro_surf-fsLR-32k_label-midthickness.surf.gii"
+            f"{participant_id}_{session_id}_hemi-L_space-nativepro_surf-fsnative_label-pial.surf.gii"
         )
         native_rh_path = os.path.join(
             subject_dir, 
             "structural", 
-            f"{participant_id}_{session_id}_hemi-R_space-nativepro_surf-fsLR-32k_label-midthickness.surf.gii"
+            f"{participant_id}_{session_id}_hemi-R_space-nativepro_surf-fsnative_label-pial.surf.gii"
         )
-        
+
         if os.path.exists(native_lh_path) and os.path.exists(native_rh_path):
             try:
                 print(f"Loading native cortical surfaces for {participant_id}/{session_id}")
                 inf_lh = read_surface(native_lh_path)
                 inf_rh = read_surface(native_rh_path)
+                sphere_lh = read_surface(os.path.join(
+                        subject_dir, 
+                        "structural", 
+                        f"{participant_id}_{session_id}_hemi-L_surf-fsnative_label-sphere.surf.gii"
+                    ))
+                sphere_rh = read_surface(os.path.join(
+                        subject_dir, 
+                        "structural", 
+                        f"{participant_id}_{session_id}_hemi-R_surf-fsnative_label-sphere.surf.gii"
+                    ))
+                inf_lh, inf_rh = inflate_surf(inf_lh, inf_rh, sphere_lh, sphere_rh, W=0.25)
+
+                mask = load_mask(join=True)
+
+                mask_L, mask_R = metric_resample(mask, native_lh_path, native_rh_path)
                 
-                # Create a mask - since these are native surfaces, we assume all vertices are valid
-                mask = np.ones(inf_lh.n_points + inf_rh.n_points, dtype=bool)
-                return inf_lh, inf_rh, mask
+                return inf_lh, inf_rh, mask_L.astype(int), mask_R.astype(int), native_lh_path, native_rh_path
             except Exception as e:
-                print(f"Failed to load native surfaces: {e}. Falling back to template surfaces.")
+                print(f"Failed to load native surfaces: {e}.")
+
+
+def _load_surfaces_hip(
+    res: Resolution = "high",
+    subject_dir=None,
+    participant_id=None,
+    session_id=None
+):
+    """Load hippocampal surfaces - prioritize native subject surfaces if available"""
     
-    # Fall back to template surfaces if native surfaces aren't available or failed to load
-    print("Using template cortical surfaces")
-    res_ctx = map_resolution("cortex", resolution)
-    inf_lh = read_surface(f"{DATA_PATH}/fsLR-{res_ctx}.L.inflated.surf.gii")
-    inf_rh = read_surface(f"{DATA_PATH}/fsLR-{res_ctx}.R.inflated.surf.gii")
-    mask = load_mask(join=True)
-    return inf_lh, inf_rh, mask
-
-
-def _load_surfaces_hip(res: Resolution = "high"):
+    # Map resolution
     res_hip = map_resolution("hippocampus", res)
     label = "midthickness"
-
-    pth_canonical = (
-        f"{DATA_PATH}/tpl-avg_space-canonical_den-{res_hip}"
-        f"_label-hipp_{label}.surf.gii"
-    )
-    pth_unfold = (
-        f"{DATA_PATH}/tpl-avg_space-unfold_den-{res_hip}"
-        f"_label-hipp_{label}.surf.gii"
-    )
-
-    mid_rh = read_surface(pth_canonical)
-    unf_rh = read_surface(pth_unfold)
-    mid_lh = read_surface(pth_canonical)
-    unf_lh = read_surface(pth_unfold)
-
-    # Flip right to left surface
-    mid_lh.Points[:, 0] *= -1
-    unf_lh.Points[:, 0] *= -1
-
-    # vflip = np.ones(hipp_mid_l.Points.shape)
-    # vflip[:, 0] = -1
-    # hipp_mid_l.Points = hipp_mid_l.Points * vflip
-    # hipp_unf_l.Points = hipp_unf_l.Points * vflip
-
-    # Rotate surfaces because Reinder didn't accept my pull request
-
-    # Rotate around Y-axis 270
-    rot_y270 = Rotation.from_rotvec(3 * np.pi / 2 * np.array([0, 1, 0]))
-    unf_rh.Points = rot_y270.apply(unf_rh.Points)
-
-    # Rotate around X-axis 90
-    rot_y90 = Rotation.from_rotvec(np.pi / 2 * np.array([0, 1, 0]))
-    unf_lh.Points = rot_y90.apply(unf_lh.Points)
-
-    # Rotate around Z-axis 180
-    rot_z = Rotation.from_rotvec(np.pi * np.array([0, 0, 1]))
-    unf_rh.Points = rot_z.apply(unf_rh.Points)
-
-    # Right Antero-posterior lateral
-    lat_rh = read_surface(pth_canonical)
-    lat_rh.Points = rot_y270.apply(lat_rh.Points)
-
-    # Left Antero-posterior lateral
-    lat_lh = read_surface(pth_canonical)
-    lat_lh.Points = rot_y90.apply(
-        mid_lh.Points
-    )  # TODO: should it be lat_lh instead of mid_lh?
-
-    return lat_lh, mid_lh, unf_lh, unf_rh, mid_rh, lat_rh
+    
+    # Try to load native subject-specific surfaces if subject info is provided
+    if subject_dir and participant_id and session_id:
+        # Check for native subject-specific hippocampal surfaces for both hemispheres
+        # Left hemisphere native files
+        native_canonical_path_lh = os.path.join(
+            subject_dir, 
+            "structural", 
+            f"{participant_id}_{session_id}_hemi-L_space-T1w_den-{res_hip}_label-hipp_{label}.surf.gii"
+        )
+        native_unfold_path_lh = os.path.join(
+            subject_dir, 
+            "structural", 
+            f"{participant_id}_{session_id}_hemi-L_space-unfold_den-{res_hip}_label-hipp_{label}.surf.gii"
+        )
+        
+        # Right hemisphere native files
+        native_canonical_path_rh = os.path.join(
+            subject_dir, 
+            "structural", 
+            f"{participant_id}_{session_id}_hemi-R_space-T1w_den-{res_hip}_label-hipp_{label}.surf.gii"
+        )
+        native_unfold_path_rh = os.path.join(
+            subject_dir, 
+            "structural", 
+            f"{participant_id}_{session_id}_hemi-R_space-unfold_den-{res_hip}_label-hipp_{label}.surf.gii"
+        )
+        
+        # Check if both hemispheres' files exist
+        lh_exists = os.path.exists(native_canonical_path_lh) and os.path.exists(native_unfold_path_lh)
+        rh_exists = os.path.exists(native_canonical_path_rh) and os.path.exists(native_unfold_path_rh)
+        
+        if lh_exists and rh_exists:
+            try:
+                print(f"Loading native hippocampal surfaces for both hemispheres: {participant_id}/{session_id}")
+                
+                # Load surfaces for both hemispheres
+                mid_lh = read_surface(native_canonical_path_lh)
+                unf_lh = read_surface(native_unfold_path_lh)
+                mid_rh = read_surface(native_canonical_path_rh)
+                unf_rh = read_surface(native_unfold_path_rh)
+                
+                # Rotate surfaces
+                # Rotate around Y-axis 270 for right hemisphere unfolded
+                rot_y270 = Rotation.from_rotvec(3 * np.pi / 2 * np.array([0, 1, 0]))
+                unf_rh.Points = rot_y270.apply(unf_rh.Points)
+                
+                # Rotate around X-axis 90 for left hemisphere unfolded
+                rot_y90 = Rotation.from_rotvec(np.pi / 2 * np.array([0, 1, 0]))
+                unf_lh.Points = rot_y90.apply(unf_lh.Points)
+                
+                # Rotate around Z-axis 180 for right hemisphere unfolded
+                rot_z = Rotation.from_rotvec(np.pi * np.array([0, 0, 1]))
+                unf_rh.Points = rot_z.apply(unf_rh.Points)
+                
+                # Create lateral views from canonical
+                lat_rh = read_surface(native_canonical_path_rh)
+                lat_rh.Points = rot_y270.apply(lat_rh.Points)
+                
+                lat_lh = read_surface(native_canonical_path_lh)
+                lat_lh.Points = rot_y90.apply(mid_lh.Points)
+                
+                return lat_lh, mid_lh, unf_lh, unf_rh, mid_rh, lat_rh
+            
+            except Exception as e:
+                print(f"Failed to load native hippocampal surfaces: {e}")
+                print("Falling back to template hippocampal surfaces")
+        elif rh_exists:
+            # Only right hemisphere exists, mirror it to create left
+            try:
+                print(f"Loading native right hippocampal surface and mirroring for left: {participant_id}/{session_id}")
+                
+                # Load right hemisphere surfaces
+                mid_rh = read_surface(native_canonical_path_rh)
+                unf_rh = read_surface(native_unfold_path_rh)
+                
+                # Create left hemisphere by copying and mirroring right hemisphere
+                mid_lh = mid_rh.copy()
+                unf_lh = unf_rh.copy()
+                
+                # Flip right to left surface (mirror along X axis)
+                mid_lh.Points[:, 0] *= -1
+                unf_lh.Points[:, 0] *= -1
+                
+                # Apply rotations as before
+                rot_y270 = Rotation.from_rotvec(3 * np.pi / 2 * np.array([0, 1, 0]))
+                unf_rh.Points = rot_y270.apply(unf_rh.Points)
+                
+                rot_y90 = Rotation.from_rotvec(np.pi / 2 * np.array([0, 1, 0]))
+                unf_lh.Points = rot_y90.apply(unf_lh.Points)
+                
+                rot_z = Rotation.from_rotvec(np.pi * np.array([0, 0, 1]))
+                unf_rh.Points = rot_z.apply(unf_rh.Points)
+                
+                lat_rh = mid_rh.copy()
+                lat_rh.Points = rot_y270.apply(lat_rh.Points)
+                
+                lat_lh = mid_lh.copy()
+                lat_lh.Points = rot_y90.apply(mid_lh.Points)
+                
+                return lat_lh, mid_lh, unf_lh, unf_rh, mid_rh, lat_rh
+                
+            except Exception as e:
+                print(f"Failed to load and mirror native hippocampal surfaces: {e}")
+                print("Falling back to template hippocampal surfaces")
+        elif lh_exists:
+            # Only left hemisphere exists, mirror it to create right
+            try:
+                print(f"Loading native left hippocampal surface and mirroring for right: {participant_id}/{session_id}")
+                
+                # Load left hemisphere surfaces
+                mid_lh = read_surface(native_canonical_path_lh)
+                unf_lh = read_surface(native_unfold_path_lh)
+                
+                # Create right hemisphere by copying and mirroring left hemisphere
+                mid_rh = mid_lh.copy()
+                unf_rh = unf_lh.copy()
+                
+                # Flip left to right surface (mirror along X axis)
+                mid_rh.Points[:, 0] *= -1
+                unf_rh.Points[:, 0] *= -1
+                
+                # Apply rotations as before
+                rot_y270 = Rotation.from_rotvec(3 * np.pi / 2 * np.array([0, 1, 0]))
+                unf_rh.Points = rot_y270.apply(unf_rh.Points)
+                
+                rot_y90 = Rotation.from_rotvec(np.pi / 2 * np.array([0, 1, 0]))
+                unf_lh.Points = rot_y90.apply(unf_lh.Points)
+                
+                rot_z = Rotation.from_rotvec(np.pi * np.array([0, 0, 1]))
+                unf_rh.Points = rot_z.apply(unf_rh.Points)
+                
+                lat_rh = mid_rh.copy()
+                lat_rh.Points = rot_y270.apply(lat_rh.Points)
+                
+                lat_lh = mid_lh.copy()
+                lat_lh.Points = rot_y90.apply(mid_lh.Points)
+                
+                return lat_lh, mid_lh, unf_lh, unf_rh, mid_rh, lat_rh
+                
+            except Exception as e:
+                print(f"Failed to load and mirror native hippocampal surfaces: {e}")
+                print("Falling back to template hippocampal surfaces")
+    
+    # Fall back to template surfaces if native surfaces aren't available or failed to load
+    print("Using template hippocampal surfaces")
+    
+    # Template paths
+    pth_canonical = f"{DATA_PATH}/tpl-avg_space-canonical_den-{res_hip}_label-hipp_{label}.surf.gii"
+    pth_unfold = f"{DATA_PATH}/tpl-avg_space-unfold_den-{res_hip}_label-hipp_{label}.surf.gii"
+    
+    # Load surfaces
+    try:
+        mid_rh = read_surface(pth_canonical)
+        unf_rh = read_surface(pth_unfold)
+        
+        # Create left hemisphere by copying and mirroring right hemisphere
+        mid_lh = mid_rh.copy()
+        unf_lh = unf_rh.copy()
+        
+        # Flip right to left surface
+        mid_lh.Points[:, 0] *= -1
+        unf_lh.Points[:, 0] *= -1
+        
+        # Rotate surfaces
+        # Rotate around Y-axis 270
+        rot_y270 = Rotation.from_rotvec(3 * np.pi / 2 * np.array([0, 1, 0]))
+        unf_rh.Points = rot_y270.apply(unf_rh.Points)
+        
+        # Rotate around X-axis 90
+        rot_y90 = Rotation.from_rotvec(np.pi / 2 * np.array([0, 1, 0]))
+        unf_lh.Points = rot_y90.apply(unf_lh.Points)
+        
+        # Rotate around Z-axis 180
+        rot_z = Rotation.from_rotvec(np.pi * np.array([0, 0, 1]))
+        unf_rh.Points = rot_z.apply(unf_rh.Points)
+        
+        # Right Antero-posterior lateral
+        lat_rh = mid_rh.copy()
+        lat_rh.Points = rot_y270.apply(lat_rh.Points)
+        
+        # Left Antero-posterior lateral
+        lat_lh = mid_lh.copy()
+        lat_lh.Points = rot_y90.apply(mid_lh.Points)
+        
+        return lat_lh, mid_lh, unf_lh, unf_rh, mid_rh, lat_rh
+    
+    except Exception as e:
+        print(f"Error loading hippocampal surfaces: {e}")
+        raise
 
 
 # Load data --------------------------------------------------------------------
@@ -662,19 +862,21 @@ def _make_png_ctx(
     color_bar="bottom",
     subject_dir=None,
     participant_id=None,
-    session_id=None
+    session_id=None,
 ):
 
-    slh, srh, mask = _load_surfaces_ctx(
-        resolution=res,
+    slh, srh, mask_L, mask_R, native_lh_path, native_rh_path = _load_surfaces_ctx(
         subject_dir=subject_dir,
         participant_id=participant_id,
-        session_id=session_id
+        session_id=session_id,
     )
 
     # Replace values in f with NaN where mask_32k is False
     feat_map = np.hstack(np.concatenate((data_lh, data_rh), axis=0))
-    feat_map[~mask] = np.nan
+    feat_map_L, feat_map_R = metric_resample(feat_map, native_lh_path, native_rh_path)
+    feat_map_L[~mask_L] = np.nan
+    feat_map_R[~mask_R] = np.nan
+    feat_map = np.hstack((feat_map_L, feat_map_R))
 
     kwds = dict(
         cmap=cmap,
@@ -692,7 +894,7 @@ def _make_png_ctx(
     if analysis == "asymmetry":
         plot_hemisphere_lh(
             slh,
-            array_name=feat_map,
+            array_name=feat_map_L,
             layout_style="grid",
             label_text={"left": ["Lateral", "Medial"], "top": [""]},
             share=None,
@@ -726,7 +928,7 @@ def _make_png_ctx(
         kwds["text__textproperty"] = {"fontSize": 30}
         plot_surfs(
             surfaces=[slh, slh],
-            values=[data_lh, data_lh],
+            values=[feat_map_L, feat_map_L],
             views=["dorsal", "ventral"],
             label_text={
                 "bottom": [
@@ -745,7 +947,7 @@ def _make_png_ctx(
     else:
         plot_surfs(
             surfaces=[slh, srh, srh, slh],
-            values=[data_lh, data_rh, data_rh, data_lh],
+            values=[feat_map_L, feat_map_R, feat_map_R, feat_map_L],
             views=["dorsal", "dorsal", "ventral", "ventral"],
             label_text={
                 "bottom": [
@@ -841,9 +1043,15 @@ def _make_png_hip(
     cmap="cmo.balance",
     color_range=(-2, 2),
     color_bar="bottom",
+    subject_dir=None,
+    participant_id=None,
+    session_id=None
 ):
 
-    lat_lh, mid_lh, unf_lh, unf_rh, mid_rh, lat_rh = _load_surfaces_hip(res=res)
+    lat_lh, mid_lh, unf_lh, unf_rh, mid_rh, lat_rh = _load_surfaces_hip(res=res,    
+                                                                        subject_dir=subject_dir,
+                                                                        participant_id=participant_id,
+                                                                        session_id=session_id)
     if analysis == "asymmetry":
         kwds = dict()
         kwds["text__textproperty"] = {"fontSize": 50}
@@ -924,6 +1132,9 @@ def make_png(
             cmap=cmap,
             color_range=color_range,
             color_bar=color_bar,
+            subject_dir=subject_dir,
+            participant_id=participant_id,
+            session_id=session_id,
         )
 
     return _make_png_sctx(
@@ -964,7 +1175,7 @@ def report_struct(
     color_bar="bottom",
     tmp_dir: PathType = "/tmp",
     feature_means=None,
-    subject_dir=None
+    subject_dir=None,
 ):
     """
     Generate report section for a specific brain structure adapted for zbdataset structure.
@@ -1162,6 +1373,7 @@ def generate_clinical_report(
     output_dir=None,
     tag=None,
     feature_means=None,
+    env=None,
     verbose=True
 ):
     """Zbrains: Clinical report generator adapted for zbdataset
