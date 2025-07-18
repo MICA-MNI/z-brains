@@ -324,11 +324,11 @@ report = report_header_template(
             )
 
 # SUBTITLE section: Control database
-report += feature_header_template(align="left", info="Feature data", size=14)
+report += feature_header_template(align="left", info="Subject feature data", size=14)
 
         
 # SUBTITLE section: Control database
-report += feature_header_template(align="left", info="Control Database", size=14)
+report += feature_header_template(align="left", info="Control database", size=14)
 report += controls_summary_html(df)
 
 # SUBTITLE section: Pipeline information
