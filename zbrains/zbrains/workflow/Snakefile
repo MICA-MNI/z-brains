@@ -1,78 +1,170 @@
 # Snakefile for zbrains: uses derivatives, not BIDS
 
+import pandas as pd
+
 configfile: 'config/snakebids.yml'
 
 # Load derivative and demographics paths from config
 dmicapipe = config['derivatives']['micapipe_directory']
 dhippunfold = config['derivatives']['hippunfold_directory']
 dfreesurfer = config['derivatives']['freesurfer_directory']
-ddemographics = config['demographics_csv']
 
-# Example: collect all final smoothed blurring outputs as the workflow target
+
+# Helper functions for derivative paths
+MICAPIPE_DIR = (
+    f"{config['input_directory']}/derivatives/micapipe_v{config['versions']['micapipe']}"
+)
+HIPPUNFOLD_DIR = (
+    f"{config['input_directory']}/derivatives/hippunfold_v{config['versions']['hippunfold']}"
+)
+FREESURFER_DIR = (
+    f"{config['input_directory']}/derivatives/freesurfer_v{config['versions']['freesurfer']}"
+    if config['versions']['freesurfer'] not in [None, 'None', '']
+    else f"{config['input_directory']}/derivatives/freesurfer"
+)
+
+# Example: collect all scoring outputs as a workflow target (i.e. the primary output)
 rule all:
     input:
         expand(
-            "{output_dir}/{{subject}}/{{session}}/maps/cortex/{{subject}}_{{session}}_hemi-{{hemi}}_feature-{{feature}}-blur_surf-fsnative_smooth-{{smoothing}}mm_final.func.gii",
-            subject=["sub-001"],  # TODO: replace with subject list
-            session=["ses-01"],   # TODO: replace with session list
-            feature=["qT1", "FA", "ADC", "FLAIR"],  # TODO: replace with feature list
-            hemi=["L", "R"],
-            smoothing=[5],  # TODO: replace with smoothing config if needed
-            output_dir="outputs"  # or your desired output dir
-        )
+            "outputs/{{subject}}/clinical_report/{{subject}}_clinical_report.pdf",
+            subject=pd.read_csv(config['demographics_csv'])['ID'],
+            output_dir="outputs"
+        ),
 
 
-rule cortical_processing:
+rule cortical_import:
     input:
-        surf_file = "{micapipe}/{subject}/{session}/surf/{subject}_{session}_hemi-{hemi}_space-nativepro_surf-fsLR-{resolution}_label-{label}.surf.gii",
-        input_file = "{micapipe}/{subject}/{session}/maps/{subject}_{session}_hemi-{hemi}_surf-fsLR-{resolution}_label-{label}_{input_feat}.func.gii",
+        surf_file = f"{MICAPIPE_DIR}/{{subject}}/{{session}}/surf/sub-{{subject}}_ses-{{session}}_hemi-{{hemi}}_space-nativepro_surf-fsLR-{{resolution}}_label-{{label}}.surf.gii",
+        input_file = f"{MICAPIPE_DIR}/{{subject}}/{{session}}/maps/sub-{{subject}}_ses-{{session}}_hemi-{{hemi}}_space-nativepro_surf-fsLR-{{resolution}}_label-{{label}}_{{input_feat}}.func.gii",
         sphere_fsLR = "data/fsLR-{resolution}.{hemi}.sphere.reg.surf.gii"
     output:
-        "{output_dir}/{subject}/{session}/maps/cortex/{subject}_{session}_hemi-{hemi}_surf-fsLR-{resolution}_label-{label}_feature-{output_feat}_smooth-{cortical_smoothing}mm.func.gii"
+        "{output_dir}/sub-{subject}_ses-{session}_hemi-{hemi}_space-fsLR_{resolution}_label-{label}_feature-{output_feat}_smooth-{cortical_smoothing}mm.func.gii"
     params:
         smoothing = lambda wildcards: config.get("cortical_smoothing", 5)
+        resolution = lambda w: config['resolution']['cortex']
     shell:
         """
         wb_command -metric-smoothing {input.surf_file} {input.input_file} {params.smoothing} {output}
         wb_command -set-structure {output} CORTEX_LEFT if {wildcards.hemi} == "L" else CORTEX_RIGHT
         """
 
-# --- Hippocampal Processing Rule ---
-rule hippocampal_processing:
+rule hippocampal_import:
     input:
-        # Hippunfold surfaces
-        surf_file = lambda w: f"{dhippunfold}/hippunfold/{{subject}}/{{session}}/surf/{{subject}}_{{session}}_hemi-{{hemi}}_space-T1w_den-{{resolution}}_label-hipp_midthickness.surf.gii",
-        inner_surf = lambda w: f"{dhippunfold}/hippunfold/{{subject}}/{{session}}/surf/{{subject}}_{{session}}_hemi-{{hemi}}_space-T1w_den-{{resolution}}_label-hipp_inner.surf.gii",
-        outer_surf = lambda w: f"{dhippunfold}/hippunfold/{{subject}}/{{session}}/surf/{{subject}}_{{session}}_hemi-{{hemi}}_space-T1w_den-{{resolution}}_label-hipp_outer.surf.gii",
-        # Micapipe volume map
-        volumemap = lambda w: f"{dmicapipe}/{{subject}}/{{session}}/maps/{{subject}}_{{session}}_space-nativepro_map-{{feature}}.nii.gz"
+        surf_file = lambda w: f"{HIPPUNFOLD_DIR}/hippunfold/{{subject}}/{{session}}/surf/sub-{{subject}}_ses-{{session}}_hemi-{{hemi}}_space-T1w_den-{config['resolution']['hippocampus']}_label-hipp_midthickness.surf.gii",
+        volumemap = lambda w: f"{MICAPIPE_DIR}/{{subject}}/{{session}}/maps/sub-{{subject}}_ses-{{session}}_space-nativepro_map-{{feature}}.nii.gz"
     output:
-        out = "{output_dir}/{subject}/{session}/maps/hippocampus/{subject}_{session}_hemi-{hemi}_den-{resolution}_label-hipp_midthickness_feature-{feature}_smooth-{smoothing}mm.func.gii"
+        out = "{output_dir}/sub-{subject}_ses-{session}_hemi-{hemi}_space-T1w_den-{resolution}_label-hipp_midthickness_feature-{feature}_smooth-{smoothing}mm.func.gii"
     params:
         smoothing = lambda w: config.get("hippocampal_smoothing", 2)
-    # Only run for non-blur features
-    run:
-        if "-blur" in wildcards.feature:
-            raise ValueError("Blurring is not applied to hippocampal features.")
-        shell(
-            """
-            wb_command -volume-to-surface-mapping {input.volumemap} {input.surf_file} tmp.func.gii -ribbon-constrained {input.inner_surf} {input.outer_surf}
-            wb_command -metric-smoothing {input.surf_file} tmp.func.gii {params.smoothing} {output.out}
-            wb_command -set-structure {output.out} CORTEX_LEFT if {{wildcards.hemi}} == "L" else CORTEX_RIGHT
-            rm -f tmp.func.gii
-            """
-        )
+        resolution = lambda w: config['resolution']['hippocampus']
+    shell:
+        r"""
+        wb_command -volume-to-surface-mapping {input.volumemap} {input.surf_file} tmp.func.gii -trilinear
+        wb_command -metric-smoothing {input.surf_file} tmp.func.gii {params.smoothing} {output.out}
+        wb_command -set-structure {output.out} CORTEX_LEFT if {{wildcards.hemi}} == "L" else CORTEX_RIGHT
+        rm -f tmp.func.gii
+        """
 
-# --- Subcortical Processing Rule ---
-rule subcortical_processing:
+rule subcortical_import:
     input:
-        seg_file = lambda w: f"{dmicapipe}/{{subject}}/{{session}}/parc/{{subject}}_{{session}}_space-nativepro_T1w_atlas-subcortical.nii.gz",
-        aseg_stats = lambda w: f"{dfreesurfer}/{{subject}}_{{session}}/stats/aseg.stats",
-        feature_map = lambda w: f"{dmicapipe}/{{subject}}/{{session}}/maps/{{subject}}_{{session}}_space-nativepro_map-{{feature}}.nii.gz"
+        seg_file = lambda w: f"{MICAPIPE_DIR}/{{subject}}/{{session}}/parc/sub-{{subject}}_ses-{{session}}_space-nativepro_T1w_atlas-subcortical.nii.gz",
+        aseg_stats = lambda w: f"{FREESURFER_DIR}/sub-{{subject}}_ses-{{session}}/stats/aseg.stats" if FREESURFER_DIR else None,
+        feature_map = lambda w: (
+            f"{MICAPIPE_DIR}/{{subject}}/{{session}}/maps/sub-{{subject}}_ses-{{session}}_space-nativepro_map-T1map.nii.gz" if w.feature == 'qT1' else
+            f"{MICAPIPE_DIR}/{{subject}}/{{session}}/maps/sub-{{subject}}_ses-{{session}}_space-nativepro_map-{{feature}}.nii.gz" if w.feature not in ['thickness', 'qT1'] else None
+        )
     output:
-        out = "{output_dir}/{subject}/{session}/maps/subcortical/{subject}_{session}_feature-{feature}.csv"
+        out = "{output_dir}/sub-{subject}_ses-{session}_space-nativepro_desc-subcortical_feature-{feature}_smooth-NAmm.csv"
+    params:
+        feature = lambda w: 'volume' if w.feature == 'thickness' else w.feature
     script:
         "scripts/subcortical_extract.py"
 
-# --- Blurring Processing Rule ---
 include: "workflow/blurring.smk"
+
+ruleorder: import_thickness > hippocampal_import
+ruleorder: import_thickness > cortical_import
+
+rule import_thickness:
+    input:
+        raw_thickness = lambda wildcards: (
+            # Cortex: FreeSurfer or other pipeline output
+            f"{MICAPIPE_DIR}/{{subject}}/{{session}}/surf/sub-{{subject}}_ses-{{session}}_hemi-{{hemi}}_space-nativepro_surf-fsnative_label-thickness.shape.gii" if wildcards.structure == "cortex" else
+            # Hippocampus: HippUnFold output
+            f"{HIPPUNFOLD_DIR}/hippunfold/{{subject}}/{{session}}/surf/sub-{{subject}}_ses-{{session}}_hemi-{{hemi}}_space-T1w_den-{config['resolution']['hippocampus']}_label-hipp_thickness.shape.gii"
+        ),
+        surf = lambda wildcards: (
+            f"{MICAPIPE_DIR}/{{subject}}/{{session}}/surf/sub-{{subject}}_ses-{{session}}_hemi-{{hemi}}_space-nativepro_surf-fsnative_label-midthickness.surf.gii" if wildcards.structure == "cortex" else
+            f"{HIPPUNFOLD_DIR}/hippunfold/{{subject}}/{{session}}/surf/sub-{{subject}}_ses-{{session}}_hemi-{{hemi}}_space-T1w_den-{config['resolution']['hippocampus']}_label-hipp_midthickness.surf.gii"
+        )
+    output:
+        smoothed_thickness = "{output_dir}/sub-{subject}_ses-{session}_hemi-{hemi}_space-{space}_den-{den}_label-{label}_feature-thickness_smooth-{smoothing}mm.func.gii"
+    params:
+        smoothing = lambda wildcards: wildcards.smoothing,
+        wb = lambda wildcards: config['workbench_path']
+        resolution = lambda w: config['resolution']['cortex'] if wildcards.structure == "cortex" else config['resolution']['hippocampus']
+    shell:
+        r"""
+        {params.wb}/wb_command -metric-smoothing {input.surf} {input.raw_thickness} {params.smoothing} {output.smoothed_thickness}
+        {params.wb}/wb_command -set-structure {output.smoothed_thickness} CORTEX_LEFT if {{wildcards.hemi}} == "L" else CORTEX_RIGHT
+        """
+
+# Remove all intermediate variables (FEATURES, HEMIS, SMOOTHINGS, METHODS, STRUCTURES, etc.)
+# Reference config['features'], config['hemis'], config['smoothings'], config['methods'] directly in expand and rule definitions
+
+rule scoring:
+    input:
+        demographics = config['demographics_csv'],
+        data_file = lambda wildcards: f"{{output_dir}}/{{subject}}/{{session}}/maps/{{structure}}/{{subject}}_{{session}}_structure-{{structure}}_hemi-{{hemi}}_feature-{{feature}}_smooth-{{smoothing}}mm.func.gii" if wildcards.structure != "subcortical" else f"{{output_dir}}/{{subject}}/{{session}}/maps/{{structure}}/{{subject}}_{{session}}_structure-{{structure}}_hemi-NA_feature-{{feature}}_smooth-NAmm.csv",
+        reference_data = lambda wildcards: expand(
+            "{output_dir}/{{ref_subject}}/{session}/maps/{structure}/{{ref_subject}}_{session}_structure-{structure}_hemi-{hemi}_feature-{feature}_smooth-{smoothing}mm{ext}",
+            ref_subject=[p[0] for p in SUBJECT_SESSION_PAIRS],
+            session=[p[1] for p in SUBJECT_SESSION_PAIRS],
+            structure=[wildcards.structure],
+            hemi=[wildcards.hemi] if wildcards.structure != "subcortical" else ["NA"],
+            feature=[wildcards.feature],
+            smoothing=[wildcards.smoothing] if wildcards.structure != "subcortical" else ["NA"],
+            ext=[".func.gii"] if wildcards.structure != "subcortical" else [".csv"],
+            output_dir=wildcards.output_dir
+        )
+    output:
+        score_file = "{output_dir}/sub-{subject}_ses-{session}_hemi-{hemi}_space-{space}_den-{den}_label-{label}_feature-{feature}_smooth-{smoothing}mm_score-{method}{ext}"
+    params:
+        method = lambda wildcards: wildcards.method,
+        structure = lambda wildcards: wildcards.structure,
+        patient_id = lambda wildcards: wildcards.subject,
+        normative_columns = ["age", "sex"],
+        verbose = True,
+        resolution = lambda wildcards: wildcards.resolution if hasattr(wildcards, 'resolution') else None,
+        ext = lambda wildcards: ".func.gii" if wildcards.structure != "subcortical" else ".csv"
+    script:
+        "scripts/scoring.py"
+
+rule generate_report:
+    input:
+        demographics = config['demographics_csv'],
+        score_files = lambda wildcards: expand(
+            "{output_dir}/sub-{subject}_ses-{session}_hemi-{hemi}_space-{space}_den-{den}_label-{label}_feature-{feature}_smooth-{smoothing}mm_score-{method}{ext}",
+            subject=[wildcards.subject],
+            session=pd.read_csv(config['demographics_csv'])[pd.read_csv(config['demographics_csv'])['ID'] == wildcards.subject]['SES'],
+            structure=["cortex", "hippocampus", "subcortical"],
+            hemi=config['hemis'] + ["NA"],
+            feature=config['features'],
+            smoothing=config['smoothings'] + ["NA"],
+            method=config['methods'],
+            ext=[".func.gii", ".csv"],
+            space=["nativepro", "T1w"],
+            den=["fsLR", "0p5mm"],
+            label=["midthickness", "NA"],
+            output_dir="outputs"
+        )
+    output:
+        report = "{output_dir}/sub-{subject}_ses-{session}_desc-clinicalreport.pdf"
+    params:
+        output_dir = lambda wildcards: f"{wildcards.output_dir}/{wildcards.subject}/clinical_report",
+        subject = lambda wildcards: wildcards.subject,
+        session = lambda wildcards: pd.read_csv(config['demographics_csv'])[pd.read_csv(config['demographics_csv'])['ID'] == wildcards.subject]['SES'].iloc[0],
+        verbose = True
+    script:
+        "scripts/generate_report.py"

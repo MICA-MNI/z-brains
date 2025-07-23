@@ -8,21 +8,20 @@ targets_by_analysis_level:
   participant:
     - 'all'  # if '', then the first rule is run
 
-# Custom input paths for derivatives and demographics
-# These will be set via command-line arguments or config
+# Versioning for each pipeline
+versions:
+  hippunfold: 1.3.0
+  micapipe: 0.2.0
+  freesurfer: None
 
-derivatives:
-  micapipe_directory: /path/to/micapipe
-  hippunfold_directory: /path/to/hippunfold
-  freesurfer_directory: /path/to/freesurfer
+
 demographics_csv: /path/to/demographics.csv
+workbench_path: /path/to/workbench
 
 # configuration for the command-line parameters to make available
 # passed on the argparse add_argument()
 parse_args:
-  - ["--micapipe-directory", {"help": "Path to micapipe derivatives", "required": True}]
-  - ["--hippunfold-directory", {"help": "Path to hippunfold derivatives", "required": True}]
-  - ["--freesurfer-directory", {"help": "Path to freesurfer derivatives", "required": True}]
+  - ["--input-directory", {"help": "Path to input BIDS directory. Micapipe, Freesurfer, and HippUnfold should be found in the derivatives of this.", "required": True}]
   - ["--demographics-csv", {"help": "Path to demographics CSV", "required": True}]
   - ["--scoring-method", {"help": "Scoring method for analysis (zscore or wscore)", "choices": ["zscore", "wscore"], "default": "zscore"}]
 
@@ -34,3 +33,24 @@ containers:
 sfwm_depths:
   - 1.0
   - 2.0
+
+# Features, hemispheres, smoothing levels, and scoring methods for workflow
+features:
+  - qT1
+  - FA
+  - ADC
+  - FLAIR
+  - thickness
+hemis:
+  - L
+  - R
+smoothings:
+  cortex:
+    - 5
+  hippocampus:
+    - 2
+
+# Add resolution parameters for cortex and hippocampus
+resolution:
+  cortex: 32k
+  hippocampus: 0p5mm
