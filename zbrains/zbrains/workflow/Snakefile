@@ -1,0 +1,78 @@
+# Snakefile for zbrains: uses derivatives, not BIDS
+
+configfile: 'config/snakebids.yml'
+
+# Load derivative and demographics paths from config
+dmicapipe = config['derivatives']['micapipe_directory']
+dhippunfold = config['derivatives']['hippunfold_directory']
+dfreesurfer = config['derivatives']['freesurfer_directory']
+ddemographics = config['demographics_csv']
+
+# Example: collect all final smoothed blurring outputs as the workflow target
+rule all:
+    input:
+        expand(
+            "{output_dir}/{{subject}}/{{session}}/maps/cortex/{{subject}}_{{session}}_hemi-{{hemi}}_feature-{{feature}}-blur_surf-fsnative_smooth-{{smoothing}}mm_final.func.gii",
+            subject=["sub-001"],  # TODO: replace with subject list
+            session=["ses-01"],   # TODO: replace with session list
+            feature=["qT1", "FA", "ADC", "FLAIR"],  # TODO: replace with feature list
+            hemi=["L", "R"],
+            smoothing=[5],  # TODO: replace with smoothing config if needed
+            output_dir="outputs"  # or your desired output dir
+        )
+
+
+rule cortical_processing:
+    input:
+        surf_file = "{micapipe}/{subject}/{session}/surf/{subject}_{session}_hemi-{hemi}_space-nativepro_surf-fsLR-{resolution}_label-{label}.surf.gii",
+        input_file = "{micapipe}/{subject}/{session}/maps/{subject}_{session}_hemi-{hemi}_surf-fsLR-{resolution}_label-{label}_{input_feat}.func.gii",
+        sphere_fsLR = "data/fsLR-{resolution}.{hemi}.sphere.reg.surf.gii"
+    output:
+        "{output_dir}/{subject}/{session}/maps/cortex/{subject}_{session}_hemi-{hemi}_surf-fsLR-{resolution}_label-{label}_feature-{output_feat}_smooth-{cortical_smoothing}mm.func.gii"
+    params:
+        smoothing = lambda wildcards: config.get("cortical_smoothing", 5)
+    shell:
+        """
+        wb_command -metric-smoothing {input.surf_file} {input.input_file} {params.smoothing} {output}
+        wb_command -set-structure {output} CORTEX_LEFT if {wildcards.hemi} == "L" else CORTEX_RIGHT
+        """
+
+# --- Hippocampal Processing Rule ---
+rule hippocampal_processing:
+    input:
+        # Hippunfold surfaces
+        surf_file = lambda w: f"{dhippunfold}/hippunfold/{{subject}}/{{session}}/surf/{{subject}}_{{session}}_hemi-{{hemi}}_space-T1w_den-{{resolution}}_label-hipp_midthickness.surf.gii",
+        inner_surf = lambda w: f"{dhippunfold}/hippunfold/{{subject}}/{{session}}/surf/{{subject}}_{{session}}_hemi-{{hemi}}_space-T1w_den-{{resolution}}_label-hipp_inner.surf.gii",
+        outer_surf = lambda w: f"{dhippunfold}/hippunfold/{{subject}}/{{session}}/surf/{{subject}}_{{session}}_hemi-{{hemi}}_space-T1w_den-{{resolution}}_label-hipp_outer.surf.gii",
+        # Micapipe volume map
+        volumemap = lambda w: f"{dmicapipe}/{{subject}}/{{session}}/maps/{{subject}}_{{session}}_space-nativepro_map-{{feature}}.nii.gz"
+    output:
+        out = "{output_dir}/{subject}/{session}/maps/hippocampus/{subject}_{session}_hemi-{hemi}_den-{resolution}_label-hipp_midthickness_feature-{feature}_smooth-{smoothing}mm.func.gii"
+    params:
+        smoothing = lambda w: config.get("hippocampal_smoothing", 2)
+    # Only run for non-blur features
+    run:
+        if "-blur" in wildcards.feature:
+            raise ValueError("Blurring is not applied to hippocampal features.")
+        shell(
+            """
+            wb_command -volume-to-surface-mapping {input.volumemap} {input.surf_file} tmp.func.gii -ribbon-constrained {input.inner_surf} {input.outer_surf}
+            wb_command -metric-smoothing {input.surf_file} tmp.func.gii {params.smoothing} {output.out}
+            wb_command -set-structure {output.out} CORTEX_LEFT if {{wildcards.hemi}} == "L" else CORTEX_RIGHT
+            rm -f tmp.func.gii
+            """
+        )
+
+# --- Subcortical Processing Rule ---
+rule subcortical_processing:
+    input:
+        seg_file = lambda w: f"{dmicapipe}/{{subject}}/{{session}}/parc/{{subject}}_{{session}}_space-nativepro_T1w_atlas-subcortical.nii.gz",
+        aseg_stats = lambda w: f"{dfreesurfer}/{{subject}}_{{session}}/stats/aseg.stats",
+        feature_map = lambda w: f"{dmicapipe}/{{subject}}/{{session}}/maps/{{subject}}_{{session}}_space-nativepro_map-{{feature}}.nii.gz"
+    output:
+        out = "{output_dir}/{subject}/{session}/maps/subcortical/{subject}_{session}_feature-{feature}.csv"
+    script:
+        "scripts/subcortical_extract.py"
+
+# --- Blurring Processing Rule ---
+include: "workflow/blurring.smk"

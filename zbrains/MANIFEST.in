@@ -1,0 +1,5 @@
+include zbrains/**/*.yaml
+include zbrains/**/*.yml
+include zbrains/**/*.json
+include zbrains/**/Snakefile
+include zbrains/**/*.smk

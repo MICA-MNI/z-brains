@@ -1,0 +1,36 @@
+#list of analysis levels in the bids app
+analysis_levels:
+ - participant
+
+
+# mapping from analysis_level to set of target rules or files
+targets_by_analysis_level:
+  participant:
+    - 'all'  # if '', then the first rule is run
+
+# Custom input paths for derivatives and demographics
+# These will be set via command-line arguments or config
+
+derivatives:
+  micapipe_directory: /path/to/micapipe
+  hippunfold_directory: /path/to/hippunfold
+  freesurfer_directory: /path/to/freesurfer
+demographics_csv: /path/to/demographics.csv
+
+# configuration for the command-line parameters to make available
+# passed on the argparse add_argument()
+parse_args:
+  - ["--micapipe-directory", {"help": "Path to micapipe derivatives", "required": True}]
+  - ["--hippunfold-directory", {"help": "Path to hippunfold derivatives", "required": True}]
+  - ["--freesurfer-directory", {"help": "Path to freesurfer derivatives", "required": True}]
+  - ["--demographics-csv", {"help": "Path to demographics CSV", "required": True}]
+  - ["--scoring-method", {"help": "Scoring method for analysis (zscore or wscore)", "choices": ["zscore", "wscore"], "default": "zscore"}]
+
+# Docker and singularity containers may be defined here
+containers:
+    # fsl: 'docker://brainlife/fsl/6.0.0'
+
+# List of superficial white matter depths (in mm) for blurring
+sfwm_depths:
+  - 1.0
+  - 2.0
