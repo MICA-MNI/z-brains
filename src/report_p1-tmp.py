@@ -8,7 +8,12 @@ from datetime import date
 from typing import List, Union, Optional
 from pathlib import Path
 from xhtml2pdf import pisa
-import inspect
+
+import uuid
+import time
+import random
+import string
+import segno
 
 # -----------------------------------------------------------------------------
 # global variables
@@ -123,6 +128,27 @@ def feature_header_template(
 
     return f'<p style="{style}"><b> {display_info} </b></p>'
 
+def uuid_qr(qr_path="/tmp", scale=5, border=0):
+    # Step 1: Generate a UUID using "zbrain", timestamp, and a random string
+    timestamp = str(int(time.time()))
+    rand_str = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+    base_string = f"zbrain-{timestamp}-{rand_str}"
+    uuid_generated = uuid.uuid5(uuid.NAMESPACE_DNS, base_string)
+    print("Generated UUID:", uuid_generated)
+    
+    # Step 2: Generate QR code using segno
+    qr = segno.make(str(uuid_generated))
+    
+    # Step 3: Save it as PNG with foreground color #A569BD and white background
+    qr.save(
+        f'{qr_path}/{uuid_generated}.png',
+        scale=scale,
+        border=border,
+        dark='#A569BD',
+        light='white'
+    )
+    return(uuid_generated)
+
 def pipeline_info():
     """
     Generates an HTML table with project info, styled for tight left alignment.
@@ -165,41 +191,65 @@ def pipeline_info():
         'target="_blank" style="text-decoration:none;color:#5d5070;">z-brains.readthedocs.io</a>'
     )
     today_date = date.today().strftime("%B %d, %Y")
+
+    # Create a UUID-QR
+    tmp_dir='/home/bic/rcruces/Desktop'
+    uuid_generated = uuid_qr(tmp_dir, scale=5, border=0)
     
     # Table HTML
-    info_table = (
-        '<table style="border-collapse:collapse; font-family:gill sans, sans-serif; font-size:11px; ">'
-            '<tr>'
-                '<td style="padding:4px 8px;text-align:left;font-weight:bold;">Version</td>'
-                f'<td style="padding:4px 8px;text-align:left;">{version_badge}</td>'
-            '</tr>'
-            '<tr>'
-                '<td style="padding:4px 8px;text-align:left;font-weight:bold;">License</td>'
-                f'<td style="padding:4px 8px;text-align:left;">{license_badge} {license_link}</td>'
-            '</tr>'
-            '<tr>'
-                '<td style="padding:4px 8px;text-align:left;font-weight:bold;">GitHub</td>'
-                f'<td style="padding:4px 8px;text-align:left;">{github_link}</td>'
-            '</tr>'
-            '<tr>'
-                '<td style="padding:4px 8px;text-align:left;font-weight:bold;">Documentation</td>'
-                f'<td style="padding:4px 8px;text-align:left;">{docs_link}</td>'
-            '</tr>'
-            '<tr>'
-                '<td style="padding:4px 8px;text-align:left;font-weight:bold;">Date</td>'
-                f'<td style="padding:4px 8px;text-align:left;">{today_date}</td>'
-            '</tr>'
-            '<tr>'
-                '<td style="padding:4px 8px;text-align:left;font-weight:bold;">User</td>'
-                f'<td style="padding:4px 8px;text-align:left;">{user}</td>'
-            '</tr>'
-            '<tr>'
-                '<td style="padding:4px 8px;text-align:left;font-weight:bold;">Workstation</td>'
-                f'<td style="padding:4px 8px;text-align:left;">{workstation}</td>'
-            '</tr>'
-        '</table>'
-    )
+    info_table = f'''
+    <div style="display:flex; align-items:flex-start; font-family:gill sans, sans-serif; gap:40px;">
+    
+      <!-- Left: Info Table -->
+      <div>
+        <table style="border-collapse:collapse; font-size:11px;">
+          <tr>
+            <td style="padding:4px 8px;text-align:left;font-weight:bold;">Version</td>
+            <td style="padding:4px 8px;text-align:left;">{version_badge}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 8px;text-align:left;font-weight:bold;">License</td>
+            <td style="padding:4px 8px;text-align:left;">{license_badge} {license_link}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 8px;text-align:left;font-weight:bold;">GitHub</td>
+            <td style="padding:4px 8px;text-align:left;">{github_link}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 8px;text-align:left;font-weight:bold;">Documentation</td>
+            <td style="padding:4px 8px;text-align:left;">{docs_link}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 8px;text-align:left;font-weight:bold;">Date</td>
+            <td style="padding:4px 8px;text-align:left;">{today_date}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 8px;text-align:left;font-weight:bold;">User</td>
+            <td style="padding:4px 8px;text-align:left;">{user}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 8px;text-align:left;font-weight:bold;">Workstation</td>
+            <td style="padding:4px 8px;text-align:left;">{workstation}</td>
+          </tr>
+        </table>
+      </div>
+    
+      <!-- Right: QR Code Image -->
+      <div style="flex-shrink:0;">
+        <img src="{tmp_dir}/{uuid_generated}.png" alt="QR Code" style="width:150px; height:auto; border:1px solid #ccc;" />
+      </div>
+    
+    </div>
+    '''
+
     return info_table
+
+# Present: heavy checkmark U+2714
+# absent: cross mark U+274C
+# |                {feature}                | 
+# |-----------------------------------------|
+# |    cortex   | hippocampus |   subcortex |
+# | {ctx_check} | {hip_check} | {sub_check} |
 
 def controls_summary_html(df):    
     # --- Compute statistics ---
@@ -226,7 +276,12 @@ def controls_summary_html(df):
     ax.bar(age_bin_counts.index, age_bin_counts['F'], bottom=age_bin_counts['M'], color="#839192", label='F', width=0.9)
     ax.set_xlabel('Age')
     ax.set_ylabel('Count')
-    ax.legend()
+    
+    # Ensure legend order matches visual stack: F (top), M (bottom)
+    handles, labels = ax.get_legend_handles_labels()
+    ordered = dict(zip(labels, handles))
+    ax.legend([ordered['F'], ordered['M']], ['F', 'M'])
+
     plt.xticks(rotation=45)
     
     # Add vertical line at subject's age
@@ -341,7 +396,7 @@ report += pipeline_info()
 report += '<div style="page-break-after: always;"></div>'
 
 # CLOSE
-#report += "</html>"
+report += "</html>"
 
 
 # -----------------------------------------------------------------------------
