@@ -15,42 +15,72 @@ versions:
   freesurfer: None
 
 
-demographics_csv: /path/to/demographics.csv
-workbench_path: /path/to/workbench
-
 # configuration for the command-line parameters to make available
 # passed on the argparse add_argument()
 parse_args:
-  - ["--input-directory", {"help": "Path to input BIDS directory. Micapipe, Freesurfer, and HippUnfold should be found in the derivatives of this.", "required": True}]
-  - ["--demographics-csv", {"help": "Path to demographics CSV", "required": True}]
-  - ["--scoring-method", {"help": "Scoring method for analysis (zscore or wscore)", "choices": ["zscore", "wscore"], "default": "zscore"}]
+  --input-directory:
+    help: "Path to input BIDS directory. Micapipe, Freesurfer, and HippUnfold should be found in the derivatives of this."
+    required: true
+  --reference-demographics-csv:
+    help: "Path to reference demographics CSV"
+    required: true
+  --patient-demographics-csv:
+    help: "Path to patient demographics CSV"
+    required: true
+  --scoring_methods:
+    help: "Scoring method for analysis (zscore or wscore)"
+    choices: ["z", "w"]
+    default: "zscore"
 
-# Docker and singularity containers may be defined here
-containers:
-    # fsl: 'docker://brainlife/fsl/6.0.0'
+structures:
+  - cortex
+  - hippocampus
+  - subcortex
 
-# List of superficial white matter depths (in mm) for blurring
-sfwm_depths:
-  - 1.0
-  - 2.0
+scoring_methods:
+  - z
 
-# Features, hemispheres, smoothing levels, and scoring methods for workflow
-features:
-  - qT1
-  - FA
-  - ADC
-  - FLAIR
-  - thickness
-hemis:
-  - L
-  - R
 smoothings:
   cortex:
     - 5
   hippocampus:
     - 2
+  subcortex:
+    - NA
 
-# Add resolution parameters for cortex and hippocampus
+sfwm_depths:
+  - 1.0
+  - 2.0
+
+features:
+  - qT1
+  - FA
+  - ADC
+  - thickness
+features_to_blur:
+
+hemis:
+  cortex:
+    - L
+    - R
+  hippocampus:
+    - L
+    - R
+  subcortex:
+    - NA
+
 resolution:
   cortex: 32k
   hippocampus: 0p5mm
+  subcortex: NA
+
+report_params:
+  analyses: ["regional", "asymmetry"]
+  threshold: 1.96
+  threshold_alpha: 0.3
+  label_ctx: midthickness
+  label_hip: midthickness
+  color_bar: bottom
+  cmap: cmo.balance
+input_path: /data/mica3/BIDS_MICs
+pybids_inputs: {}

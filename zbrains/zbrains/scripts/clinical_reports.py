@@ -1,10 +1,9 @@
-import glob
 import uuid
 import logging
 import itertools
 from pathlib import Path
 import os
-from typing import List, Union, Tuple, Dict
+from typing import List, Union, Tuple
 import cmocean
 import numpy as np
 import pandas as pd
@@ -23,8 +22,7 @@ if (
 ) and platform.system() != "Windows":
     from pyvirtualdisplay import Display
 
-
-from .constants import (
+from src.constants import (
     LIST_ANALYSES,
     Analysis,
     Approach,
@@ -32,15 +30,12 @@ from .constants import (
     Structure,
     Feature,
 )
-from .utils_analysis import (
+from src.utils_analysis import (
     map_resolution,
     get_subject_dir,
     PathType,
 )
 import copy
-
-cmaps = cmocean.cm.cmap_d
-
 
 DATA_PATH = Path(__file__).resolve().parent.parent / "data"
 
@@ -1618,3 +1613,105 @@ def generate_clinical_report(
         if display_flag:
             display.stop()
             del display
+
+if __name__ == "__main__" or ("snakemake" in globals()):
+    try:
+        # Snakemake variables
+        snk = globals().get("snakemake", None)
+        if snk is None:
+            raise RuntimeError("This script must be run via Snakemake or as a module.")
+
+        # Extract input, output, params
+        input_files = snk.input
+        output_files = snk.output
+        params = snk.params
+
+        # Output PDF path
+        output_pdf = output_files["report"] if isinstance(output_files, dict) and "report" in output_files else output_files[0]
+
+        # Subject/session
+        subject = params.get("subject", None)
+        session = params.get("session", None)
+        output_dir = params.get("output_dir", None)
+        verbose = params.get("verbose", True)
+
+        # Demographics CSV (from input or config)
+        demographics_csv = input_files["demographics"] if isinstance(input_files, dict) and "demographics" in input_files else None
+
+        # Score files (all input score files)
+        score_files = input_files["score_files"] if isinstance(input_files, dict) and "score_files" in input_files else []
+
+        # Load config (from Snakefile or environment)
+        import yaml
+        import os
+        config_path = os.environ.get("ZBRAINS_CONFIG", os.path.join(os.path.dirname(__file__), "../config/snakebids.yml"))
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
+
+        # Report params from config
+        report_params = config.get("report_params", {})
+        analyses = report_params.get("analyses", ["regional", "asymmetry"])
+        threshold = report_params.get("threshold", 1.96)
+        threshold_alpha = report_params.get("threshold_alpha", 0.3)
+        label_ctx = report_params.get("label_ctx", "midthickness")
+        label_hip = report_params.get("label_hip", "midthickness")
+        color_bar = report_params.get("color_bar", "bottom")
+        cmap = report_params.get("cmap", "cmo.balance")
+        features = config.get("features", None)
+        smooth_ctx = config.get("smoothings", {}).get("cortex", [5])[0]
+        smooth_hip = config.get("smoothings", {}).get("hippocampus", [2])[0]
+        res_ctx = config.get("resolution", {}).get("cortex", "32k")
+        res_hip = config.get("resolution", {}).get("hippocampus", "0p5mm")
+
+        # Age/sex from demographics if available
+        age = None
+        sex = None
+        if demographics_csv and subject:
+            try:
+                df_demo = pd.read_csv(demographics_csv)
+                subj_row = df_demo[df_demo["ID"] == subject]
+                if not subj_row.empty:
+                    age = subj_row["age"].values[0] if "age" in subj_row else None
+                    sex = subj_row["sex"].values[0] if "sex" in subj_row else None
+            except Exception as e:
+                if verbose:
+                    print(f"Warning: could not extract age/sex from demographics: {e}")
+
+        # Call report generator
+        pdf_path = generate_clinical_report(
+            sid=subject,
+            ses=session,
+            age=age,
+            sex=sex,
+            analyses=analyses,
+            features=features,
+            approach="wscore",  # or from config/params if needed
+            threshold=threshold,
+            threshold_alpha=threshold_alpha,
+            smooth_ctx=smooth_ctx,
+            smooth_hip=smooth_hip,
+            res_ctx=res_ctx,
+            res_hip=res_hip,
+            label_ctx=label_ctx,
+            label_hip=label_hip,
+            color_bar=color_bar,
+            cmap=cmap,
+            color_range=(-3, 3),
+            output_dir=output_dir,
+            tag=f"sub-{subject}_ses-{session}_desc-clinicalreport" if session else f"sub-{subject}_desc-clinicalreport",
+            verbose=verbose
+        )
+
+        # Move or copy to output
+        import shutil
+        if pdf_path != output_pdf:
+            shutil.copyfile(pdf_path, output_pdf)
+        if verbose:
+            print(f"Clinical report generated: {output_pdf}")
+
+    except Exception as e:
+        import sys
+        print(f"[ERROR] Failed to generate clinical report: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)

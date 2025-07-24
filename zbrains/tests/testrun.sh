@@ -1,0 +1,1 @@
+python zbrains/zbrains/run.py /data/mica3/BIDS_MICs ./outputs participant --input_directory /data/mica3/BIDS_MICs --reference_demographics_csv /export03/data/z-brains/zbrains/tests/participants_mics_hc_test.csv --patient-demographics-csv /export03/data/z-brains/zbrains/tests/participants_mics_px_test.csv -np
