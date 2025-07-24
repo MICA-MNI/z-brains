@@ -261,44 +261,52 @@ def controls_summary_html(df):
     Fperc = 100 * Fnumber / Ntotal if Ntotal else 0
     Mperc = 100 * Mnumber / Ntotal if Ntotal else 0
 
-    # --- Stacked barchart (no box/blackline), 1.5x longer ---
-    bins = np.arange(df['age'].min()//5*5, df['age'].max()//5*5 + 10, 5)
-    labels = [f"{int(b)}-{int(b+4)}" for b in bins[:-1]]
+    # --- Bin and count ---
+    bins = np.arange(df['age'].min() // 5 * 5, df['age'].max() // 5 * 5 + 10, 5)
+    labels = [f"{int(b)}-{int(b + 4)}" for b in bins[:-1]]
     df['age_bin'] = pd.cut(df['age'], bins=bins, labels=labels, right=True, include_lowest=True)
     age_bin_counts = df.groupby(['age_bin', 'sex']).size().unstack(fill_value=0)
+    
+    # Ensure both columns exist
     for sex in ['M', 'F']:
         if sex not in age_bin_counts.columns:
             age_bin_counts[sex] = 0
     age_bin_counts = age_bin_counts[['M', 'F']]
-
-    fig, ax = plt.subplots(figsize=(6, 3), dpi=150)  # width increased from 4 to 6
+    
+    # --- Plot ---
+    fig, ax = plt.subplots(figsize=(6, 3), dpi=150)
     ax.bar(age_bin_counts.index, age_bin_counts['M'], color="#34495E", label='M', width=0.9)
     ax.bar(age_bin_counts.index, age_bin_counts['F'], bottom=age_bin_counts['M'], color="#839192", label='F', width=0.9)
+    
     ax.set_xlabel('Age')
     ax.set_ylabel('Count')
-    
-    # Ensure legend order matches visual stack: F (top), M (bottom)
-    handles, labels = ax.get_legend_handles_labels()
-    ordered = dict(zip(labels, handles))
-    ax.legend([ordered['F'], ordered['M']], ['F', 'M'])
-
     plt.xticks(rotation=45)
     
-    # Add vertical line at subject's age
+    # --- Vertical line at correct bin position ---
     try:
         subject_age = float(age)
         subject_bin = pd.cut([subject_age], bins=bins, labels=labels, right=True, include_lowest=True)[0]
         if pd.notna(subject_bin):
-            ax.axvline(x=subject_bin, color="#A93226", linestyle='-', linewidth=2, label="Subject Age")
-    except Exception:
-        pass
+            # Find the center x-position of the categorical bin
+            bin_index = labels.index(subject_bin)
+            x_tick_labels = list(age_bin_counts.index)
+            x_position = x_tick_labels.index(subject_bin)
+            ax.axvline(x=x_position, color="#A93226", linestyle='-', linewidth=2)  # no label
+    except Exception as e:
+        print("Error drawing subject age line:", e)
     
+    # --- Custom legend: Only F (top) and M ---
+    handles, labels_ = ax.get_legend_handles_labels()
+    label_order = ['F', 'M']  # only bars, no Subject Age
+    ordered_handles = [handles[labels_.index(lbl)] for lbl in label_order if lbl in labels_]
+    ax.legend(ordered_handles, label_order)
+    
+    # --- Clean up ---
     plt.tight_layout()
-    # Remove top and right spines (box lines)
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.spines['left'].set_visible(False)
-    ax.spines['bottom'].set_visible(False)
+    for spine in ['top', 'right', 'left', 'bottom']:
+        ax.spines[spine].set_visible(False)
+    
+    # --- Save to buffer as base64 PNG ---
     buf = io.BytesIO()
     plt.savefig(buf, format='png', bbox_inches='tight')
     plt.close(fig)
