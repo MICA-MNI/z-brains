@@ -202,9 +202,12 @@ rule generate_report:
             for structure in config['structures']
             for hemi in config['hemis'][structure]
             for method in config['scoring_method']
-        ]
+        ],
+        demographics_pat=config['patient_demographics_csv'],
     params:
         report_params=config['report_params'],
+        subject=lambda wc: wc.subject,
+        session=lambda wc: wc.session,
     output:
         f"{OUTPUT}/{{subject}}_{{session}}_clinical_report.pdf",
     script:

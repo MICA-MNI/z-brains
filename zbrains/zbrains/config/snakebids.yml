@@ -68,7 +68,7 @@ report_params:
   label_ctx: midthickness
   label_hip: midthickness
   color_bar: bottom
-  cmap: cmo.balance
+  cmap: bwr
 
 input_path: /data/mica3/BIDS_MICs
 pybids_inputs: {}
