@@ -20,29 +20,31 @@ parse_args:
   --patient-demographics-csv:
     help: "Path to patient demographics CSV"
     required: true
-  --scoring-methods:
+  --scoring-method:
     help: "Scoring method for analysis (e.g. zscore or wscore)"
     choices: ["zscore", "wscore"]
-    default: "zscore"
+    default: ["zscore"]
 
 structures:
   - cortex
   - hippocampus
   - subcortical
 
-scoring_methods:
-  - z
+scoring_method:
+  - zscore
 
 smoothings:
-  cortex:
-    - 5
-  hippocampus:
-    - 2
-  subcortical:
-    - NA
+  cortex: 5
+  hippocampus: 2
+  subcortical: NA
+
+resolution:
+  cortex: 32k
+  hippocampus: 0p5mm
+  subcortical: NA
 
 features:
-  - qT1
+  - T1map
   - FA
   - ADC
   - thickness
@@ -56,11 +58,6 @@ hemis:
     - R
   subcortical:
     - NA
-
-resolution:
-  cortex: 32k
-  hippocampus: 0p5mm
-  subcortical: NA
 
 report_params:
   analyses:
