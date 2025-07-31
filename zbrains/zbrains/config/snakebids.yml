@@ -23,15 +23,13 @@ parse_args:
   --scoring-method:
     help: "Scoring method for analysis (e.g. zscore or wscore)"
     choices: ["zscore", "wscore"]
-    default: ["zscore"]
+    default: ["wscore"]
 
 structures:
   - cortex
   - hippocampus
   - subcortical
 
-scoring_method:
-  - zscore
 
 smoothings:
   cortex: 5
@@ -62,11 +60,7 @@ hemis:
 report_params:
   analyses:
     - regional
-    - asymmetry
-  threshold: 1.96
-  threshold_alpha: 0.3
-  label_ctx: midthickness
-  label_hip: midthickness
+  threshold: 5
   color_bar: bottom
   cmap: bwr
 

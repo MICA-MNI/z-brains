@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import snakebids
+from pathlib import Path
 
 # Load config and generate BIDS inputs
 configfile: "zbrains/config/snakebids.yml"
@@ -14,6 +15,7 @@ config.update(
 # Read demographics tables
 px_demo_df  = pd.read_csv(config["patient_demographics_csv"])
 ref_demo_df = pd.read_csv(config["reference_demographics_csv"])
+ref_pkl = "refdata-" + Path(config["reference_demographics_csv"]).stem
 
 # Derivatives paths
 MICAPIPE_DIR   = os.path.join(config["input_path"], "derivatives", f"micapipe_v{config['versions']['micapipe']}")
@@ -159,42 +161,43 @@ rule subcortical_import:
              f"_den-NA_feature-{{feature}}_smooth-NAmm.func.gii"),
     script:
         "../scripts/subcortical_extract.py"
-# 5) cortical blurring
 
-
-# 6) Scoring
-rule scoring:
-    wildcard_constraints:
-        method = "|".join(config['scoring_method']),
+rule build_ref_mat:
     input:
-        data_file = (
+        giis = lambda wc: [
+            f"{OUTPUT}/{rid}_{ses}_hemi-{wc.hemi}_structure-{wc.structure}"
+            f"_den-{config['resolution'][wc.structure]}_feature-{wc.feature}"
+            f"_smooth-{config['smoothings'][wc.structure]}mm.func.gii"
+            for rid, ses in zip(ref_demo_df.ID, ref_demo_df.SES)
+        ]
+    output:
+        mat = f"{OUTPUT}/{ref_pkl}/refmat_structure-{{structure}}_feature-{{feature}}_hemi-{{hemi}}.pkl"
+    script:
+        "../scripts/build_ref_mat.py"
+
+rule scoring:
+    input:
+        data_file     = (
             f"{OUTPUT}/{{subject}}_{{session}}_hemi-{{hemi}}"
             f"_structure-{{structure}}_den-{{resolution}}"
             f"_feature-{{feature}}_smooth-{{smoothing}}mm.func.gii"
         ),
-        reference_data = lambda wc: [
-            f"{OUTPUT}/{rid}_{ses}_hemi-{hemi}_structure-{wc.structure}"
-            f"_den-{config['resolution'][wc.structure]}_feature-{wc.feature}"
-            f"_smooth-{config['smoothings'][wc.structure]}mm.func.gii"
-            for rid, ses in zip(ref_demo_df.ID, ref_demo_df.SES)
-            for hemi in config['hemis'][wc.structure]
-        ],
-        demographics_ref=config['reference_demographics_csv'],
-        demographics_pat=config['patient_demographics_csv'],
+        ref_mat       = f"{OUTPUT}/{ref_pkl}/refmat_structure-{{structure}}_feature-{{feature}}_hemi-{{hemi}}.pkl",
+        demographics_ref = config["reference_demographics_csv"],
+        demographics_pat = config["patient_demographics_csv"],
     output:
-        f"{OUTPUT}/{{subject}}_{{session}}_hemi-{{hemi}}_structure-{{structure}}"
+        f"{OUTPUT}/scores/{{subject}}_{{session}}_hemi-{{hemi}}_structure-{{structure}}"
         f"_den-{{resolution}}_feature-{{feature}}_smooth-{{smoothing}}mm_score-{{method}}.func.gii",
     params:
         method = lambda wc: wc.method,
-        normative_columns=['age','sex'], # could extend these in the future
+        normative_columns = ["AGE", "SEX"],
     script:
         "../scripts/scoring.py"
 
-# 6) Final PDF reports
 rule generate_report:
     input:
         score_files=lambda wc: [
-            f"{OUTPUT}/{rid}_{ses}_hemi-{hemi}_structure-{structure}"
+            f"{OUTPUT}/scores/{rid}_{ses}_hemi-{hemi}_structure-{structure}"
             f"_den-{config['resolution'][structure]}_feature-{feature}"
             f"_smooth-{config['smoothings'][structure]}mm_score-{method}.func.gii"
             for rid, ses in zip(px_demo_df.ID, px_demo_df.SES)
