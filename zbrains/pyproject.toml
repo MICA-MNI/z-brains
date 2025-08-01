@@ -1,0 +1,28 @@
+[project]
+name = "zbrains"
+version = "0.1.0"
+description = "compare a given MRI to normative data"
+readme = "README.md"
+
+authors = [
+    { name = "Jordan DeKraker", email = "jordandekraker@gmail.com" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+requires-python = ">=3.8,<4.0"
+dependencies = [
+    "snakebids >=0.14.0",
+    "snakemake>=7.20,<8; python_version < \"3.11\"",
+    "snakemake>=8.1.2; python_version >= \"3.11\"",
+    "pulp < 2.8.0; python_version < \"3.11\"",
+]
+
+[project.scripts]
+zbrains = "zbrains.run:app.run"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"

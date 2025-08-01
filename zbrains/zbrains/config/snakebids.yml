@@ -1,0 +1,76 @@
+analysis_levels:
+  - participant
+
+targets_by_analysis_level:
+  participant:
+    - all
+
+versions:
+  hippunfold: 1.3.0
+  micapipe: 0.2.0
+  freesurfer: null
+
+# these are exposed to the CLI
+parse_args: 
+  --input-directory:
+    help: "Path to input BIDS directory (with micapipe, freesurfer, hippunfold under derivatives)."
+    required: true
+  --reference-demographics-csv:
+    help: "Path to reference demographics CSV"
+    required: true
+  --patient-demographics-csv:
+    help: "Path to patient demographics CSV"
+    required: true
+  --scoring-method:
+    help: "Scoring method for analysis (e.g. zscore or wscore)"
+    choices: 
+      - zscore
+      - wscore
+      - asymmetry
+    default: 
+      - zscore
+      - asymmetry
+    nargs: '+'
+
+# these are not exposed to the CLI
+
+structures:
+  - cortex
+  - hippocampus
+  - subcortical
+
+smoothings:
+  cortex: 5
+  hippocampus: 2
+  subcortical: NA
+
+resolution:
+  cortex: 32k
+  hippocampus: 0p5mm
+  subcortical: NA
+
+features:
+  - T1map
+  - FA
+  - ADC
+  - thickness
+
+hemis:
+  cortex:
+    - L
+    - R
+  hippocampus:
+    - L
+    - R
+  subcortical:
+    - NA
+
+report_params:
+  analyses:
+    - regional
+  threshold: 5
+  color_bar: bottom
+  cmap: bwr
+
+input_path: /data/mica3/BIDS_MICs
+pybids_inputs: {}
