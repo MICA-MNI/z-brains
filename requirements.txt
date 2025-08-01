@@ -79,4 +79,5 @@ vtk==9.3.1
 wcwidth==0.2.13
 webencodings==0.5.1
 xhtml2pdf==0.2.17
-superficial-white-matter
+git+https://github.com/jordandekraker/hippomaps.git#egg=hippomaps
+git+https://github.com/y0ungeunii/superficial-white-matter.git#egg=superficial-white-matter

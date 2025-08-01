@@ -97,45 +97,56 @@ def main():
         f'<p><img src="{banner_path}" style="width:100%;"/></p>',
         f'<h1>Clinical Report: {subject} ({session}), Age: {age}, Sex: {sex}</h1>'
     ]
-    features   = sorted({Path(f).stem.split('_feature-')[1].split('_')[0] for f in score_files})
-    structures = ['cortex', 'subcortical', 'hippocampus']
+    features   = snakemake.params.features
+    structures = snakemake.params.structures
+    methods   = snakemake.params.methods
 
     for feat in features:
-        html.append(f'<h2>Feature: {feat}</h2>')
-        for struct in structures:
-            html.append(f'<h3>{struct.capitalize()}</h3>')
-            fl = [f for f in score_files if f'feature-{feat}' in f and f'structure-{struct}' in f]
-            if not fl:
-                html.append('<p style="color:orange;">Missing data</p>')
-                continue
-
-            if struct == 'cortex':
-                lh = [x for x in fl if 'hemi-L' in x]
-                rh = [x for x in fl if 'hemi-R' in x]
-                dl = np.stack([nib.load(x).darrays[0].data for x in lh]).mean(0)
-                dr = np.stack([nib.load(x).darrays[0].data for x in rh]).mean(0)
-                # apply threshold
-                png = plot_cortex(dl, dr, output_pdf.with_suffix(f'.cortex.{feat}.png'))
-
-            elif struct == 'subcortical':
-                dna = nib.load(fl[0]).darrays[0].data
-                # apply threshold
-                png = plot_subcortical(dna, output_pdf.with_suffix(f'.subcortical.{feat}.png'))
-
-            else:
-                lh = [x for x in fl if 'hemi-L' in x]
-                rh = [x for x in fl if 'hemi-R' in x]
-                dl = np.stack([nib.load(x).darrays[0].data for x in lh]).mean(0)
-                dr = np.stack([nib.load(x).darrays[0].data for x in rh]).mean(0)
-                # apply threshold
-                png = plot_hippocampus(dl, dr, output_pdf.with_suffix(f'.hippocampus.{feat}.png'))
-
+        for meth in methods:
             html.append(
-                f'<div style="text-align:center;">'
-                  f'<img src="{png.name}" />'
-                f'</div>'
+                f'<div style="width:100%; '
+                'background-color:#f0f0f0; '
+                'text-align:center; '
+                'padding:10px 0;">'
+                f'<h2 style="margin:0;">'
+                    f'Feature: {feat} | Scoring method: {meth}'
+                '</h2>'
+                '</div>'
             )
-        html.append('<div style="page-break-after:always;"></div>')
+            for struct in structures:
+                html.append(f'<h3>{struct.capitalize()}</h3>')
+                fl = [f for f in score_files if f'feature-{feat}' in f and f'structure-{struct}' in f and f'score-{meth}' in f]
+                if not fl:
+                    html.append('<p style="color:orange;">Missing data</p>')
+                    continue
+
+                if struct == 'cortex':
+                    lh = [x for x in fl if 'hemi-L' in x]
+                    rh = [x for x in fl if 'hemi-R' in x]
+                    dl = np.stack([nib.load(x).darrays[0].data for x in lh]).mean(0)
+                    dr = np.stack([nib.load(x).darrays[0].data for x in rh]).mean(0)
+                    # apply threshold
+                    png = plot_cortex(dl, dr, output_pdf.with_suffix(f'.cortex.{feat}.png'))
+
+                elif struct == 'subcortical':
+                    dna = nib.load(fl[0]).darrays[0].data
+                    # apply threshold
+                    png = plot_subcortical(dna, output_pdf.with_suffix(f'.subcortical.{feat}.png'))
+
+                else:
+                    lh = [x for x in fl if 'hemi-L' in x]
+                    rh = [x for x in fl if 'hemi-R' in x]
+                    dl = np.stack([nib.load(x).darrays[0].data for x in lh]).mean(0)
+                    dr = np.stack([nib.load(x).darrays[0].data for x in rh]).mean(0)
+                    # apply threshold
+                    png = plot_hippocampus(dl, dr, output_pdf.with_suffix(f'.hippocampus.{feat}.png'))
+
+                html.append(
+                    f'<div style="text-align:center;">'
+                    f'<img src="{png.name}" />'
+                    f'</div>'
+                )
+            html.append('<div style="page-break-after:always;"></div>')
 
     with open(output_pdf, 'w+b') as f:
         pisa.CreatePDF(''.join(html), dest=f)

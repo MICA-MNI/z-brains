@@ -10,7 +10,8 @@ versions:
   micapipe: 0.2.0
   freesurfer: null
 
-parse_args:
+# these are exposed to the CLI
+parse_args: 
   --input-directory:
     help: "Path to input BIDS directory (with micapipe, freesurfer, hippunfold under derivatives)."
     required: true
@@ -22,14 +23,21 @@ parse_args:
     required: true
   --scoring-method:
     help: "Scoring method for analysis (e.g. zscore or wscore)"
-    choices: ["zscore", "wscore"]
-    default: ["wscore"]
+    choices: 
+      - zscore
+      - wscore
+      - asymmetry
+    default: 
+      - zscore
+      - asymmetry
+    nargs: '+'
+
+# these are not exposed to the CLI
 
 structures:
   - cortex
   - hippocampus
   - subcortical
-
 
 smoothings:
   cortex: 5

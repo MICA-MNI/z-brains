@@ -31,8 +31,8 @@ OUTPUT = config["output_dir"]
 
 # Generate report targets from patient demographics
 report_targets = [
-    f"{OUTPUT}/{subj}_{sess}_clinical_report.pdf"
-    for subj, sess in zip(
+    f"{OUTPUT}/{subject}_{session}_clinical_report.pdf"
+    for subject, session in zip(
         px_demo_df["ID"].tolist(),
         px_demo_df["SES"].tolist()
     )
@@ -41,7 +41,6 @@ report_targets = [
 rule all:
     input: report_targets
 
-# 1) Thickness smoothing (cortex & hippocampus)
 rule smooth_thickness:
     wildcard_constraints:
         structure="cortex|hippocampus",
@@ -74,7 +73,6 @@ rule smooth_thickness:
         wb_command -metric-smoothing {input.surf} {input.raw_thickness} {params.smoothing} {output}
         """
 
-# 2) Cortex: any feature → metric‑smoothing
 rule cortical_import:
     wildcard_constraints:
         feature="(?!thickness).+",
@@ -99,7 +97,6 @@ rule cortical_import:
         wb_command -metric-smoothing {input.surf_file} {input.feature_file} {params.smoothing} {output}
         """
 
-# 3) Hippocampus: volume→surface + smoothing
 rule hippocampal_import:
     wildcard_constraints:
         feature="(?!thickness).+",
@@ -131,7 +128,6 @@ rule hippocampal_import:
         rm -f {params.tmp}
         """
 
-# 4) Subcortical → func.gii
 rule subcortical_import:
     wildcard_constraints:
         feature = "(FA|ADC|T1map|volume|thickness)",
@@ -176,6 +172,8 @@ rule build_ref_mat:
         "../scripts/build_ref_mat.py"
 
 rule scoring:
+    wildcard_constraints:
+        method = "(zscore|wscore)",
     input:
         data_file     = (
             f"{OUTPUT}/{{subject}}_{{session}}_hemi-{{hemi}}"
@@ -194,13 +192,47 @@ rule scoring:
     script:
         "../scripts/scoring.py"
 
+rule asymmetry:
+    wildcard_constraints:
+        structure = "(cortex|hippocampus)",
+    input:
+        left_file=(
+            f"{OUTPUT}/{{subject}}_{{session}}_hemi-L"
+            f"_structure-{{structure}}_den-{{resolution}}"
+            f"_feature-{{feature}}_smooth-{{smoothing}}mm.func.gii"
+        ),
+        right_file=(
+            f"{OUTPUT}/{{subject}}_{{session}}_hemi-R"
+            f"_structure-{{structure}}_den-{{resolution}}"
+            f"_feature-{{feature}}_smooth-{{smoothing}}mm.func.gii"
+        ),
+    output:
+        left_file = f"{OUTPUT}/scores/{{subject}}_{{session}}_hemi-L_structure-{{structure}}"
+        f"_den-{{resolution}}_feature-{{feature}}_smooth-{{smoothing}}mm_score-asymmetry.func.gii",
+        right_file = f"{OUTPUT}/scores/{{subject}}_{{session}}_hemi-R_structure-{{structure}}"
+        f"_den-{{resolution}}_feature-{{feature}}_smooth-{{smoothing}}mm_score-asymmetry.func.gii",
+    shell:
+        """
+        wb_command -metric-math "A - B" {output.left_file} -var A {input.left_file} -var B {input.right_file} 
+        wb_command -metric-math "B - A" {output.right_file} -var A {input.left_file} -var B {input.right_file} 
+        """
+
+rule asymmetry_subcortical:
+    input:
+        f"{OUTPUT}/{{subject}}_{{session}}_hemi-NA_structure-subcortical_den-NA_feature-{{feature}}_smooth-NAmm.func.gii"
+    output:
+        f"{OUTPUT}/scores/{{subject}}_{{session}}_hemi-NA_structure-subcortical_den-NA_feature-{{feature}}_smooth-NAmm_score-asymmetry.func.gii",
+    shell:
+        """
+        cp {input} {output} # NOTE : This is a placeholder for actual asymmetry calculation.
+        """
+
 rule generate_report:
     input:
-        score_files=lambda wc: [
-            f"{OUTPUT}/scores/{rid}_{ses}_hemi-{hemi}_structure-{structure}"
+        score_files=[
+            f"{OUTPUT}/scores/{{subject}}_{{session}}_hemi-{hemi}_structure-{structure}"
             f"_den-{config['resolution'][structure]}_feature-{feature}"
             f"_smooth-{config['smoothings'][structure]}mm_score-{method}.func.gii"
-            for rid, ses in zip(px_demo_df.ID, px_demo_df.SES)
             for feature in config['features']
             for structure in config['structures']
             for hemi in config['hemis'][structure]
@@ -209,6 +241,9 @@ rule generate_report:
         demographics_pat=config['patient_demographics_csv'],
     params:
         report_params=config['report_params'],
+        structures = config['structures'],
+        features = config['features'],
+        methods = config['scoring_method'],
         subject=lambda wc: wc.subject,
         session=lambda wc: wc.session,
     output:
