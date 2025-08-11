@@ -2,7 +2,9 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import io
+import re
 import os
+import glob
 import base64
 from datetime import date
 from typing import List, Union, Optional
@@ -23,8 +25,8 @@ except NameError:
     DATA_PATH = "/host/yeatman/local_raid/rcruces/git_here/z-brains/data"
     
 Analysis="Regional"
-sid="XX00"
-ses="00" 
+sid="HC062"
+ses="01" 
 age="37" 
 sex="N"
 analysis=Analysis
@@ -33,6 +35,103 @@ df = pd.DataFrame({
     'age': np.random.normal(loc=30, scale=10, size=500).clip(0, 90)
 })
 PathType = "/tmp"
+ZBRAINS_DIR="/data/mica3/BIDS_MICs/derivatives/zbrains_ianjudy_test"
+
+def features_table(sid, ses, ZBRAINS_DIR):
+    def extract_features_from_glob(pattern):
+        feature_pattern = re.compile(r'feature-([a-zA-Z0-9]+)')
+        features = []
+    
+        for file_path in glob.glob(pattern):
+            if os.path.isfile(file_path):
+                # Get just the base filename
+                base_name = os.path.basename(file_path).split('.')[0]
+    
+                # Extract the feature using regex
+                match = feature_pattern.search(base_name)
+                if match:
+                    features.append(match.group(1))
+    
+        return sorted(set(features))
+    
+    # Function to check both hemispheres
+    def both_hemispheres_exist(base_path_fn, feature):
+        return all(os.path.isfile(base_path_fn(hemi, feature)) for hemi in ["L", "R"])
+    
+    # Path generators
+    def cortex_path(hemi, feature):
+        return f"{ZBRAINS_DIR}/sub-{sid}/ses-{ses}/maps/cortex/sub-{sid}_ses-{ses}_hemi-{hemi}_surf-fsLR-32k_label-midthickness_feature-{feature}_smooth-10mm.func.gii"
+    
+    def hippocampus_path(hemi, feature):
+        return f"{ZBRAINS_DIR}/sub-{sid}/ses-{ses}/maps/hippocampus/sub-{sid}_ses-{ses}_hemi-{hemi}_den-0p5mm_label-midthickness_feature-{feature}_smooth-5mm.func.gii"
+    
+    def subcortex_path(feature):
+        sub_feature = "volume" if feature == "thickness" else feature
+        return f"{ZBRAINS_DIR}/sub-{sid}/ses-{ses}/maps/subcortex/sub-{sid}_ses-{ses}_feature-{sub_feature}.csv"
+    
+    # Generate HTML table
+    html = """
+    <style>
+        table.features {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: "Gill Sans", sans-serif;
+            font-size: 14px;
+        }
+        table.features th {
+            background-color: #e3d7f4;
+            color: #505050;
+            padding: 8px;
+            text-align: center;
+        }
+        table.features td {
+            padding: 8px;
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+        table.features tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        table.features tr:hover {
+            background-color: #e0f7fa;
+        }
+    </style>
+
+    <table class="features">
+        <thead>
+            <tr>
+                <th>Feature</th>
+                <th>Cortex</th>
+                <th>Hippocampus</th>
+                <th>Subcortex</th>
+            </tr>
+        </thead>
+        <tbody>
+    """
+    
+    # Get all features
+    all_features = extract_features_from_glob(f'{ZBRAINS_DIR}/sub-{sid}/ses-{ses}/maps/*/*')
+    
+    CHECK = "✔️"
+    CROSS = "❌"
+    
+    for feature in sorted(all_features):
+        ctx_check = CHECK if both_hemispheres_exist(cortex_path, feature) else CROSS
+        hip_check = CHECK if both_hemispheres_exist(hippocampus_path, feature) else CROSS
+        sub_check = CHECK if os.path.isfile(subcortex_path(feature)) else CROSS
+    
+        html += f"""
+        <tr>
+            <td>{feature}</td>
+            <td>{ctx_check}</td>
+            <td>{hip_check}</td>
+            <td>{sub_check}</td>
+        </tr>
+        """
+    
+    html += "</table>"
+    
+    return(html)
 
 # -----------------------------------------------------------------------------
 # Functions
@@ -244,12 +343,7 @@ def pipeline_info():
 
     return info_table
 
-# Present: heavy checkmark U+2714
-# absent: cross mark U+274C
-# |                {feature}                | 
-# |-----------------------------------------|
-# |    cortex   | hippocampus |   subcortex |
-# | {ctx_check} | {hip_check} | {sub_check} |
+
 
 def controls_summary_html(df):    
     # --- Compute statistics ---
@@ -274,7 +368,7 @@ def controls_summary_html(df):
     age_bin_counts = age_bin_counts[['M', 'F']]
     
     # --- Plot ---
-    fig, ax = plt.subplots(figsize=(6, 3), dpi=150)
+    fig, ax = plt.subplots(figsize=(5, 2), dpi=150)
     ax.bar(age_bin_counts.index, age_bin_counts['M'], color="#34495E", label='M', width=0.9)
     ax.bar(age_bin_counts.index, age_bin_counts['F'], bottom=age_bin_counts['M'], color="#839192", label='F', width=0.9)
     
@@ -288,7 +382,7 @@ def controls_summary_html(df):
         subject_bin = pd.cut([subject_age], bins=bins, labels=labels, right=True, include_lowest=True)[0]
         if pd.notna(subject_bin):
             # Find the center x-position of the categorical bin
-            bin_index = labels.index(subject_bin)
+            #bin_index = labels.index(subject_bin)
             x_tick_labels = list(age_bin_counts.index)
             x_position = x_tick_labels.index(subject_bin)
             ax.axvline(x=x_position, color="#A93226", linestyle='-', linewidth=2)  # no label
@@ -383,12 +477,12 @@ report = report_header_template(
                 age=age, 
                 sex=sex, 
                 analysis=analysis,
-                title=f"Clinical Report</b> "
+                title=f"Clinical Report</b>"
             )
 
 # SUBTITLE section: Control database
 report += feature_header_template(align="left", info="Subject feature data", size=14)
-
+report += features_table(sid, ses, ZBRAINS_DIR)
         
 # SUBTITLE section: Control database
 report += feature_header_template(align="left", info="Control database", size=14)
