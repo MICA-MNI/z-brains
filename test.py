@@ -1,7 +1,7 @@
-from src.dataset import zbdataset, demographics
-from src.environment import zbenv
+from zbrains.dataset import zbdataset, demographics
+from zbrains.environment import zbenv
 
-features = ["FA", "ADC", "thickness", "qT1", "qT1-blur", "FLAIR", "FLAIR-blur"]
+features = ["FA", "ADC", "thickness", "qT1", "qT1*Blur", "FLAIR", "FLAIR*Blur"]
 
 env = zbenv(connectome_workbench_path="/usr/bin/", num_threads=4, num_threads_wb=8)
 
@@ -17,12 +17,12 @@ control_dataset = zbdataset("controls",
                     subcortical=True,
                     )
 
-# control_dataset.process(output_directory="/host/verges/tank/data/ian/zbrains_outputs", 
-#                         features=features, 
-#                         cortical_smoothing=10, 
-#                         hippocampal_smoothing=5, 
-#                         env=env, 
-#                         verbose=True)
+control_dataset.process(output_directory="/host/verges/tank/data/ian/zbrains_outputs", 
+                        features=features, 
+                        cortical_smoothing=10, 
+                        hippocampal_smoothing=5, 
+                        env=env, 
+                        verbose=True)
 
 control_dataset.validate(output_directory="/host/verges/tank/data/ian/zbrains_outputs", 
                          features=features, 
@@ -41,12 +41,12 @@ patient_dataset = zbdataset("patients",
                     subcortical=True,
                     )
 
-# patient_dataset.process(output_directory="/host/verges/tank/data/ian/zbrains_outputs", 
-#                         features=features, 
-#                         cortical_smoothing=10, 
-#                         hippocampal_smoothing=5, 
-#                         env=env, 
-#                         verbose=True)
+patient_dataset.process(output_directory="/host/verges/tank/data/ian/zbrains_outputs", 
+                        features=features, 
+                        cortical_smoothing=10, 
+                        hippocampal_smoothing=5, 
+                        env=env, 
+                        verbose=True)
 
 
 patient_dataset.validate(output_directory="/host/verges/tank/data/ian/zbrains_outputs", 

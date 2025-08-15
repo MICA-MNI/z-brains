@@ -11,3 +11,4 @@ run.*
 /run.bat
 *.csv
 /data/
+/build/

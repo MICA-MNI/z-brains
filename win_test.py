@@ -1,5 +1,5 @@
-from src.dataset import zbdataset, demographics
-from src.environment import zbenv
+from zbrains.dataset import zbdataset, demographics
+from zbrains.environment import zbenv
 import os
 import tempfile
 
