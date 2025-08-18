@@ -3,6 +3,7 @@ import sys
 import datetime
 from zbrains.processing import apply_blurring, apply_hippocampal_processing, apply_subcortical_processing, apply_cortical_processing
 from zbrains.analysis import analyze_dataset
+from zbrains.clinical_reports import generate_clinical_report
 import shutil
 import multiprocessing
 from joblib import Parallel, delayed
@@ -1260,7 +1261,6 @@ class zbdataset():
         dict
             Dictionary containing analysis results for each feature and region
         """
-        from src.analysis import analyze_dataset
 
         # Call the analysis function and store results
         results = analyze_dataset(self, reference, method, output_directory, verbose)
@@ -1307,7 +1307,7 @@ class zbdataset():
         list
             List of generated PDF report file paths
         """
-        from src.clinical_reports import generate_clinical_report
+
         if env == None:
             raise ValueError("env must be specified to access workbench and other paths")
 

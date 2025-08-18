@@ -808,9 +808,6 @@ def apply_cortical_processing(
     verbose : bool, default=True
         Print detailed information during processing
     """
-    import numpy as np
-    import nibabel as nib
-    from src.utils import reshape_distances
     
     # Path to standard sphere templates
     data_dir = "data"

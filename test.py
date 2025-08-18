@@ -3,7 +3,7 @@ from zbrains.environment import zbenv
 
 features = ["FA", "ADC", "thickness", "qT1", "qT1*Blur", "FLAIR", "FLAIR*Blur"]
 
-env = zbenv(connectome_workbench_path="/usr/bin/", num_threads=4, num_threads_wb=8)
+env = zbenv(connectome_workbench_path="/usr/bin/", num_threads=16, num_threads_wb=4)
 
 control = demographics("data/participants_mics_hc_all.csv", normative_columns=["AGE", "SEX"], normative_dtypes=["int", "binary"])
 
