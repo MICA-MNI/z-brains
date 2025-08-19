@@ -272,7 +272,6 @@ zbrains_output/
 ### Required Software
 - **Connectome Workbench** (`wb_command`) - For surface processing
 - **Python 3.8+** - Runtime environment
-- **FreeSurfer** - For cortical thickness (if using thickness feature)
 
 ### Installation Check
 ```bash
@@ -317,17 +316,6 @@ zbrains --features FA thickness \
 # Monitor progress
 tail -f debug.log
 ```
-
-## Performance Guidelines
-
-### Recommended Settings
-
-| System Type | Threads | WB Threads | Cortical Smoothing | Hippocampal Smoothing |
-|-------------|---------|------------|-------------------|----------------------|
-| Desktop (8 cores) | 4-6 | 2 | 10 | 5 |
-| Workstation (16+ cores) | 8-16 | 4 | 10 | 5 |
-| HPC Cluster | 16-32 | 4-8 | 10 | 5 |
-
 ### Important Notes
 - **Control dataset must be processed successfully before patient analysis**
 - Missing data is handled gracefully - subjects with incomplete data are skipped
@@ -357,64 +345,6 @@ zbrains --features FA ADC thickness \
         --log-file zbrains_${SLURM_JOB_ID}.log
 ```
 
-### Multiple Datasets
-```bash
-# Process different feature sets
-for features in "FA ADC" "thickness" "qT1 FLAIR"; do
-    zbrains --features $features \
-            --control-demographics controls.csv \
-            --patient-demographics patients.csv \
-            --micapipe-dir /data/micapipe \
-            --hippunfold-dir /data/hippunfold \
-            --freesurfer-dir /data/freesurfer \
-            --wb-path wb_command \
-            --output-dir results_$(echo $features | tr ' ' '_')
-done
-```
-
-## Reproducibility
-
-### Record Environment
-```bash
-# Save exact versions
-pip freeze > requirements.lock.txt
-git rev-parse HEAD > commit.txt
-zbrains --version > version.txt
-
-# Save command used
-echo "zbrains --features FA thickness ..." > command.txt
-```
-
-### Data Validation
-```bash
-# Check input data integrity
-ls -la /data/micapipe/sub-*/ses-*/
-head -5 controls.csv patients.csv
-
-# Verify demographics columns
-python -c "
-import pandas as pd
-df = pd.read_csv('controls.csv')
-print('Columns:', df.columns.tolist())
-print('Required columns present:', all(col in df.columns for col in ['participant_id', 'session_id', 'AGE', 'SEX']))
-"
-```
-
-## Migration from test.py
-
-If you have an existing `test.py` script using the Python API:
-
-**Old API (test.py):**
-```python
-from zbrains.dataset import zbdataset, demographics
-from zbrains.environment import zbenv
-
-features = ["FA", "ADC", "thickness"]
-env = zbenv(threads=4, wb_path="wb_command")
-control_demo = demographics("controls.csv")
-control_dataset = zbdataset("controls", control_demo, ...)
-# ... manual processing steps
-```
 
 **New CLI equivalent:**
 ```bash
