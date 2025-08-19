@@ -1250,7 +1250,7 @@ class zbdataset():
         reference : zbdataset
             Reference dataset to compare against (e.g., control dataset)
         method : str, default='zscore'
-            Analysis method to use. Currently supports 'zscore'
+            Analysis method to use. Currently supports 'zscore'and 'wscore'
         output_directory : str, optional
             Directory where z-score maps will be saved. If None, uses validation output directory
         verbose : bool, default=True

@@ -49,7 +49,7 @@ import copy
 cmaps = cmocean.cm.cmap_d
 
 
-DATA_PATH = Path(__file__).resolve().parent.parent / "data"
+DATA_PATH = Path(__file__).resolve().parent / "data"
 
 def uuid_qr(qr_path="/tmp", scale=5, border=0):
     """Generate a UUID-based QR code for report tracking."""
@@ -1975,83 +1975,125 @@ def generate_clinical_report(
         # If there's an error creating the first page, log it but continue with analysis
         logger.warning(f"Error generating first page: {e}")
 
+    # Function to check if files exist for a given feature/analysis combination
+    def check_feature_exists(feat, analysis):
+        """Check if required files exist for a feature/analysis combination"""
+        feat_sctx = "volume" if feat == "thickness" else feat
+        
+        # Check cortex files
+        res_mapped = "32k" if res_ctx == "high" else "5k"
+        file_ctx_lh = os.path.join(
+            path_analysis, "cortex",
+            f"{bids_id}_hemi-L_surf-fsLR-{res_mapped}_label-{label_ctx}_feature-{feat}_smooth-{smooth_ctx}mm_analysis-{analysis}.func.gii"
+        )
+        
+        # Check hippocampus files
+        res_mapped = "0p5" if res_hip == "high" else "1p0"
+        file_hip_lh = os.path.join(
+            path_analysis, "hippocampus",
+            f"{sid}_{ses}_hemi-L_den-{res_mapped}mm_label-hipp_{label_hip}_feature-{feat}_smooth-{smooth_hip}mm_analysis-{analysis}.func.gii"
+        )
+        
+        # Check subcortical files
+        file_sctx = os.path.join(
+            path_analysis, "subcortical",
+            f"{bids_id}_feature-{feat_sctx}_analysis-{analysis}.csv"
+        )
+        
+        # Return True if at least one structure has data for this feature/analysis
+        return (os.path.exists(file_ctx_lh) or 
+                os.path.exists(file_hip_lh) or 
+                os.path.exists(file_sctx))
+    
+    # Filter out features/analyses combinations that don't have any data
+    valid_combinations = []
+    for analysis, feat in itertools.product(analyses, features):
+        if check_feature_exists(feat, analysis):
+            valid_combinations.append((analysis, feat))
+        elif verbose:
+            logger.info(f"Skipping {analysis}/{feat} - no data files found")
+    
+    if not valid_combinations:
+        raise ValueError("No valid feature/analysis combinations found with existing data files")
+
     try:
-        # Process each analysis and feature combination
-        for analysis, feat, thresh in itertools.product(analyses, features, [None, threshold]):
-            if thresh is None and verbose:
-                logger.info(f"Generating report for analysis={analysis}, approach={approach}, feature={feat}")
-            
-            # Handle feature name for subcortical (volume instead of thickness)
-            if isinstance(feat, list):
-                feat_sctx = ["volume" if f == "thickness" else f for f in feat]
-            else:
-                feat_sctx = "volume" if feat == "thickness" else feat
-            
-            # Generate report header
-            report += report_header_template(
-                sid=sid, 
-                ses=ses, 
-                age=age, 
-                sex=sex, 
-                analysis=analysis
-            )
-            
-            # Generate feature header
-            extra = "" if thresh is None else f"| Threshold: {thresh}"
-            report += feature_header_template(feat, extra=extra)
-            
-            # Common kwargs for report generation
-            kwds = dict(
-                path_analysis=path_analysis,
-                sid=sid,
-                ses=ses,
-                analysis=analysis,
-                approach=approach,
-                thr=thresh,
-                thr_alpha=threshold_alpha,
-                color_range=color_range,
-                cmap=cmap_asymmetry if analysis == "asymmetry" else cmap,
-                color_bar=color_bar,
-                tmp_dir=tmp_dir,
-                subject_dir=subject_dir,
-            )
-            
-            # Generate cortical report section
-            report += report_struct(
-                struct="cortex",
-                feat=feat,
-                res=res_ctx,
-                label=label_ctx,
-                smooth=smooth_ctx,
-                feature_means=feature_means,
-                env=env,
-                **kwds,
-            )
-            
-            # Generate subcortical report section
-            report += report_struct(
-                struct="subcortex", 
-                feat=feat_sctx, 
-                feature_means=feature_means,
-                **kwds
-            )
-            
-            # Generate hippocampal report section
-            report += report_struct(
-                struct="hippocampus",
-                feat=feat,
-                res=res_hip,
-                label=label_hip,
-                smooth=smooth_hip,
-                feature_means=feature_means,
-                **kwds,
-            )
-            
-            # Add color legend
-            report += report_colors(analysis=analysis)
-            
-            # Add page break
-            report += '<div style="page-break-after: always;"></div>'
+        # Process each valid analysis and feature combination
+        for analysis, feat in valid_combinations:
+            for thresh in [None, threshold]:
+                if thresh is None and verbose:
+                    logger.info(f"Generating report for analysis={analysis}, approach={approach}, feature={feat}")
+                
+                # Handle feature name for subcortical (volume instead of thickness)
+                if isinstance(feat, list):
+                    feat_sctx = ["volume" if f == "thickness" else f for f in feat]
+                else:
+                    feat_sctx = "volume" if feat == "thickness" else feat
+                
+                # Generate report header
+                report += report_header_template(
+                    sid=sid, 
+                    ses=ses, 
+                    age=age, 
+                    sex=sex, 
+                    analysis=analysis
+                )
+                
+                # Generate feature header
+                extra = "" if thresh is None else f"| Threshold: {thresh}"
+                report += feature_header_template(feat, extra=extra)
+                
+                # Common kwargs for report generation
+                kwds = dict(
+                    path_analysis=path_analysis,
+                    sid=sid,
+                    ses=ses,
+                    analysis=analysis,
+                    approach=approach,
+                    thr=thresh,
+                    thr_alpha=threshold_alpha,
+                    color_range=color_range,
+                    cmap=cmap_asymmetry if analysis == "asymmetry" else cmap,
+                    color_bar=color_bar,
+                    tmp_dir=tmp_dir,
+                    subject_dir=subject_dir,
+                )
+                
+                # Generate cortical report section
+                report += report_struct(
+                    struct="cortex",
+                    feat=feat,
+                    res=res_ctx,
+                    label=label_ctx,
+                    smooth=smooth_ctx,
+                    feature_means=feature_means,
+                    env=env,
+                    **kwds,
+                )
+                
+                # Generate subcortical report section
+                report += report_struct(
+                    struct="subcortex", 
+                    feat=feat_sctx, 
+                    feature_means=feature_means,
+                    **kwds
+                )
+                
+                # Generate hippocampal report section
+                report += report_struct(
+                    struct="hippocampus",
+                    feat=feat,
+                    res=res_hip,
+                    label=label_hip,
+                    smooth=smooth_hip,
+                    feature_means=feature_means,
+                    **kwds,
+                )
+                
+                # Add color legend
+                report += report_colors(analysis=analysis)
+                
+                # Add page break
+                report += '<div style="page-break-after: always;"></div>'
         
         # Generate output filename
         if output_dir and tag:
