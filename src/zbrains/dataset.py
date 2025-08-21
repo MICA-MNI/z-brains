@@ -1427,7 +1427,8 @@ class zbdataset():
                     env=env,
                     verbose=verbose,
                     control_data=self.reference_demographics,
-                    valid_subjects=self.valid_subjects
+                    valid_subjects=self.valid_subjects,
+                    sex_encoding=self.demographics.binary_encodings
                 )
                 
                 generated_reports.append(report_path)
