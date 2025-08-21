@@ -1,7 +1,6 @@
 .idea/
 __pycache__/
 .vscode/
-run.*
 *.pyc
 *.pyo
 *.bat
@@ -14,8 +13,6 @@ run.*
 /build/
 # Python bytecode
 __pycache__/
-*.py[cod]
-*$py.class
 
 # Distribution / packaging
 dist/
