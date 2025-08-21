@@ -147,7 +147,7 @@ class demographics():
                             
                             # Store the encoding for future reference
                             self.binary_encodings[col] = value_to_binary
-                            
+            
                             # Apply encoding
                             self.data[col] = self.data[col].astype(str).str.lower().map(value_to_binary)
                     
@@ -284,27 +284,46 @@ class zbdataset():
         """
         
         self.check_directories()
+        
+        # Standardize feature names consistently - apply mapping first
         feature_mapping = {
             "fa": "FA",
-            "adc": "ADC",
+            "adc": "ADC", 
             "thickness": "thickness",
             "flair": "FLAIR",
             "qt1": "qT1",
             "qt1*blur": "qT1*blur",
             "flair*blur": "FLAIR*blur",
         }
-        features = [feature_mapping.get(f.lower(), f) for f in features]   
-        self.features = features
+        
+        # Normalize all features to consistent case
+        normalized_features = []
+        for feature in features:
+            # Convert to lowercase for mapping lookup
+            feature_lower = str(feature).lower()
+            
+            # Apply mapping to get standardized case
+            if feature_lower in feature_mapping:
+                normalized_features.append(feature_mapping[feature_lower])
+            else:
+                # For unknown features, keep original case but warn user
+                normalized_features.append(str(feature))
+                if verbose:
+                    print(f"Warning: Unknown feature '{feature}' - using as provided")
+        
+        # Store the normalized features
+        self.features = normalized_features
+        
         if verbose:
             print(f"Features {self.features} added to the dataset {self.name}.")
         
-        # Define file patterns for each feature
+        # Define file patterns for each feature (using standardized names)
         feature_files = {
             "FA": ["maps/{participant_id}_{session_id}_hemi-{hemi}_surf-fsLR-32k_label-{surfacetype}_FA.func.gii",
-                   "maps/{participant_id}_{session_id}_space-nativepro_model-DTI_map-FA.nii.gz",],
+                   "maps/{participant_id}_{session_id}_space-nativepro_model-DTI_map-FA.nii.gz"],
             "ADC": ["maps/{participant_id}_{session_id}_hemi-{hemi}_surf-fsLR-32k_label-{surfacetype}_ADC.func.gii", 
                     "maps/{participant_id}_{session_id}_space-nativepro_model-DTI_map-ADC.nii.gz"],
-            "thickness": ["maps/{participant_id}_{session_id}_hemi-{hemi}_surf-fsLR-32k_label-thickness.func.gii",],
+            "thickness": ["maps/{participant_id}_{session_id}_hemi-{hemi}_surf-fsLR-32k_label-thickness.func.gii"],
             "FLAIR": ["maps/{participant_id}_{session_id}_hemi-{hemi}_surf-fsLR-32k_label-{surfacetype}_flair.func.gii",
                       "maps/{participant_id}_{session_id}_space-nativepro_map-flair.nii.gz"],
             "qT1": ["maps/{participant_id}_{session_id}_hemi-{hemi}_surf-fsLR-32k_label-{surfacetype}_T1map.func.gii", 
@@ -314,7 +333,8 @@ class zbdataset():
             "qT1*blur": ["maps/{participant_id}_{session_id}_hemi-{hemi}_surf-fsLR-32k_label-{surfacetype}_T1map.func.gii",
                          "maps/{participant_id}_{session_id}_space-nativepro_map-T1map.nii.gz"],
         }
-
+        
+        # Rest of the method remains the same...
         # Define required files for different structures
         required_cortical_files = [
             "anat/{participant_id}_{session_id}_space-nativepro_T1w.nii.gz",
@@ -450,7 +470,8 @@ class zbdataset():
                 feature_has_subcortical = has_required_subcortical
                 
                 if feature not in feature_files:
-                    print(f"Warning: Unknown feature '{feature}'. No file checks performed.")
+                    if verbose:
+                        print(f"Warning: Unknown feature '{feature}'. No file checks performed.")
                     continue
                 
                 for file_pattern in feature_files[feature]:
@@ -624,7 +645,8 @@ class zbdataset():
         self
             The dataset object
         """
-        feature_map = {
+        # Use the same consistent feature mapping
+        feature_mapping = {
             "fa": "FA",
             "adc": "ADC",
             "thickness": "thickness",
@@ -633,7 +655,19 @@ class zbdataset():
             "flair*blur": "FLAIR*blur",
             "qt1*blur": "qT1*blur"
         }
-        features = [feature_map[f.lower()] for f in features if f.lower() in feature_map]
+        
+        # Normalize features consistently
+        normalized_features = []
+        for feature in features:
+            feature_lower = str(feature).lower()
+            if feature_lower in feature_mapping:
+                normalized_features.append(feature_mapping[feature_lower])
+            else:
+                normalized_features.append(str(feature))
+                if verbose:
+                    print(f"Warning: Unknown feature '{feature}' in process method")
+        
+        features = normalized_features
         self.cortical_smoothing = cortical_smoothing
         self.hippocampal_smoothing = hippocampal_smoothing
         self.add_features(*features, verbose=verbose)
@@ -1086,12 +1120,11 @@ class zbdataset():
             
             if missing_files:
                 print(f"\nSubjects with missing files: {len(missing_files)}")
-                if verbose > 1:  # Extra verbosity for detailed missing file listing
+                if verbose >= 1:  # Extra verbosity for detailed missing file listing
                     for (pid, sid), files in missing_files.items():
                         print(f"  {pid}/{sid}: {len(files)} missing files")
-                        if verbose > 2:  # Extremely verbose, list all missing files
-                            for file in files:
-                                print(f"    - {os.path.basename(file)}")
+                        for file in files:
+                            print(f"    - {os.path.basename(file)}")
     
         # Error handling based on valid subjects
         if complete_subjects == 0:
@@ -1261,7 +1294,7 @@ class zbdataset():
         dict
             Dictionary containing analysis results for each feature and region
         """
-
+        
         # Call the analysis function and store results
         results = analyze_dataset(self, reference, method, output_directory, verbose)
         self.analysis_results = results
@@ -1386,12 +1419,13 @@ class zbdataset():
                 # Extract demographics
                 age = subject_demo['AGE'].iloc[0] if 'AGE' in subject_demo.columns else None
                 sex = subject_demo['SEX'].iloc[0] if 'SEX' in subject_demo.columns else None
-                
+                sex = int(sex)
                 # Convert binary sex encoding back to string if needed
                 if sex is not None and isinstance(sex, (int, float)):
-                    if hasattr(self.demographics, 'binary_encodings') and 'SEX' in self.demographics.binary_encodings:
+                    if hasattr(self.reference_demographics, 'binary_encodings') and 'SEX' in self.demographics.binary_encodings:
                         # Find the original value that maps to this binary code
-                        encoding = self.demographics.binary_encodings['SEX']
+                        print("ref binary encodings:", self.reference_demographics.binary_encodings)
+                        encoding = self.reference_demographics.binary_encodings['SEX']
                         sex = next((k for k, v in encoding.items() if v == sex), sex)
                     else:
                         sex = 'M' if sex == 1 else 'F'  # Default mapping
@@ -1428,7 +1462,6 @@ class zbdataset():
                     verbose=verbose,
                     control_data=self.reference_demographics,
                     valid_subjects=self.valid_subjects,
-                    sex_encoding=self.demographics.binary_encodings
                 )
                 
                 generated_reports.append(report_path)

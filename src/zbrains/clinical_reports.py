@@ -1785,7 +1785,6 @@ def generate_clinical_report(
     verbose=True,
     control_data=None,
     valid_subjects=None,
-    sex_encoding=None
 ):
     """Zbrains: Clinical report generator adapted for zbdataset
 
@@ -1856,30 +1855,6 @@ def generate_clinical_report(
     # Set up logging
     logger = logging.getLogger(tmp_dir)
     
-    # Convert sex encoding from 1/0 to M/F if sex_encoding is provided
-    if sex_encoding is not None and sex is not None:
-        try:
-            
-            # Handle both scalar values and pandas Series
-            if hasattr(sex, 'values'):
-                sex_value = sex.values[0]
-            else:
-                sex_value = sex
-            sex_value = int(sex_value)
-            # Convert numeric sex to string using reverse mapping
-            if isinstance(sex_value, (int, float)):
-                print("Converting")
-                # Create reverse mapping from codes to labels
-                reverse_encoding = {v: k.upper() for k, v in sex_encoding.items()}
-                sex_display = reverse_encoding.get(int(sex_value), sex)
-            else:
-                # If already a string, use as is
-                print("Not converting")
-                sex_display = sex
-        except Exception as e:
-            logger.warning(f"Could not convert sex encoding: {e}, using original value")
-            sex_display = sex
-    print(f"sex = {sex_display}")
     # Convert approach to folder name
     approach_folder = f"{approach}_maps"
     
@@ -1962,7 +1937,7 @@ def generate_clinical_report(
             sid=sid, 
             ses=ses, 
             age=age, 
-            sex=sex_display,  # Use the converted sex value
+            sex=sex, 
             analysis='Control statistics'
         )
         
@@ -2059,7 +2034,7 @@ def generate_clinical_report(
                     sid=sid, 
                     ses=ses, 
                     age=age, 
-                    sex=sex_display,  # Use the converted sex value
+                    sex=sex, 
                     analysis=analysis
                 )
                 
