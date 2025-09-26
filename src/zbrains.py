@@ -670,7 +670,7 @@ def main(args):
             ]
         args.ses = list(sessions[args.column_map["session_id"]].values)
     if args.ses and len(args.ses) != len(args.sub):
-        print("Number of subs and sessions do not match")
+        print(f"Number of subs and sessions do not match: subjects = {len(args.sub)} sessions = {len(args.ses)}")
         sys.exit()
 
     show_info("zbrains is running with:")
