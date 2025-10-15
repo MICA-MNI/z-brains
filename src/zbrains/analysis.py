@@ -394,11 +394,12 @@ def load_reference_surface_data(reference_subjects, output_directory, file_suffi
     
     Returns:
     --------
-    np.ndarray
-        Array of reference data with shape (n_subjects, n_vertices) or (n_subjects, n_vertices, n_depths)
-        For asymmetry analysis, returns left-right asymmetry maps
+    tuple: (np.ndarray, list)
+        - Array of reference data with shape (n_subjects, n_vertices) or (n_subjects, n_vertices, n_depths)
+        - List of (participant_id, session_id) tuples for subjects that successfully loaded
     """
     reference_data = []
+    successfully_loaded_subjects = []  # Track which subjects actually loaded
     
     for ref_pid, ref_sid in reference_subjects:
         ref_bids_id = f"{ref_pid}_{ref_sid}"
@@ -430,16 +431,16 @@ def load_reference_surface_data(reference_subjects, output_directory, file_suffi
                             data_lh[:, e] = darray_lh.data
                             data_rh[:, e] = darray_rh.data
                         
-                        # Compute asymmetry across all depths
                         asymmetry_data = compute_asymmetry(data_lh, data_rh)
                         reference_data.append(asymmetry_data)
+                        successfully_loaded_subjects.append((ref_pid, ref_sid))  # Track success
                     else:
                         data_lh = ref_img_lh.darrays[0].data
                         data_rh = ref_img_rh.darrays[0].data
                         
-                        # Compute asymmetry
                         asymmetry_data = compute_asymmetry(data_lh, data_rh)
                         reference_data.append(asymmetry_data)
+                        successfully_loaded_subjects.append((ref_pid, ref_sid))  # Track success
                         
                 except Exception as e:
                     if verbose:
@@ -462,14 +463,16 @@ def load_reference_surface_data(reference_subjects, output_directory, file_suffi
                         for e, darray in enumerate(ref_img.darrays):
                             darrays[:, e] = darray.data
                         reference_data.append(darrays)
+                        successfully_loaded_subjects.append((ref_pid, ref_sid))  # Track success
                     else:
                         reference_data.append(ref_img.darrays[0].data)
+                        successfully_loaded_subjects.append((ref_pid, ref_sid))  # Track success
                         
                 except Exception as e:
                     if verbose:
                         print(f"    Warning: Could not load reference file {ref_file}: {e}")
     
-    return np.array(reference_data) if reference_data else np.array([])
+    return np.array(reference_data) if reference_data else np.array([]), successfully_loaded_subjects
 
 def load_reference_hippocampal_data(reference_subjects, output_directory, file_suffix, analysis='regional', verbose=True):
     """
@@ -490,11 +493,13 @@ def load_reference_hippocampal_data(reference_subjects, output_directory, file_s
     
     Returns:
     --------
-    np.ndarray
-        Array of reference data with shape (n_subjects, n_vertices)
+    tuple: (np.ndarray, list)
+        - Array of reference data with shape (n_subjects, n_vertices)
+        - List of (participant_id, session_id) tuples for subjects that successfully loaded
         For asymmetry analysis, returns left-right asymmetry maps
     """
     reference_data = []
+    successfully_loaded_subjects = []  # Track which subjects actually loaded
     
     for ref_pid, ref_sid in reference_subjects:
         if analysis == 'asymmetry':
@@ -521,6 +526,7 @@ def load_reference_hippocampal_data(reference_subjects, output_directory, file_s
                     # Compute asymmetry
                     asymmetry_data = compute_asymmetry(data_lh, data_rh)
                     reference_data.append(asymmetry_data)
+                    successfully_loaded_subjects.append((ref_pid, ref_sid))  # Track success
                     
                 except Exception as e:
                     if verbose:
@@ -537,11 +543,12 @@ def load_reference_hippocampal_data(reference_subjects, output_directory, file_s
                 try:
                     ref_img = nib.load(ref_file)
                     reference_data.append(ref_img.darrays[0].data)
+                    successfully_loaded_subjects.append((ref_pid, ref_sid))  # Track success
                 except Exception as e:
                     if verbose:
                         print(f"    Warning: Could not load reference file {ref_file}: {e}")
     
-    return np.array(reference_data) if reference_data else np.array([])
+    return np.array(reference_data) if reference_data else np.array([]), successfully_loaded_subjects
 
 def load_reference_subcortical_data(reference_subjects, output_directory, file_suffix, analysis='regional', verbose=True):
     """
@@ -562,11 +569,13 @@ def load_reference_subcortical_data(reference_subjects, output_directory, file_s
     
     Returns:
     --------
-    pd.DataFrame
-        Combined reference data from all subjects
+    tuple: (pd.DataFrame, list)
+        - Combined reference data from all subjects
+        - List of (participant_id, session_id) tuples for subjects that successfully loaded
         For asymmetry analysis, returns asymmetry values for paired structures
     """
     reference_data = []
+    successfully_loaded_subjects = []  # Track which subjects actually loaded
     
     for ref_pid, ref_sid in reference_subjects:
         ref_bids_id = f"{ref_pid}_{ref_sid}"
@@ -597,12 +606,14 @@ def load_reference_subcortical_data(reference_subjects, output_directory, file_s
                     ref_df = pd.DataFrame([asymmetry_data])
                 
                 reference_data.append(ref_df)
+                successfully_loaded_subjects.append((ref_pid, ref_sid))  # Track success
                 
             except Exception as e:
                 if verbose:
                     print(f"    Warning: Could not load reference file {ref_file}: {e}")
     
-    return pd.concat(reference_data, ignore_index=True) if reference_data else pd.DataFrame()
+    return (pd.concat(reference_data, ignore_index=True) if reference_data else pd.DataFrame(), 
+            successfully_loaded_subjects)
 
 def analyze_dataset(dataset, reference, method='zscore', output_directory=None, verbose=True):
     """
@@ -758,12 +769,12 @@ def analyze_dataset(dataset, reference, method='zscore', output_directory=None, 
                 for resolution in resolutions:
                     for label in labels:
                         for analysis in ['regional', 'asymmetry']:
-                            map_key = f"{hemi}_{resolution}_{label}_{analysis}"  # Include analysis in map_key
+                            map_key = f"{hemi}_{resolution}_{label}_{analysis}"
                             
                             file_suffix = f"hemi-{hemi}_surf-fsLR-{resolution}_label-{label}_feature-{output_feat}_smooth-{dataset.cortical_smoothing}mm.func.gii"
                             
-                            # Load reference data
-                            reference_data = load_reference_surface_data(
+                            # Load reference data and track which subjects actually loaded
+                            reference_data, successfully_loaded_subjects = load_reference_surface_data(
                                 reference_cortical_subjects, output_directory, file_suffix, analysis, verbose
                             )
                             
@@ -776,7 +787,8 @@ def analyze_dataset(dataset, reference, method='zscore', output_directory=None, 
                             if method == 'wscore':
                                 ref_demographics = []
                                 valid_ref_subjects = []
-                                for ref_pid, ref_sid in reference_cortical_subjects:
+                                # Now iterate over subjects that ACTUALLY loaded, not all subjects
+                                for ref_pid, ref_sid in successfully_loaded_subjects:
                                     key = (ref_pid, ref_sid)
                                     if key in ref_demo_dict:
                                         ref_demographics.append(ref_demo_dict[key])
@@ -789,7 +801,8 @@ def analyze_dataset(dataset, reference, method='zscore', output_directory=None, 
                                 
                                 ref_demographics_df = pd.DataFrame(ref_demographics)
                                 # Filter reference data to match demographics
-                                ref_indices = [i for i, subj in enumerate(reference_cortical_subjects) if subj in valid_ref_subjects]
+                                # Now indices will match because we're iterating over successfully_loaded_subjects
+                                ref_indices = [i for i, subj in enumerate(successfully_loaded_subjects) if subj in valid_ref_subjects]
                                 reference_data = reference_data[ref_indices]
                             
                             # Process patient data
@@ -945,7 +958,7 @@ def analyze_dataset(dataset, reference, method='zscore', output_directory=None, 
                     file_suffix = f"hemi-{hemi}_den-0p5mm_label-hipp_midthickness_feature-{output_feat}_smooth-{dataset.hippocampal_smoothing}mm.func.gii"
                     
                     # Load reference data
-                    reference_data = load_reference_hippocampal_data(
+                    reference_data, successfully_loaded_subjects = load_reference_hippocampal_data(
                         reference_hippocampal_subjects, output_directory, file_suffix, analysis, verbose
                     )
                     
@@ -958,7 +971,7 @@ def analyze_dataset(dataset, reference, method='zscore', output_directory=None, 
                     if method == 'wscore':
                         ref_demographics = []
                         valid_ref_subjects = []
-                        for ref_pid, ref_sid in reference_hippocampal_subjects:
+                        for ref_pid, ref_sid in successfully_loaded_subjects:
                             key = (ref_pid, ref_sid)
                             if key in ref_demo_dict:
                                 ref_demographics.append(ref_demo_dict[key])
@@ -971,7 +984,7 @@ def analyze_dataset(dataset, reference, method='zscore', output_directory=None, 
                         
                         ref_demographics_df = pd.DataFrame(ref_demographics)
                         # Filter reference data to match demographics
-                        ref_indices = [i for i, subj in enumerate(reference_hippocampal_subjects) if subj in valid_ref_subjects]
+                        ref_indices = [i for i, subj in enumerate(successfully_loaded_subjects) if subj in valid_ref_subjects]
                         reference_data = reference_data[ref_indices]
                     
                     # Process patient data
@@ -1118,7 +1131,7 @@ def analyze_dataset(dataset, reference, method='zscore', output_directory=None, 
                     file_suffix = f"hemi-{hemi}_surf-fsLR-{resolution}_label-{label}_feature-{output_feat}_smooth-{dataset.cortical_smoothing}mm.func.gii"
                     
                     # Load reference data
-                    reference_data = load_reference_surface_data(
+                    reference_data, successfully_loaded_subjects = load_reference_surface_data(
                         reference_blur_subjects, output_directory, file_suffix, analysis, verbose
                     )
                     
@@ -1136,7 +1149,7 @@ def analyze_dataset(dataset, reference, method='zscore', output_directory=None, 
                     if method == 'wscore':
                         ref_demographics = []
                         valid_ref_subjects = []
-                        for ref_pid, ref_sid in reference_blur_subjects:
+                        for ref_pid, ref_sid in successfully_loaded_subjects:
                             key = (ref_pid, ref_sid)
                             if key in ref_demo_dict:
                                 ref_demographics.append(ref_demo_dict[key])
@@ -1149,7 +1162,7 @@ def analyze_dataset(dataset, reference, method='zscore', output_directory=None, 
                         
                         ref_demographics_df = pd.DataFrame(ref_demographics)
                         # Filter reference data to match demographics
-                        ref_indices = [i for i, subj in enumerate(reference_blur_subjects) if subj in valid_ref_subjects]
+                        ref_indices = [i for i, subj in enumerate(successfully_loaded_subjects) if subj in valid_ref_subjects]
                         reference_data = reference_data[ref_indices]
                     
                     # Process patient data
@@ -1304,7 +1317,7 @@ def analyze_dataset(dataset, reference, method='zscore', output_directory=None, 
                     file_suffix = f"feature-{output_feat}.csv"
                 
                 # Load reference data
-                reference_data = load_reference_subcortical_data(
+                reference_data, successfully_loaded_subjects = load_reference_subcortical_data(
                     reference_subcortical_subjects, output_directory, file_suffix, analysis, verbose
                 )
                 
@@ -1317,7 +1330,7 @@ def analyze_dataset(dataset, reference, method='zscore', output_directory=None, 
                 if method == 'wscore':
                     ref_demographics = []
                     valid_ref_indices = []
-                    for i, (ref_pid, ref_sid) in enumerate(reference_subcortical_subjects):
+                    for i, (ref_pid, ref_sid) in enumerate(successfully_loaded_subjects):
                         key = (ref_pid, ref_sid)
                         if key in ref_demo_dict:
                             ref_demographics.append(ref_demo_dict[key])

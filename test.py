@@ -402,6 +402,7 @@ def parse_args():
         "--features", 
         nargs="+", 
         required=True,
+        choices=["FA", "ADC", "thickness", "qT1", "FLAIR", "qT1-blur", "FLAIR-blur"],
         help="List of features/modalities to process (e.g. FA ADC thickness qT1 FLAIR)"
     )
     
