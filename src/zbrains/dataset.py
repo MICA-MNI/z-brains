@@ -39,7 +39,7 @@ class LogRedirect:
         self.log.flush()
 
 class demographics():
-    def __init__(self, csv_file, column_mapping=None, normative_columns=None, normative_dtypes=None, reference=None):
+    def __init__(self, csv_file, column_mapping=None, normative_columns=None, normative_dtypes=None, reference=None, subset=None):
         self.csv_file = csv_file
         self.data = None
         self.column_mapping = {
@@ -49,6 +49,7 @@ class demographics():
         self.normative_columns = normative_columns
         self.normative_dtypes = normative_dtypes
         self.reference = reference
+        self.subset = subset
         self.binary_encodings = {}  # Store binary variable encodings
         self.load_data()
 
@@ -71,6 +72,23 @@ class demographics():
         print(f"Demographics data loaded from {self.csv_file} with {len(self.data)} entries.")
         if not set(self.column_mapping.values()).issubset(self.data.columns):
             raise ValueError("Demographics data does not contain all required columns.")
+        
+        if self.subset is not None:
+            subset_pairs = []
+            for item in self.subset:
+                if not isinstance(item, (list, tuple)) or len(item) != 2:
+                    raise ValueError(f"Subset entries must be 2-element lists/tuples. Invalid entry: {item}")
+                subset_pairs.append(tuple(item))
+            subset_set = set(subset_pairs)
+            available_pairs = set(zip(self.data['participant_id'], self.data['session_id']))
+            missing_pairs = [pair for pair in subset_pairs if pair not in available_pairs]
+            if missing_pairs:
+                raise ValueError(f"Subset entries not found in demographics data: {missing_pairs}")
+            mask = self.data[['participant_id', 'session_id']].apply(tuple, axis=1).isin(subset_set)
+            self.data = self.data[mask].reset_index(drop=True)
+            if self.data.empty:
+                raise ValueError("Subset filtering resulted in empty demographics data.")
+            print(f"Filtered demographics to subset with {len(self.data)} entries.")
         
         # Use reference normative columns if available and none are specified
         single_subject = len(self.data) == 1
@@ -922,185 +940,331 @@ class zbdataset():
         )
         return self
 
-    def validate(self, output_directory, features, cortical_smoothing=5, hippocampal_smoothing=2, verbose=True, error_threshold=0, warning_threshold=25, only_demographics_subjects=True):
+    def validate(self, output_directory, features=None, cortical_smoothing=5, hippocampal_smoothing=2,
+                 verbose=True, error_threshold=0, warning_threshold=25, only_demographics_subjects=True):
         """
-        Validate that all expected processed files exist for each subject and feature.
-        
-        Parameters:
-        -----------
-        output_directory : str
-            Directory where processed data should be stored
-        features : list
-            List of features to validate
-        cortical_smoothing : int, default=5
-            Smoothing parameter used for cortical features
-        hippocampal_smoothing : int, default=2
-            Smoothing parameter used for hippocampal features
-        verbose : bool, default=True
-            If True, prints detailed information about missing files
-        error_threshold : int, default=0
-            Percentage of complete subjects below which to raise an error (0 means error only if no subjects)
-        warning_threshold : int, default=25
-            Percentage of complete subjects below which to raise a warning
-        only_demographics_subjects : bool, default=True
-            If True, only validate subjects specified in the demographics file
+        Validate that all expected processed files exist for each subject.
 
-        Returns:
-        --------
+        Returns
+        -------
         dict
-            A dictionary with validation results containing:
-            - 'valid_subjects': List of subjects with complete data
-            - 'missing_files': Dictionary of missing files per subject
-            - 'summary': Overall validation summary
+            {
+                "valid_subjects": [(participant_id, session_id), ...],
+                "missing_files": { (participant_id, session_id): [paths...] },
+                "summary": {...}
+            }
         """
-        # Make sure we have the input features
-        self.add_features(*features, verbose=verbose)
-        
-        # Check for output directories - only include demographics subjects by default
+        feature_case_mapping = {
+            "fa": "FA",
+            "adc": "ADC",
+            "thickness": "thickness",
+            "flair": "FLAIR",
+            "qt1": "qT1",
+            "t1map": "qT1",
+            "flair*blur": "FLAIR*blur",
+            "qt1*blur": "qT1*blur"
+        }
+
+        if features is None:
+            normalized_features = list(self.features)
+        else:
+            normalized_features = []
+            for feat in features:
+                feat_lower = str(feat).lower()
+                if feat_lower.endswith("*blur"):
+                    base = feat_lower.replace("*blur", "")
+                    mapped = feature_case_mapping.get(feat_lower, f"{feature_case_mapping.get(base, feat[:-5])}*blur")
+                    normalized_features.append(mapped)
+                else:
+                    normalized_features.append(feature_case_mapping.get(feat_lower, str(feat)))
+        if not normalized_features:
+            normalized_features = list(self.features)
+        self.features = normalized_features
+
+        if not hasattr(self, "valid_subjects") or "base" not in self.valid_subjects:
+            self.check_directories()
+
         output_subjects = self.check_output_directories(
-            output_directory, 
+            output_directory,
             only_demographics_subjects=only_demographics_subjects,
             verbose=verbose
         )
-        
         if not output_subjects:
             raise ValueError(f"No subject output directories found in {output_directory}. Nothing to validate.")
-        
+
         if verbose:
-            print(f"Validating dataset {self.name} with {len(output_subjects)} subjects and {len(self.features)} features...")
-        
-        # Identify blur features
-        blur_features = [feature for feature in features if feature.endswith("*blur")]
-        base_features = [feature.replace("*blur", "") for feature in blur_features]
-        
-        # Feature mapping for different naming conventions
-        feature_mapping = {
-            "thickness": {"output": "thickness"},
-            "flair": {"output": "FLAIR"},
-            "adc": {"output": "ADC"},
-            "fa": {"output": "FA"},
-            "qt1": {"output": "qT1"}  # Changed from "T1map" to "qT1"
+            print(f"Validating dataset {self.name} with {len(output_subjects)} output subjects "
+                  f"and {len(self.features)} features...")
+
+        feature_output_mapping = {
+            "thickness": "thickness",
+            "flair": "FLAIR",
+            "adc": "ADC",
+            "fa": "FA",
+            "qt1": "qT1",
+            "t1map": "qT1"
         }
-        
-        # Track missing files
+
+        feature_meta = []
+        for feat in self.features:
+            feat_lower = feat.lower()
+            is_blur = feat_lower.endswith("*blur")
+            base_lower = feat_lower.replace("*blur", "") if is_blur else feat_lower
+            cortical_token = feat  # already normalised to processing output naming
+
+            if is_blur:
+                if base_lower in {"qt1", "t1map"}:
+                    blur_token = "qT1"
+                elif base_lower == "flair":
+                    blur_token = "FLAIR"
+                elif base_lower in {"adc", "fa"}:
+                    blur_token = base_lower
+                else:
+                    blur_token = feat[:-5]
+            else:
+                blur_token = None
+
+            hippo_token = None if is_blur else feature_output_mapping.get(base_lower, feat)
+            subcortical_token = None
+            if not is_blur and base_lower not in {"thickness", "volume"}:
+                subcortical_token = feature_output_mapping.get(base_lower, feat.upper())
+
+            feature_meta.append({
+                "original": feat,
+                "base_lower": base_lower,
+                "is_blur": is_blur,
+                "cortical_token": cortical_token,
+                "blur_token": blur_token,
+                "hippo_token": hippo_token,
+                "subcortical_token": subcortical_token,
+                "requires_cortex": self.cortex,
+                "requires_hippocampus": (
+                    self.hippocampus and self.hippunfold_directory and not is_blur and hippo_token is not None
+                ),
+                "requires_subcortical": (
+                    self.subcortical and self.freesurfer_directory and not is_blur and subcortical_token is not None
+                )
+            })
+
+        resolutions = ["32k", "5k"]
+        surface_labels = ["midthickness", "white"]
+        hippocampal_resolution = "0p5mm"
+        blur_suffixes = [
+            "_surf-fsnative_desc-raw.func.gii",
+            "_surf-fsnative_desc-dist.func.gii",
+            "_surf-fsnative_desc-grad.func.gii"
+        ]
+
+        processed_valid_subjects = {
+            'base': [],
+            'structures': {
+                'cortex': [],
+                'hippocampus': [],
+                'subcortical': []
+            }
+        }
+        feature_processed = {
+            meta['original']: {
+                'all': [],
+                'structures': {
+                    'cortex': [],
+                    'hippocampus': [],
+                    'subcortical': []
+                }
+            } for meta in feature_meta
+        }
+
         missing_files = {}
-        valid_subjects = []
+        missing_features = {}
+        feature_availability = {meta['original']: 0 for meta in feature_meta}
+        subjects_with_complete_data = []
         all_files_count = 0
         missing_files_count = 0
-        
-        # Define surface resolutions and labels
-        resolutions = ["32k", "5k"]
-        labels = ["midthickness", "white"]
-        
-        # Process each subject with output directory
-        for subject in output_subjects:
-            participant_id, session_id = subject
-            subject_missing_files = []
+
+        for participant_id, session_id in output_subjects:
+            subject_missing = []
+            subject_missing_features = set()
             bids_id = f"{participant_id}_{session_id}"
-            
-            # Define output directories
-            subject_output_dir = os.path.join(output_directory, participant_id, session_id)
-            cortex_dir = os.path.join(subject_output_dir, "maps", "cortex")
-            hippocampus_dir = os.path.join(subject_output_dir, "maps", "hippocampus")
-            subcortical_dir = os.path.join(subject_output_dir, "maps", "subcortical")
-            
-            # 2. Check cortical feature files
+            subject_dir = os.path.join(output_directory, participant_id, session_id)
+            cortex_dir = os.path.join(subject_dir, "maps", "cortex")
+            hippocampus_dir = os.path.join(subject_dir, "maps", "hippocampus")
+            subcortical_dir = os.path.join(subject_dir, "maps", "subcortical")
+            structural_dir = os.path.join(subject_dir, "structural")
+
+            subject_structures = {
+                'cortex': True if self.cortex else None,
+                'hippocampus': True if self.hippocampus and self.hippunfold_directory else None,
+                'subcortical': True if self.subcortical and self.freesurfer_directory else None
+            }
+            subject_feature_structures = {
+                meta['original']: {
+                    'cortex': True if meta['requires_cortex'] else None,
+                    'hippocampus': True if meta['requires_hippocampus'] else None,
+                    'subcortical': True if meta['requires_subcortical'] else None
+                } for meta in feature_meta
+            }
+
+            structural_expected = [
+                f"{bids_id}_hemi-L_space-nativepro_surf-fsLR-32k_label-midthickness.surf.gii",
+                f"{bids_id}_hemi-R_space-nativepro_surf-fsLR-32k_label-midthickness.surf.gii",
+                f"{bids_id}_hemi-L_surf-fsnative_label-sphere.surf.gii",
+                f"{bids_id}_hemi-R_surf-fsnative_label-sphere.surf.gii",
+                f"{bids_id}_hemi-L_space-nativepro_surf-fsnative_label-pial.surf.gii",
+                f"{bids_id}_hemi-R_space-nativepro_surf-fsnative_label-pial.surf.gii",
+                f"{bids_id}_hemi-L_space-nativepro_surf-fsLR-32k_label-pial.surf.gii",
+                f"{bids_id}_hemi-R_space-nativepro_surf-fsLR-32k_label-pial.surf.gii",
+                f"{bids_id}_space-nativepro_T1w.nii.gz",
+                f"{participant_id}_{session_id}-laplace.nii.gz",
+                f"{bids_id}_hemi-L_surf-fsnative_label-medialwall.label.gii",
+                f"{bids_id}_hemi-R_surf-fsnative_label-medialwall.label.gii"
+            ]
+            if self.hippocampus:
+                structural_expected.extend([
+                    f"{bids_id}_hemi-L_space-unfold_den-0p5mm_label-hipp_midthickness.surf.gii",
+                    f"{bids_id}_hemi-R_space-unfold_den-0p5mm_label-hipp_midthickness.surf.gii",
+                    f"{bids_id}_hemi-L_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii",
+                    f"{bids_id}_hemi-R_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii"
+                ])
+
+            for filename in structural_expected:
+                path = os.path.join(structural_dir, filename)
+                all_files_count += 1
+                if not os.path.exists(path):
+                    subject_missing.append(path)
+                    missing_files_count += 1
+                    if "hipp" in filename and subject_structures['hippocampus'] is not None:
+                        subject_structures['hippocampus'] = False
+                    elif "laplace" in filename or filename.endswith(".surf.gii") or filename.endswith(".label.gii"):
+                        if subject_structures['cortex'] is not None:
+                            subject_structures['cortex'] = False
+
             if self.cortex:
-                for feature in self.features:
-                    feat_lower = feature.lower()
-                    is_blur = feat_lower.endswith("*blur")
-                    
-                    if is_blur:
-                        base_feat = feat_lower.replace("*blur", "")
-                        if base_feat in feature_mapping:
-                            # Standardize to capital B for "*blur"
-                            output_feat = feature_mapping[base_feat]["output"] + "*blur"
-                        else:
-                            # Standardize to capital B for "Blur"
-                            output_feat = base_feat + "*blur"
-                    else:
-                        if feat_lower in feature_mapping:
-                            output_feat = feature_mapping[feat_lower]["output"]
-                        else:
-                            output_feat = feat_lower
-                    
+                for meta in feature_meta:
+                    if not meta['requires_cortex']:
+                        continue
+                    feature_name = meta['original']
                     for hemi in ["L", "R"]:
-                        for resolution in resolutions:
-                            # For blur features, only check midthickness
-                            label_list = ["midthickness"] if is_blur else labels
-                            for label in label_list:
-                                # Check cortical feature file
-                                cortical_file = os.path.join(
+                        for res in resolutions:
+                            for label in (["midthickness"] if meta['is_blur'] else surface_labels):
+                                cortical_path = os.path.join(
                                     cortex_dir,
-                                    f"{bids_id}_hemi-{hemi}_surf-fsLR-{resolution}_label-{label}_feature-{output_feat}_smooth-{cortical_smoothing}mm.func.gii"
+                                    f"{bids_id}_hemi-{hemi}_surf-fsLR-{res}_label-{label}_feature-"
+                                    f"{meta['cortical_token']}_smooth-{cortical_smoothing}mm.func.gii"
                                 )
                                 all_files_count += 1
-                                if not os.path.exists(cortical_file):
-                                    subject_missing_files.append(cortical_file)
+                                if not os.path.exists(cortical_path):
+                                    subject_missing.append(cortical_path)
                                     missing_files_count += 1
-            
-            # 3. Check hippocampal feature files
-            if self.hippocampus and self.hippunfold_directory:
-                for feature in self.features:
-                    if not feature.lower().endswith("*blur"):  # Blur features are not processed for hippocampus
-                        feat_lower = feature.lower()
-                        
-                        # Get output feature name based on mapping
-                        if feat_lower in feature_mapping:
-                            output_feat = feature_mapping[feat_lower]["output"]
-                        else:
-                            output_feat = feat_lower
-                        
+                                    subject_feature_structures[feature_name]['cortex'] = False
+                                    subject_missing_features.add(feature_name)
+                    if meta['is_blur'] and meta['blur_token']:
                         for hemi in ["L", "R"]:
-                            # Check hippocampal feature file
-                            hippo_file = os.path.join(
-                                hippocampus_dir,
-                                f"{participant_id}_{session_id}_hemi-{hemi}_den-0p5mm_label-hipp_midthickness_feature-{output_feat}_smooth-{hippocampal_smoothing}mm.func.gii"
+                            blur_prefix = os.path.join(
+                                cortex_dir,
+                                f"{participant_id}_{session_id}_hemi-{hemi}_feature-{meta['blur_token']}*blur"
+                            )
+                            blur_paths = [f"{blur_prefix}{suffix}" for suffix in blur_suffixes]
+                            blur_paths.append(f"{blur_prefix}_surf-fsnative_smooth-{cortical_smoothing}mm.func.gii")
+                            for blur_path in blur_paths:
+                                all_files_count += 1
+                                if not os.path.exists(blur_path):
+                                    subject_missing.append(blur_path)
+                                    missing_files_count += 1
+                                    subject_feature_structures[feature_name]['cortex'] = False
+                                    subject_missing_features.add(feature_name)
+
+            if self.hippocampus and self.hippunfold_directory:
+                for meta in feature_meta:
+                    if not meta['requires_hippocampus']:
+                        continue
+                    feature_name = meta['original']
+                    for hemi in ["L", "R"]:
+                        hippo_path = os.path.join(
+                            hippocampus_dir,
+                            f"{participant_id}_{session_id}_hemi-{hemi}_den-{hippocampal_resolution}_label-hipp_"
+                            f"midthickness_feature-{meta['hippo_token']}_smooth-{hippocampal_smoothing}mm.func.gii"
                         )
                         all_files_count += 1
-                        if not os.path.exists(hippo_file):
-                            subject_missing_files.append(hippo_file)
+                        if not os.path.exists(hippo_path):
+                            subject_missing.append(hippo_path)
                             missing_files_count += 1
-            
-            # 4. Check subcortical feature files
+                            subject_feature_structures[feature_name]['hippocampus'] = False
+                            subject_missing_features.add(feature_name)
+
             if self.subcortical and self.freesurfer_directory:
-                # Check volume data
                 volume_file = os.path.join(subcortical_dir, f"{bids_id}_feature-volume.csv")
                 all_files_count += 1
                 if not os.path.exists(volume_file):
-                    subject_missing_files.append(volume_file)
+                    subject_missing.append(volume_file)
                     missing_files_count += 1
-                
-                # Check other feature data
-                for feature in self.features:
-                    if not feature.lower().endswith("*blur") and feature.lower() not in ["thickness", "volume"]:
-                        feat_lower = feature.lower()
-                        
-                        # Get output feature name based on mapping
-                        if feat_lower in feature_mapping:
-                            output_feat = feature_mapping[feat_lower]["output"]
-                        else:
-                            output_feat = feat_lower
-                        
-                        subcort_file = os.path.join(subcortical_dir, f"{bids_id}_feature-{output_feat}.csv")
-                        all_files_count += 1
-                        if not os.path.exists(subcort_file):
-                            subject_missing_files.append(subcort_file)
-                            missing_files_count += 1
-            
-            # Track missing files and valid subjects
-            if subject_missing_files:
-                missing_files[(participant_id, session_id)] = subject_missing_files
+                    if subject_structures['subcortical'] is not None:
+                        subject_structures['subcortical'] = False
+
+                for meta in feature_meta:
+                    if not meta['requires_subcortical']:
+                        continue
+                    feature_name = meta['original']
+                    subcort_path = os.path.join(
+                        subcortical_dir,
+                        f"{bids_id}_feature-{meta['subcortical_token']}.csv"
+                    )
+                    all_files_count += 1
+                    if not os.path.exists(subcort_path):
+                        subject_missing.append(subcort_path)
+                        missing_files_count += 1
+                        subject_feature_structures[feature_name]['subcortical'] = False
+                        subject_missing_features.add(feature_name)
+
+            if any(flag is True for flag in subject_structures.values() if flag is not None):
+                processed_valid_subjects['base'].append((participant_id, session_id))
+                for structure_name, flag in subject_structures.items():
+                    if flag is True:
+                        processed_valid_subjects['structures'][structure_name].append((participant_id, session_id))
+
+            for meta in feature_meta:
+                feature_name = meta['original']
+                structure_flags = subject_feature_structures[feature_name]
+                relevant_flags = [flag for flag in structure_flags.values() if flag is not None]
+                if not relevant_flags:
+                    continue
+                if any(flag is True for flag in relevant_flags):
+                    feature_processed[feature_name]['all'].append((participant_id, session_id))
+                    for structure_name, flag in structure_flags.items():
+                        if flag is True:
+                            feature_processed[feature_name]['structures'][structure_name].append((participant_id, session_id))
+                else:
+                    subject_missing_features.add(feature_name)
+
+            if subject_missing_features:
+                missing_features[(participant_id, session_id)] = subject_missing_features
+
+            if subject_missing:
+                missing_files[(participant_id, session_id)] = subject_missing
             else:
-                valid_subjects.append((participant_id, session_id))
-        
-        # Calculate statistics
-        total_subjects = len(self.valid_subjects['base'])
-        complete_subjects = len(valid_subjects)
-        complete_percentage = (complete_subjects / total_subjects) * 100 if total_subjects > 0 else 0
-        file_presence_percentage = ((all_files_count - missing_files_count) / all_files_count) * 100 if all_files_count > 0 else 0
-        
-        # Create summary
+                subjects_with_complete_data.append((participant_id, session_id))
+
+        for feature_name, data in feature_processed.items():
+            data['all'] = list(dict.fromkeys(data['all']))
+            for structure_name in data['structures']:
+                data['structures'][structure_name] = list(dict.fromkeys(data['structures'][structure_name]))
+            feature_availability[feature_name] = len(data['all'])
+
+        for structure_name in processed_valid_subjects['structures']:
+            processed_valid_subjects['structures'][structure_name] = list(dict.fromkeys(processed_valid_subjects['structures'][structure_name]))
+
+        processed_valid_subjects.update(feature_processed)
+
+        self.valid_subjects = processed_valid_subjects
+        self.subjects_with_complete_data = subjects_with_complete_data
+        self.missing_files = missing_files
+        self.missing_features = missing_features
+        self.feature_availability = feature_availability
+
+        total_subjects = len(output_subjects)
+        complete_subjects = len(subjects_with_complete_data)
+        complete_percentage = (complete_subjects / total_subjects) * 100 if total_subjects else 0.0
+        file_presence_percentage = ((all_files_count - missing_files_count) / all_files_count) * 100 if all_files_count else 0.0
+
         summary = {
             "total_subjects": total_subjects,
             "complete_subjects": complete_subjects,
@@ -1109,43 +1273,58 @@ class zbdataset():
             "missing_files_count": missing_files_count,
             "file_presence_percentage": file_presence_percentage
         }
-        
-        # Print summary
-        if verbose:
-            print(f"\nValidation Summary:")
-            print(f"  Total subjects: {total_subjects}")
-            print(f"  Subjects with complete data: {complete_subjects} ({complete_percentage:.1f}%)")
-            print(f"  Total expected files: {all_files_count}")
-            print(f"  Missing files: {missing_files_count} ({100-file_presence_percentage:.1f}%)")
-            
-            if missing_files:
-                print(f"\nSubjects with missing files: {len(missing_files)}")
-                if verbose >= 1:  # Extra verbosity for detailed missing file listing
-                    for (pid, sid), files in missing_files.items():
-                        print(f"  {pid}/{sid}: {len(files)} missing files")
-                        for file in files:
-                            print(f"    - {os.path.basename(file)}")
-    
-        # Error handling based on valid subjects
+        print("\nValidation Summary:")
+        print(f"  Total subjects (outputs): {total_subjects}")
+        print(f"  Subjects with complete data: {complete_subjects} ({complete_percentage:.1f}%)")
+        print(f"  Total expected files: {all_files_count}")
+        print(f"  Missing files: {missing_files_count} ({100 - file_presence_percentage:.1f}%)")
+        if verbose and missing_files:
+            print(f"\nSubjects with missing files: {len(missing_files)}")
+            for (pid, sid), files in missing_files.items():
+                print(f"  {pid}/{sid}: {len(files)} missing")
+                for path in files[:10]:
+                    print(f"    - {os.path.basename(path)}")
+                if len(files) > 10:
+                    print(f"    - ... and {len(files) - 10} more")
+
         if complete_subjects == 0:
             self.valid_dataset = False
-            raise ValueError(f"Validation failed: No subjects have complete data. Check processing logs for details.")
-        
-        # Error if below error threshold (but not zero, which is handled above)
+            raise ValueError("Validation failed: no subjects have complete processed data.")
+
         if error_threshold > 0 and complete_percentage < error_threshold:
             self.valid_dataset = False
-            raise ValueError(f"Validation failed: Only {complete_percentage:.1f}% of subjects have complete data (below error threshold of {error_threshold}%).")
-        
-        # Warning if below warning threshold
-        if complete_percentage < warning_threshold:
+            raise ValueError(f"Validation failed: {complete_percentage:.1f}% complete "
+                             f"(threshold {error_threshold}%).")
+
+        if warning_threshold and complete_percentage < warning_threshold:
             import warnings
-            warnings.warn(f"Validation warning: Only {complete_percentage:.1f}% of subjects have complete data (below warning threshold of {warning_threshold}%).")
+            warnings.warn(f"Validation warning: only {complete_percentage:.1f}% of subjects have complete data "
+                          f"(warning threshold {warning_threshold}%).")
 
         self.valid_dataset = True
         self.cortical_smoothing = cortical_smoothing
         self.hippocampal_smoothing = hippocampal_smoothing
+
+        if verbose:
+            print("\nFeature availability summary:")
+            denom = total_subjects if total_subjects else 1
+            for feature_name in self.features:
+                avail_count = feature_availability.get(feature_name, 0)
+                print(f"  {feature_name}: {avail_count}/{total_subjects} subjects ({(avail_count/denom)*100:.1f}%)")
+                if feature_name in feature_processed:
+                    for structure_name in ['cortex', 'hippocampus', 'subcortical']:
+                        struct_list = feature_processed[feature_name]['structures'][structure_name]
+                        if struct_list:
+                            print(f"    - {structure_name}: {len(struct_list)}/{total_subjects} subjects ({(len(struct_list)/denom)*100:.1f}%)")
+
+            print("\nStructure availability summary:")
+            for structure_name in ['cortex', 'hippocampus', 'subcortical']:
+                struct_list = processed_valid_subjects['structures'][structure_name]
+                if struct_list:
+                    print(f"  {structure_name}: {len(struct_list)}/{total_subjects} subjects ({(len(struct_list)/denom)*100:.1f}%)")
+
         return {
-            "valid_subjects": valid_subjects,
+            "valid_subjects": processed_valid_subjects['base'],
             "missing_files": missing_files,
             "summary": summary
         }
@@ -1447,7 +1626,7 @@ class zbdataset():
                     features=features,
                     approach=approach,
                     threshold=threshold,
-                    threshold_alpha=threshold_alpha,
+                                       threshold_alpha=threshold_alpha,
                     color_range=color_range,
                     cmap=cmap,
                     cmap_asymmetry=cmap_asymmetry,

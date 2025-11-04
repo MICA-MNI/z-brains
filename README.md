@@ -10,7 +10,7 @@ Z-Brains is a Python toolkit for analysing structural and diffusion MRI data, bu
 
 ```bash
 git clone <repository-url>
-cd z-brains-v2.0
+cd z-brains
 python -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip

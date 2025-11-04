@@ -62,7 +62,7 @@ if reprocess:
     control_dataset.process(output_directory=OUTPUT_DIR, env=env, verbose=True, **PIPELINE_SETTINGS)
 
 # Confirm required files exist and statistics can be derived for the control cohort.
-control_dataset.validate(output_directory=OUTPUT_DIR, verbose=True, **PIPELINE_SETTINGS)
+control_dataset.validate(output_directory=OUTPUT_DIR, verbose=False, **PIPELINE_SETTINGS)
 
 # Load patient demographics and align normative processing with the control cohort.
 patient_demo = demographics(
@@ -70,6 +70,7 @@ patient_demo = demographics(
     reference=control_demo,
     normative_columns=["AGE", "SEX"],
     normative_dtypes=["int", "binary"],
+    subset=[["sub-PX137", "ses-01"], ["sub-PX138", "ses-01"]], # Example to process a subset of patients
 )
 
 # Instantiate the patient dataset using the same modality configuration as the controls.
@@ -84,7 +85,7 @@ patient_dataset = zbdataset(
 
 # Run subject-level pipelines, then validate inputs before analysis.
 patient_dataset.process(output_directory=OUTPUT_DIR, env=env, verbose=True, **PIPELINE_SETTINGS)
-patient_dataset.validate(output_directory=OUTPUT_DIR, verbose=True, **PIPELINE_SETTINGS)
+patient_dataset.validate(output_directory=OUTPUT_DIR, verbose=False, **PIPELINE_SETTINGS)
 
 # Generate W-score maps comparing each patient to the normative control group.
 patient_dataset.analyze(output_directory=OUTPUT_DIR, reference=control_dataset, method="wscore")
@@ -95,7 +96,7 @@ patient_dataset.clinical_report(
     approach="wscore",
     verbose=True,
     env=env,
-    **PIPELINE_SETTINGS,
+    features=FEATURES
 )
 
 print("done")
