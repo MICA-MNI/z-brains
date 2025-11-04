@@ -1,7 +1,6 @@
 .idea/
 __pycache__/
 .vscode/
-run.*
 *.pyc
 *.pyo
 *.bat
@@ -9,3 +8,29 @@ run.*
 .vscode
 .pytest_cache/
 /run.bat
+*.csv
+/data/
+/build/
+# Python bytecode
+__pycache__/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
