@@ -399,7 +399,8 @@ def load_reference_surface_data(reference_subjects, output_directory, file_suffi
         - List of (participant_id, session_id) tuples for subjects that successfully loaded
     """
     reference_data = []
-    successfully_loaded_subjects = []  # Track which subjects actually loaded
+    successfully_loaded_subjects = []
+    failed_subjects = []  # Track failures
     
     for ref_pid, ref_sid in reference_subjects:
         ref_bids_id = f"{ref_pid}_{ref_sid}"
@@ -472,6 +473,10 @@ def load_reference_surface_data(reference_subjects, output_directory, file_suffi
                     if verbose:
                         print(f"    Warning: Could not load reference file {ref_file}: {e}")
     
+    if verbose and failed_subjects:
+        print("    Failed cortical reference subjects:")
+        for pid, sid, reason in failed_subjects:
+            print(f"      {pid}/{sid} -> {reason}")
     return np.array(reference_data) if reference_data else np.array([]), successfully_loaded_subjects
 
 def load_reference_hippocampal_data(reference_subjects, output_directory, file_suffix, analysis='regional', verbose=True):
@@ -499,7 +504,8 @@ def load_reference_hippocampal_data(reference_subjects, output_directory, file_s
         For asymmetry analysis, returns left-right asymmetry maps
     """
     reference_data = []
-    successfully_loaded_subjects = []  # Track which subjects actually loaded
+    successfully_loaded_subjects = []
+    failed_subjects = []  # Track failures
     
     for ref_pid, ref_sid in reference_subjects:
         if analysis == 'asymmetry':
@@ -548,6 +554,10 @@ def load_reference_hippocampal_data(reference_subjects, output_directory, file_s
                     if verbose:
                         print(f"    Warning: Could not load reference file {ref_file}: {e}")
     
+    if verbose and failed_subjects:
+        print("    Failed hippocampal reference subjects:")
+        for pid, sid, reason in failed_subjects:
+            print(f"      {pid}/{sid} -> {reason}")
     return np.array(reference_data) if reference_data else np.array([]), successfully_loaded_subjects
 
 def load_reference_subcortical_data(reference_subjects, output_directory, file_suffix, analysis='regional', verbose=True):
@@ -575,7 +585,8 @@ def load_reference_subcortical_data(reference_subjects, output_directory, file_s
         For asymmetry analysis, returns asymmetry values for paired structures
     """
     reference_data = []
-    successfully_loaded_subjects = []  # Track which subjects actually loaded
+    successfully_loaded_subjects = []
+    failed_subjects = []  # Track failures
     
     for ref_pid, ref_sid in reference_subjects:
         ref_bids_id = f"{ref_pid}_{ref_sid}"
@@ -612,7 +623,11 @@ def load_reference_subcortical_data(reference_subjects, output_directory, file_s
                 if verbose:
                     print(f"    Warning: Could not load reference file {ref_file}: {e}")
     
-    return (pd.concat(reference_data, ignore_index=True) if reference_data else pd.DataFrame(), 
+    if verbose and failed_subjects:
+        print("    Failed subcortical reference subjects:")
+        for pid, sid, reason in failed_subjects:
+            print(f"      {pid}/{sid} -> {reason}")
+    return (pd.concat(reference_data, ignore_index=True) if reference_data else pd.DataFrame(),
             successfully_loaded_subjects)
 
 def analyze_dataset(dataset, reference, method='zscore', output_directory=None, verbose=True):
