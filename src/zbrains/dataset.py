@@ -913,7 +913,7 @@ class zbdataset():
                 with open(summary_file, 'w', encoding='utf-8') as f:
                     f.write(f"===== PROCESSING SUMMARY FOR {participant_id}/{session_id} =====\n")
                     f.write(f"Dataset: {self.name}\n")
-                    f.write(f"Completed at: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write(f"Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
                     f.write(f"Total subjects processed: {len(valid_subjects_to_process)}\n")
                     f.write(f"Subjects processed successfully: {len(valid_subjects_to_process) - len(failed_subjects)}/{len(valid_subjects_to_process)}\n")
                     
@@ -1114,10 +1114,15 @@ class zbdataset():
                 f"{bids_id}_hemi-L_space-nativepro_surf-fsLR-32k_label-pial.surf.gii",
                 f"{bids_id}_hemi-R_space-nativepro_surf-fsLR-32k_label-pial.surf.gii",
                 f"{bids_id}_space-nativepro_T1w.nii.gz",
-                f"{participant_id}_{session_id}-laplace.nii.gz",
                 f"{bids_id}_hemi-L_surf-fsnative_label-medialwall.label.gii",
                 f"{bids_id}_hemi-R_surf-fsnative_label-medialwall.label.gii"
             ]
+            
+            # Only require Laplace file if blur features are present
+            has_blur_features = any(feat.lower().endswith("*blur") for feat in self.features)
+            if has_blur_features:
+                structural_expected.append(f"{participant_id}_{session_id}-laplace.nii.gz")
+            
             if self.hippocampus:
                 structural_expected.extend([
                     f"{bids_id}_hemi-L_space-unfold_den-0p5mm_label-hipp_midthickness.surf.gii",
@@ -1632,7 +1637,7 @@ class zbdataset():
                     cmap_asymmetry=cmap_asymmetry,
                     color_bar=color_bar,
                     tmp_dir=session_tmp_dir,  # Use session-specific tmp directory
-                    subject_dir=subject_dir,
+                                       subject_dir=subject_dir,
                     output_dir=None,  # Don't use separate output directory
                     tag=f"{participant_id}_{session_id}_{approach}_clinical_report",
                     smooth_ctx=self.cortical_smoothing,
