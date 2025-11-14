@@ -34,3 +34,4 @@ ENV/
 .vscode/
 *.swp
 *.swo
+judy_test.py

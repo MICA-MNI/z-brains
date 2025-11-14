@@ -356,7 +356,7 @@ class zbdataset():
         # Define required files for different structures
         required_cortical_files = [
             "anat/{participant_id}_{session_id}_space-nativepro_T1w.nii.gz",
-            "anat/{participant_id}_{session_id}_space-nativepro_T1w_brain_mask.nii.gz",
+            # "anat/{participant_id}_{session_id}_space-nativepro_T1w_brain_mask.nii.gz",
             "surf/{participant_id}_{session_id}_hemi-L_surf-fsnative_label-sphere.surf.gii",
             "surf/{participant_id}_{session_id}_hemi-R_surf-fsnative_label-sphere.surf.gii",
             "surf/{participant_id}_{session_id}_hemi-R_space-nativepro_surf-fsnative_label-pial.surf.gii",
@@ -433,6 +433,7 @@ class zbdataset():
                 )
                 if not os.path.exists(file_path):
                     subject_missing_files.append(file_path)
+                    print(f"Missing required cortical file for subject {participant_id}/{session_id}: {file_path}")
                     has_required_cortical = False
 
             for file_pattern in required_freesurfer_files:
@@ -442,6 +443,7 @@ class zbdataset():
                 )
                 if not os.path.exists(file_path):
                     subject_missing_files.append(file_path)
+                    print(f"Missing required cortical file for subject {participant_id}/{session_id}: {file_path}")
                     has_required_cortical = False
             
             # Check hippocampal files if enabled
@@ -456,6 +458,7 @@ class zbdataset():
                     )
                     if not os.path.exists(file_path):
                         subject_missing_files.append(file_path)
+                        print(f"Missing required hippocampal file for subject {participant_id}/{session_id}: {file_path}")
                         has_required_hippocampal = False
             
             # Check subcortical files if enabled
@@ -467,6 +470,7 @@ class zbdataset():
                     )
                     if not os.path.exists(file_path):
                         subject_missing_files.append(file_path)
+                        print(f"Missing required subcortical file for subject {participant_id}/{session_id}: {file_path}")
                         has_required_subcortical = False
             
             # Update structure-specific lists
@@ -913,7 +917,7 @@ class zbdataset():
                 with open(summary_file, 'w', encoding='utf-8') as f:
                     f.write(f"===== PROCESSING SUMMARY FOR {participant_id}/{session_id} =====\n")
                     f.write(f"Dataset: {self.name}\n")
-                    f.write(f"Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write(f"Completed at: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
                     f.write(f"Total subjects processed: {len(valid_subjects_to_process)}\n")
                     f.write(f"Subjects processed successfully: {len(valid_subjects_to_process) - len(failed_subjects)}/{len(valid_subjects_to_process)}\n")
                     

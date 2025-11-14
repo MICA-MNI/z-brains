@@ -1196,6 +1196,10 @@ def _load_data_sctx(
         # array_16[0:7][(array_16[0:7]) < 0] = 0
         array_16[8:15] = 0
 
+    # Fill ventricle slots with 0 (or another default) instead of leaving as NaN
+    array_16[7] = 0.0   # Left ventricle
+    array_16[15] = 0.0  # Right ventricle
+
     # Map array to vertices of surfaces
     feat_map = map_subcortical_vertices(array_16)
 
