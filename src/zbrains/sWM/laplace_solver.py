@@ -35,6 +35,7 @@ import skfmm
 from scipy.ndimage import binary_dilation, convolve
 import sys
 from time import time
+import argparse
 
 # Replace slow astropy convolve with fast scipy implementation
 def fast_convolve(data, kernel):
@@ -326,6 +327,8 @@ def solve_laplace(
 
 
 if __name__ == "__main__":
-    in_seg = sys.argv[1]
-    out_laplace = sys.argv[2]
-    solve_laplace(in_seg, out_laplace)
+    parser = argparse.ArgumentParser(description="Solve Laplace equation over white matter domain.")
+    parser.add_argument("in-seg", help="Parcellation file in nii.gz format")
+    parser.add_argument("out-laplace", help="Output laplacian file path (nii.gz)")
+    args = parser.parse_args()
+    solve_laplace(args.in_seg, args.out_laplace)

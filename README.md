@@ -101,6 +101,7 @@ Blur processing additionally needs:
 | `qT1` | `maps/{pid}_{sid}_hemi-{hemi}_surf-fsLR-32k_label-{midthickness,white}_T1map.func.gii`, `maps/{pid}_{sid}_space-nativepro_map-T1map.nii.gz`. |
 | `FLAIR*blur` | Same FLAIR volumetric/surface files above; blur outputs stored as `maps/cortex/{pid}_{sid}_hemi-{hemi}_feature-FLAIR*blur_*`. |
 | `qT1*blur` | Same qT1 inputs; outputs `...feature-qT1*blur_*`. |
+| `fMRI` | `func/desc-se_task-rest_acq-AP_bold/surf/{pid}_{sid}_surf-fsLR-32k_desc-timeseries_clean.shape.gii`. Generates `rmssd`, `timescales`, `alff`, `falff`. |
 
 ### 3. Hippocampal feature inputs
 
@@ -119,6 +120,7 @@ Validation expects, per subject, directories under `${output_directory}/{pid}/{s
 - `structural/` copies of all surfaces, Laplace file, medial wall labels.
 - `maps/cortex`, `maps/hippocampus`, `maps/subcortical` populated with the smoothed feature files following naming patterns described above (fsLR resolutions 32k & 5k, labels `midthickness` & `white`, hippocampal `den-0p5mm`, subcortical CSVs).
 - For blur: raw/dist/grad files `..._feature-{feat}*blur_surf-fsnative_desc-{raw,dist,grad}.func.gii` and smoothed `..._surf-fsnative_smooth-{cortical_smoothing}mm.func.gii`.
+- For fMRI: `maps/cortex` populated with `rmssd`, `timescales`, `alff`, `falff` metric maps at 32k and 5k resolutions.
 
 This inventory comes directly from the file checks in `zbdataset.add_features()` and `validate()` plus the runtime needs of `apply_blurring`, `apply_cortical_processing`, `apply_hippocampal_processing`, and `apply_subcortical_processing`.
 

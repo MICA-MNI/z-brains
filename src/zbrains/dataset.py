@@ -312,6 +312,7 @@ class zbdataset():
             "qt1": "qT1",
             "qt1*blur": "qT1*blur",
             "flair*blur": "FLAIR*blur",
+            "fmri": "fMRI",
         }
         
         # Normalize all features to consistent case
@@ -350,6 +351,7 @@ class zbdataset():
                            "maps/{participant_id}_{session_id}_space-nativepro_map-flair.nii.gz"],
             "qT1*blur": ["maps/{participant_id}_{session_id}_hemi-{hemi}_surf-fsLR-32k_label-{surfacetype}_T1map.func.gii",
                          "maps/{participant_id}_{session_id}_space-nativepro_map-T1map.nii.gz"],
+            "fMRI": ["func/desc-se_task-rest_acq-AP_bold/surf/{participant_id}_{session_id}_surf-fsLR-32k_desc-timeseries_clean.shape.gii"]
         }
         
         # Rest of the method remains the same...
@@ -562,12 +564,12 @@ class zbdataset():
                     if feature_has_cortical:
                         self.valid_subjects[feature]['structures']['cortex'].append(subject)
                     
-                    if feature_has_hippocampal and not feature.lower().endswith('*blur'):
-                        # Blur features don't apply to hippocampus
+                    if feature_has_hippocampal and not feature.lower().endswith('*blur') and feature.lower() != 'fmri':
+                        # Blur features and fMRI don't apply to hippocampus
                         self.valid_subjects[feature]['structures']['hippocampus'].append(subject)
                     
-                    if feature_has_subcortical and not feature.lower().endswith('*blur'):
-                        # Blur features don't apply to subcortical
+                    if feature_has_subcortical and not feature.lower().endswith('*blur') and feature.lower() != 'fmri':
+                        # Blur features and fMRI don't apply to subcortical
                         self.valid_subjects[feature]['structures']['subcortical'].append(subject)
                 else:
                     subject_missing_features.add(feature)
@@ -615,11 +617,11 @@ class zbdataset():
                     cortex_count = len(self.valid_subjects[feature]['structures']['cortex'])
                     print(f"    - cortex: {cortex_count}/{total_subjects} subjects ({cortex_count/total_subjects*100:.1f}%)")
                     
-                    if self.hippocampus and not feature.lower().endswith('*blur'):
+                    if self.hippocampus and not feature.lower().endswith('*blur') and feature.lower() != 'fmri':
                         hippo_count = len(self.valid_subjects[feature]['structures']['hippocampus'])
                         print(f"    - hippocampus: {hippo_count}/{total_subjects} subjects ({hippo_count/total_subjects*100:.1f}%)")
                     
-                    if self.subcortical and not feature.lower().endswith('*blur'):
+                    if self.subcortical and not feature.lower().endswith('*blur') and feature.lower() != 'fmri':
                         subcort_count = len(self.valid_subjects[feature]['structures']['subcortical'])
                         print(f"    - subcortical: {subcort_count}/{total_subjects} subjects ({subcort_count/total_subjects*100:.1f}%)")
         
@@ -675,7 +677,8 @@ class zbdataset():
             "flair": "FLAIR",
             "qt1": "qT1",
             "flair*blur": "FLAIR*blur",
-            "qt1*blur": "qT1*blur"
+            "qt1*blur": "qT1*blur",
+            "fmri": "fMRI",
         }
         
         # Normalize features consistently
@@ -966,7 +969,8 @@ class zbdataset():
             "qt1": "qT1",
             "t1map": "qT1",
             "flair*blur": "FLAIR*blur",
-            "qt1*blur": "qT1*blur"
+            "qt1*blur": "qT1*blur",
+            "fmri": "fMRI",
         }
 
         if features is None:
@@ -1006,7 +1010,8 @@ class zbdataset():
             "adc": "ADC",
             "fa": "FA",
             "qt1": "qT1",
-            "t1map": "qT1"
+            "t1map": "qT1",
+            "fmri": "fMRI"
         }
 
         feature_meta = []
@@ -1043,10 +1048,10 @@ class zbdataset():
                 "subcortical_token": subcortical_token,
                 "requires_cortex": self.cortex,
                 "requires_hippocampus": (
-                    self.hippocampus and self.hippunfold_directory and not is_blur and hippo_token is not None
+                    self.hippocampus and self.hippunfold_directory and not is_blur and hippo_token is not None and base_lower != 'fmri'
                 ),
                 "requires_subcortical": (
-                    self.subcortical and self.freesurfer_directory and not is_blur and subcortical_token is not None
+                    self.subcortical and self.freesurfer_directory and not is_blur and subcortical_token is not None and base_lower != 'fmri'
                 )
             })
 
@@ -1154,18 +1159,32 @@ class zbdataset():
                     feature_name = meta['original']
                     for hemi in ["L", "R"]:
                         for res in resolutions:
-                            for label in (["midthickness"] if meta['is_blur'] else surface_labels):
-                                cortical_path = os.path.join(
-                                    cortex_dir,
-                                    f"{bids_id}_hemi-{hemi}_surf-fsLR-{res}_label-{label}_feature-"
-                                    f"{meta['cortical_token']}_smooth-{cortical_smoothing}mm.func.gii"
-                                )
-                                all_files_count += 1
-                                if not os.path.exists(cortical_path):
-                                    subject_missing.append(cortical_path)
-                                    missing_files_count += 1
-                                    subject_feature_structures[feature_name]['cortex'] = False
-                                    subject_missing_features.add(feature_name)
+                            for label in (["midthickness"] if meta['is_blur'] or (meta['base_lower'] == 'fmri')  else surface_labels):
+                                if meta['base_lower'] == 'fmri':
+                                    for fmrifeat in ['rmssd', 'timescales', 'alff', 'falff']:
+                                        cortical_path = os.path.join(
+                                            cortex_dir,
+                                            f"{bids_id}_hemi-{hemi}_surf-fsLR-{res}_label-{label}_feature-"
+                                            f"{fmrifeat}_smooth-{cortical_smoothing}mm.func.gii"
+                                        )
+                                        all_files_count += 1
+                                        if not os.path.exists(cortical_path):
+                                            subject_missing.append(cortical_path)
+                                            missing_files_count += 1
+                                            subject_feature_structures[feature_name]['cortex'] = False
+                                            subject_missing_features.add(feature_name)
+                                else:
+                                    cortical_path = os.path.join(
+                                        cortex_dir,
+                                        f"{bids_id}_hemi-{hemi}_surf-fsLR-{res}_label-{label}_feature-"
+                                        f"{meta['cortical_token']}_smooth-{cortical_smoothing}mm.func.gii"
+                                    )
+                                    all_files_count += 1
+                                    if not os.path.exists(cortical_path):
+                                        subject_missing.append(cortical_path)
+                                        missing_files_count += 1
+                                        subject_feature_structures[feature_name]['cortex'] = False
+                                        subject_missing_features.add(feature_name)
                     if meta['is_blur'] and meta['blur_token']:
                         for hemi in ["L", "R"]:
                             blur_prefix = os.path.join(
@@ -1547,7 +1566,8 @@ class zbdataset():
             "fa": "FA",
             "qt1": "qT1",
             "qt1*blur": "qT1*blur",
-            "flair*blur": "FLAIR*blur"
+            "flair*blur": "FLAIR*blur",
+            "fmri": "fMRI",
         }
 
         features = [feature_mapping.get(f.lower(), f) for f in features]
@@ -1635,13 +1655,13 @@ class zbdataset():
                     features=features,
                     approach=approach,
                     threshold=threshold,
-                                       threshold_alpha=threshold_alpha,
+                    threshold_alpha=threshold_alpha,
                     color_range=color_range,
                     cmap=cmap,
                     cmap_asymmetry=cmap_asymmetry,
                     color_bar=color_bar,
                     tmp_dir=session_tmp_dir,  # Use session-specific tmp directory
-                                       subject_dir=subject_dir,
+                    subject_dir=subject_dir,
                     output_dir=None,  # Don't use separate output directory
                     tag=f"{participant_id}_{session_id}_{approach}_clinical_report",
                     smooth_ctx=self.cortical_smoothing,

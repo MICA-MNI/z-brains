@@ -7,6 +7,7 @@ from zbrains.sWM import laplace_solver, surface_generator
 from zbrains.utils import reshape_distances
 import scipy
 import tempfile
+from zbrains.fmri import compute_fmri_features
 
 def fixmatrix(path, inputmap, outputmap, basemap, BIDS_ID, temppath, wb_path, mat_path):
     """
@@ -172,8 +173,10 @@ def apply_blurring(participant_id, session_id, features, output_directory, workb
                 basemap=os.path.join(input_dir, "anat", f"{participant_id}_{session_id}_space-nativepro_T1w_brain.nii.gz"),
                 mat_path="from-fsnative_to_nativepro_T1w_0GenericAffine"
             )
-            
+            import shutil
             # Solve Laplace equation
+            shutil.copy(src=temp_parc_path, dst="temp_parc_copy.nii.gz")  # Backup for laplace solver
+
             laplace_solver.solve_laplace(temp_parc_path, output_path)
             
             # Generate ONLY 1mm and 2mm shifted surfaces
@@ -183,7 +186,7 @@ def apply_blurring(participant_id, session_id, features, output_directory, workb
                 os.path.join(struct_dir, f"{participant_id}_{session_id}_{hemi}_sfwm-"),
                 [1.0, 2.0]
             )
-        
+            shutil.copy(src=os.path.join(input_dir, "surf", f"{participant_id}_{session_id}_hemi-{hemi}_space-nativepro_surf-fsnative_label-white.surf.gii"), dst="surf-fsnative_label-white.surf.gii") 
         # Process each feature
         for feature in features:
             if verbose:
@@ -841,7 +844,8 @@ def apply_cortical_processing(
         "fa": {"input": "FA", "output": "FA"},
         "qt1": {"input": "T1map", "output": "qT1"},  # Changed output from "T1map" to "qT1"
         "qt1*blur": {"input": "T1map", "output": "qT1*blur"},  # Added for consistency with blur features
-        "flair*blur": {"input": "flair", "output": "FLAIR*blur"}  # Added for consistency with blur features
+        "flair*blur": {"input": "flair", "output": "FLAIR*blur"},  # Added for consistency with blur features
+        "fmri": {"input": "fmri", "output": "fMRI"}  
     }
     
     # Process each feature
@@ -869,6 +873,27 @@ def apply_cortical_processing(
         if verbose:
             print(f"    Processing cortical feature {feature} ({input_feat} → {output_feat})")
         
+        if feat_lower == "fmri":
+            input_file = os.path.join(
+                os.path.dirname(input_dir),
+                f"func/desc-se_task-rest_acq-AP_bold/surf/{bids_id}_surf-fsLR-32k_desc-timeseries_clean.shape.gii"
+            )
+            # Split into L and R hemispheres
+            data = nib.load(input_file)
+            for hemi in ["L", "R"]:
+                hemi_data = data.darrays[0].data[:, :32492] if hemi == "L" else data.darrays[0].data[:, 32492:]
+                hemi_file = os.path.join(
+                    tmp_dir,
+                    f"{bids_id}_hemi-{hemi}_surf-fsLR-32k_desc-timeseries_clean.shape.gii"
+                )
+                hemi_array = nib.gifti.gifti.GiftiDataArray(
+                    data=hemi_data.T,
+                    intent="NIFTI_INTENT_TIME_SERIES"
+                )
+                gii_hemi = nib.gifti.GiftiImage(darrays=[hemi_array])
+                nib.save(gii_hemi, hemi_file)
+
+
         # Process each hemisphere
         for hemi in ["L", "R"]:
             # Use standard sphere from data directory
@@ -882,11 +907,13 @@ def apply_cortical_processing(
             
             # Check and process each resolution
             for resolution in resolutions:
+                if feat_lower == "fmri" and resolution != "32k":
+                    continue  # fMRI only processed at 32k resolution
                 # Use standard fsLR sphere from data directory
                 sphere_fsLR = os.path.join(data_dir, f"fsLR-{resolution}.{hemi}.sphere.reg.surf.gii")
                 
                 # Process each label (surface type) - For blur features, only use midthickness
-                label_list = ["midthickness"] if is_blur else labels
+                label_list = ["midthickness"] if is_blur or feat_lower == "fmri" else labels
                 for label in label_list:
                     if verbose:
                         print(f"      Processing {feature} for hemi-{hemi}, {resolution}, label-{label}")
@@ -902,12 +929,17 @@ def apply_cortical_processing(
                         if verbose:
                             print(f"      Warning: Surface file not found: {surf_file}")
                         continue
-                    
-                    # Define output file
-                    output_file = os.path.join(
-                        cortex_dir,
-                        f"{bids_id}_hemi-{hemi}_surf-fsLR-{resolution}_label-{label}_feature-{output_feat}_smooth-{cortical_smoothing}mm.func.gii"
-                    )
+                    if feat_lower == "fmri":
+                        output_file = os.path.join(
+                            tmp_dir,
+                            f"{bids_id}_hemi-{hemi}_surf-fsLR-{resolution}_label-{label}_feature-{output_feat}_smooth-{cortical_smoothing}mm.func.gii"
+                        )
+                    else:
+                        # Define output file
+                        output_file = os.path.join(
+                            cortex_dir,
+                            f"{bids_id}_hemi-{hemi}_surf-fsLR-{resolution}_label-{label}_feature-{output_feat}_smooth-{cortical_smoothing}mm.func.gii"
+                        )
                     
                     # Handle blur features differently - use existing pre-smoothed blurred data
                     if is_blur:
@@ -946,6 +978,11 @@ def apply_cortical_processing(
                                 input_dir,
                                 f"{bids_id}_hemi-{hemi}_surf-fsLR-{resolution}_label-{input_feat}.func.gii"
                             )
+                        elif feat_lower == "fmri":
+                            input_file = os.path.join(
+                                tmp_dir,
+                                f"{bids_id}_hemi-{hemi}_surf-fsLR-{resolution}_desc-timeseries_clean.shape.gii"
+                            )
                         else:
                             input_file = os.path.join(
                                 input_dir,
@@ -979,6 +1016,60 @@ def apply_cortical_processing(
                         
                         if verbose:
                             print(f"      Successfully processed {output_file}")
+                    if feat_lower == "fmri":
+                        loaded_file = nib.load(output_file)
+                        data = np.array([loaded_file.darrays[x].data for x in range(len(loaded_file.darrays))])
+                        fmri_features = compute_fmri_features(data, tr=0.65)
+                        rmssd = fmri_features['rmssd']
+                        timescales = fmri_features['timescales']
+                        alff = fmri_features['alff']
+                        falff = fmri_features['falff']
+                        def save_fmri_feature(data, hemi, feature_name):
+                            feature_file = os.path.join(
+                                cortex_dir,
+                                f"{bids_id}_hemi-{hemi}_surf-fsLR-{resolution}_label-{label}_feature-{feature_name}_smooth-{cortical_smoothing}mm.func.gii"
+                            )
+                            data_array = nib.gifti.gifti.GiftiDataArray(
+                                data=data.astype(np.float32),
+                                intent="NIFTI_INTENT_NORMAL"
+                            )
+                            gii_data = nib.gifti.GiftiImage(darrays=[data_array])
+                            nib.save(gii_data, feature_file)
+
+                        save_fmri_feature(rmssd, hemi, "rmssd")
+                        save_fmri_feature(timescales, hemi, "timescales")
+                        save_fmri_feature(alff, hemi, "alff")
+                        save_fmri_feature(falff, hemi, "falff")
+                        def resample_to_5k(data_file, hemi, feature_name):
+                            sphere_fslr_32k = os.path.join(
+                                data_dir,
+                                f"fsLR-32k.{hemi}.sphere.reg.surf.gii"
+                            )
+                            sphere_fsLR_5k = os.path.join(
+                                data_dir,
+                                f"fsLR-5k.{hemi}.sphere.reg.surf.gii"
+                            )
+                            output_file_5k = os.path.join(
+                                cortex_dir,
+                                f"{bids_id}_hemi-{hemi}_surf-fsLR-5k_label-midthickness_feature-{feature_name}_smooth-{cortical_smoothing}mm.func.gii"
+                            )
+                            subprocess.run([
+                                os.path.join(workbench_path, "wb_command"),
+                                "-metric-resample",
+                                data_file,
+                                sphere_fslr_32k,
+                                sphere_fsLR_5k,
+                                "BARYCENTRIC",
+                                output_file_5k,
+                                "-largest"
+                            ], check=False)
+                        for feature_name in ["rmssd", "timescales", "alff", "falff"]:
+                            data_file = os.path.join(
+                                cortex_dir,
+                                f"{bids_id}_hemi-{hemi}_surf-fsLR-{resolution}_label-{label}_feature-{feature_name}_smooth-{cortical_smoothing}mm.func.gii"
+                            )
+                            resample_to_5k(data_file, hemi, feature_name)
+                        
     
     if verbose:
         print(f"  Completed cortical processing for {participant_id}/{session_id}")

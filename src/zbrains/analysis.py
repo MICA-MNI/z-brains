@@ -499,7 +499,7 @@ def load_reference_hippocampal_data(reference_subjects, output_directory, file_s
     Returns:
     --------
     tuple: (np.ndarray, list)
-        - Array of reference data with shape (n_subjects, n_vertices)
+        - Array of reference data with shape (n_subjects, n_vertices) or (n_subjects, n_vertices, n_depths)
         - List of (participant_id, session_id) tuples for subjects that successfully loaded
         For asymmetry analysis, returns left-right asymmetry maps
     """
@@ -711,7 +711,8 @@ def analyze_dataset(dataset, reference, method='zscore', output_directory=None, 
         "flair": {"output": "FLAIR"},
         "adc": {"output": "ADC"},
         "fa": {"output": "FA"},
-        "qt1": {"output": "qT1"}  # Changed from "T1map" to "qT1"
+        "qt1": {"output": "qT1"},  # Changed from "T1map" to "qT1"
+        "fmri": {"output": "fMRI"}
     }
     
     # Define analysis parameters
@@ -750,7 +751,7 @@ def analyze_dataset(dataset, reference, method='zscore', output_directory=None, 
         
         feat_lower = feature.lower()
         is_blur = feat_lower.endswith("*blur")
-        
+        is_fmri = feat_lower == "fmri"
         # Get base feature name and mapping
         if is_blur:
             base_feat = feat_lower.replace("*blur", "")
@@ -765,7 +766,7 @@ def analyze_dataset(dataset, reference, method='zscore', output_directory=None, 
                 output_feat = feat_lower
         
         # 1. CORTICAL ANALYSIS
-        if dataset.cortex and reference.cortex and not is_blur:
+        if dataset.cortex and reference.cortex and not is_blur and not is_fmri:
             if verbose:
                 print(f"  Processing cortical data for {feature}...")
             
@@ -952,7 +953,7 @@ def analyze_dataset(dataset, reference, method='zscore', output_directory=None, 
             analysis_results["cortical"][feature] = cortical_results
         
         # 2. HIPPOCAMPAL ANALYSIS
-        if dataset.hippocampus and reference.hippocampus and not is_blur:
+        if dataset.hippocampus and reference.hippocampus and not is_blur and not is_fmri:
             if verbose:
                 print(f"  Processing hippocampal data for {feature}...")
             
@@ -1308,7 +1309,7 @@ def analyze_dataset(dataset, reference, method='zscore', output_directory=None, 
             analysis_results["blur"][feature] = blur_results
         
         # 4. SUBCORTICAL ANALYSIS
-        if dataset.subcortical and reference.subcortical and not is_blur:
+        if dataset.subcortical and reference.subcortical and not is_blur and not is_fmri:
             if verbose:
                 print(f"  Processing subcortical data for {feature}...")
             
@@ -1433,6 +1434,199 @@ def analyze_dataset(dataset, reference, method='zscore', output_directory=None, 
             
             analysis_results["subcortical"][feature] = subcortical_results
     
+        # 5. fMRI ANALYSIS
+        if is_fmri:
+            if verbose:
+                print(f"  Processing fMRI data for {feature}...")
+            
+            # Get valid subjects for this feature
+            dataset_fmri_subjects = dataset.valid_subjects[feature]['structures']['cortex'] if feature in dataset.valid_subjects else []
+            reference_fmri_subjects = reference.valid_subjects[feature]['structures']['cortex'] if feature in reference.valid_subjects else []
+            
+            if not dataset_fmri_subjects or not reference_fmri_subjects:
+                if verbose:
+                    print(f"    Warning: No valid subjects found for fMRI {feature}")
+                continue
+            
+            fmri_features = ['rmssd', 'timescales', 'alff', 'falff']
+            
+            for fmri_feat in fmri_features:
+                if verbose:
+                    print(f"    Processing fMRI feature: {fmri_feat}")
+                
+                fmri_results = {}
+                
+                for hemi in hemispheres:
+                    for resolution in resolutions:
+                        for label in ['midthickness']:
+                            for analysis in ['regional', 'asymmetry']:
+                                map_key = f"{hemi}_{resolution}_{label}_{analysis}"
+                                
+                                file_suffix = f"hemi-{hemi}_surf-fsLR-{resolution}_label-{label}_feature-{fmri_feat}_smooth-{dataset.cortical_smoothing}mm.func.gii"
+                                
+                                # Load reference data and track which subjects actually loaded
+                                reference_data, successfully_loaded_subjects = load_reference_surface_data(
+                                    reference_fmri_subjects, output_directory, file_suffix, analysis, verbose
+                                )
+                                
+                                if len(reference_data) == 0:
+                                    if verbose:
+                                        print(f"    Warning: No reference data found for {map_key}")
+                                    continue
+                                
+                                # Get demographics for reference subjects (if using wscore)
+                                if method == 'wscore':
+                                    ref_demographics = []
+                                    valid_ref_subjects = []
+                                    # Now iterate over subjects that ACTUALLY loaded, not all subjects
+                                    for ref_pid, ref_sid in successfully_loaded_subjects:
+                                        key = (ref_pid, ref_sid)
+                                        if key in ref_demo_dict:
+                                            ref_demographics.append(ref_demo_dict[key])
+                                            valid_ref_subjects.append(key)
+                                    
+                                    if len(ref_demographics) == 0:
+                                        if verbose:
+                                            print(f"    Warning: No demographics data found for reference subjects in {map_key}")
+                                        continue
+                                    
+                                    ref_demographics_df = pd.DataFrame(ref_demographics)
+                                    # Filter reference data to match demographics
+                                    # Now indices will match because we're iterating over successfully_loaded_subjects
+                                    ref_indices = [i for i, subj in enumerate(successfully_loaded_subjects) if subj in valid_ref_subjects]
+                                    reference_data = reference_data[ref_indices]
+                                
+                                # Process patient data
+                                patient_scores = []
+                                for pat_pid, pat_sid in dataset_fmri_subjects:
+                                    pat_bids_id = f"{pat_pid}_{pat_sid}"
+                                    
+                                    if analysis == 'asymmetry':
+                                        # For asymmetry, we need both left and right hemisphere data
+                                        pat_file_lh = os.path.join(
+                                            output_directory,
+                                            pat_pid, pat_sid, "maps", "cortex",
+                                            f"{pat_bids_id}_{file_suffix.replace('hemi-L', 'hemi-L').replace('hemi-R', 'hemi-L')}"
+                                        )
+                                        pat_file_rh = os.path.join(
+                                            output_directory,
+                                            pat_pid, pat_sid, "maps", "cortex",
+                                            f"{pat_bids_id}_{file_suffix.replace('hemi-L', 'hemi-R').replace('hemi-R', 'hemi-R')}"
+                                        )
+                                        
+                                        if os.path.exists(pat_file_lh) and os.path.exists(pat_file_rh):
+                                            try:
+                                                pat_img_lh = nib.load(pat_file_lh)
+                                                pat_img_rh = nib.load(pat_file_rh)
+                                                
+                                                # Handle multi-depth data (blur features)
+                                                if len(pat_img_lh.darrays) > 1:
+                                                    pat_data_lh = np.zeros(shape=(pat_img_lh.darrays[0].data.shape[0], len(pat_img_lh.darrays)))
+                                                    pat_data_rh = np.zeros(shape=(pat_img_rh.darrays[0].data.shape[0], len(pat_img_rh.darrays)))
+                                                    
+                                                    for e, (darray_lh, darray_rh) in enumerate(zip(pat_img_lh.darrays, pat_img_rh.darrays)):
+                                                        pat_data_lh[:, e] = darray_lh.data
+                                                        pat_data_rh[:, e] = darray_rh.data
+                                                    
+                                                    # Compute asymmetry
+                                                    pat_data = compute_asymmetry(pat_data_lh, pat_data_rh)
+                                                else:
+                                                    pat_data_lh = pat_img_lh.darrays[0].data
+                                                    pat_data_rh = pat_img_rh.darrays[0].data
+                                                    
+                                                    # Compute asymmetry
+                                                    pat_data = compute_asymmetry(pat_data_lh, pat_data_rh)
+                                                
+                                                # Create score output file with analysis type in filename
+                                                score_dir = os.path.join(output_directory, pat_pid, pat_sid, f"{method}_maps", "cortex")
+                                                score_file = os.path.join(
+                                                    score_dir, 
+                                                    f"{pat_bids_id}_{file_suffix.replace('.func.gii', f'_analysis-{analysis}.func.gii')}"
+                                                )
+                                                
+                                                # Calculate scores
+                                                if method == 'zscore':
+                                                    score_result = calculate_zscore_maps(
+                                                        reference_data, pat_data, score_file, analysis, verbose
+                                                    )
+                                                else:  # wscore
+                                                    # Get patient demographics
+                                                    pat_key = (pat_pid, pat_sid)
+                                                    if pat_key not in pat_demo_dict:
+                                                        if verbose:
+                                                            print(f"    Warning: No demographics data found for patient {pat_pid}/{pat_sid}")
+                                                        continue
+                                                    
+                                                    pat_demographics = pat_demo_dict[pat_key]
+                                                    score_result = calculate_wscore_maps(
+                                                        reference_data, pat_data, ref_demographics_df, pat_demographics, 
+                                                        score_file, normative_columns, verbose
+                                                    )
+                                                
+                                                score_result['subject'] = (pat_pid, pat_sid)
+                                                score_result['analysis'] = analysis
+                                                patient_scores.append(score_result)
+                                                
+                                            except Exception as e:
+                                                if verbose:
+                                                    print(f"    Warning: Could not process patient files {pat_file_lh} or {pat_file_rh}: {e}")
+                                        else:
+                                            if verbose:
+                                                print(f"    Warning: Missing files for asymmetry analysis: {pat_file_lh} or {pat_file_rh}")
+                                    
+                                    else:
+                                        # Regional analysis - load single hemisphere data
+                                        pat_file = os.path.join(
+                                            output_directory,
+                                            pat_pid, pat_sid, "maps", "cortex",
+                                            f"{pat_bids_id}_{file_suffix}"
+                                        )
+                                        
+                                        if os.path.exists(pat_file):
+                                            try:
+                                                pat_img = nib.load(pat_file)
+                                                pat_data = pat_img.darrays[0].data
+                                                
+                                                # Create score output file with analysis type in filename
+                                                score_dir = os.path.join(output_directory, pat_pid, pat_sid, f"{method}_maps", "cortex")
+                                                score_file = os.path.join(
+                                                    score_dir, 
+                                                    f"{pat_bids_id}_{file_suffix.replace('.func.gii', f'_analysis-{analysis}.func.gii')}"
+                                                )
+                                                
+                                                # Calculate scores
+                                                if method == 'zscore':
+                                                    score_result = calculate_zscore_maps(
+                                                        reference_data, pat_data, score_file, analysis, verbose
+                                                    )
+                                                else:  # wscore
+                                                    # Get patient demographics
+                                                    pat_key = (pat_pid, pat_sid)
+                                                    if pat_key not in pat_demo_dict:
+                                                        if verbose:
+                                                            print(f"    Warning: No demographics data found for patient {pat_pid}/{pat_sid}")
+                                                        continue
+                                                    
+                                                    pat_demographics = pat_demo_dict[pat_key]
+                                                    score_result = calculate_wscore_maps(
+                                                        reference_data, pat_data, ref_demographics_df, pat_demographics, 
+                                                        score_file, normative_columns, verbose
+                                                    )
+                                                
+                                                score_result['subject'] = (pat_pid, pat_sid)
+                                                score_result['analysis'] = analysis
+                                                patient_scores.append(score_result)
+                                                
+                                            except Exception as e:
+                                                if verbose:
+                                                    print(f"    Warning: Could not process patient file {pat_file}: {e}")
+                                
+                                fmri_results[map_key] = {
+                                    f'patient_{method}s': patient_scores
+                                }
+                
+                analysis_results["cortical"][fmri_feat] = fmri_results
+
     if verbose:
         print(f"\nAnalysis complete! {method.upper()} maps saved to {method}_maps directories")
         

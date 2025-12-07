@@ -2009,6 +2009,12 @@ def generate_clinical_report(
                 os.path.exists(file_hip_lh) or 
                 os.path.exists(file_sctx))
     
+    # Fix fMRI features if present:
+    fmri_features = ['rmssd', 'timescales', 'alff', 'falff']
+    if 'fMRI' in features:
+        features.remove('fMRI')
+        features.extend(fmri_features)
+
     # Filter out features/analyses combinations that don't have any data
     valid_combinations = []
     for analysis, feat in itertools.product(analyses, features):
