@@ -197,6 +197,7 @@ class zbdataset():
         self.hippocampus = hippocampus
         self.subcortical = subcortical
         self.valid_dataset = False
+        self.hippunfold_version = 1
        
     def __repr__(self):
         return f"Dataset(name={self.name})"
@@ -218,6 +219,35 @@ class zbdataset():
         if self.freesurfer_directory and not os.path.exists(self.freesurfer_directory):
             raise ValueError(f"Freesurfer directory {self.freesurfer_directory} does not exist.")
         print("All directories exist.")
+
+        # Detect HippUnfold version if applicable
+        if self.hippocampus and self.hippunfold_directory:
+            # Probe a few directories to find the resolution
+            found_version = False
+            for _, row in self.demographics.data.iterrows():
+                pid = row['participant_id']
+                sid = row['session_id']
+                
+                # Check for 0.5mm file (v1 structure: hippunfold_dir/hippunfold/sub-X)
+                v1_path = os.path.join(self.hippunfold_directory, "hippunfold", pid, sid, 
+                                      f"surf/{pid}_{sid}_hemi-L_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii")
+                if os.path.exists(v1_path):
+                    self.hippunfold_version = 1
+                    print("Detected HippUnfold resolution: 0.5mm (v1)")
+                    found_version = True
+                    break
+                
+                # Check for 8k file (v2 structure: hippunfold_dir/sub-X)
+                v2_path = os.path.join(self.hippunfold_directory, pid, sid, 
+                                      f"surf/{pid}_{sid}_hemi-L_space-T1w_den-8k_label-hipp_midthickness.surf.gii")
+                if os.path.exists(v2_path):
+                    self.hippunfold_version = 2
+                    print("Detected HippUnfold resolution: 8k (v2)")
+                    found_version = True
+                    break
+            
+            if not found_version:
+                print("Warning: Could not detect HippUnfold version (checked 8k/v2 and 0.5mm/v1). Defaulting to v1.")
 
         # Initialize valid_subjects structure
         self.valid_subjects = {
@@ -248,14 +278,18 @@ class zbdataset():
                 is_valid = False
                 
             # Check for directory in hippunfold if specified
-            if self.hippunfold_directory:
-                hippunfold_path = os.path.join(self.hippunfold_directory, "hippunfold", f"{participant_id}", f"{session_id}")
+            if self.hippocampus and self.hippunfold_directory:
+                if self.hippunfold_version == 2:
+                    hippunfold_path = os.path.join(self.hippunfold_directory, f"{participant_id}", f"{session_id}")
+                else:
+                    hippunfold_path = os.path.join(self.hippunfold_directory, "hippunfold", f"{participant_id}", f"{session_id}")
+                
                 if not os.path.exists(hippunfold_path):
                     missing_hippunfold.append((participant_id, session_id))
                     is_valid = False
                     
             # Check for directory in freesurfer if specified
-            if self.freesurfer_directory:
+            if self.subcortical and self.freesurfer_directory:
                 freesurfer_path = os.path.join(self.freesurfer_directory, f"{participant_id}_{session_id}")
                 if not os.path.exists(freesurfer_path):
                     missing_freesurfer.append((participant_id, session_id))
@@ -388,6 +422,17 @@ class zbdataset():
             "surf/{participant_id}_{session_id}_hemi-R_space-unfold_den-0p5mm_label-hipp_midthickness.surf.gii"
         ]
 
+        required_hippocampal_files_v2 = [
+            "surf/{participant_id}_{session_id}_hemi-L_space-T1w_den-8k_label-hipp_midthickness.surf.gii",
+            "surf/{participant_id}_{session_id}_hemi-R_space-T1w_den-8k_label-hipp_midthickness.surf.gii",
+            "surf/{participant_id}_{session_id}_hemi-L_space-T1w_den-8k_label-hipp_inner.surf.gii",
+            "surf/{participant_id}_{session_id}_hemi-R_space-T1w_den-8k_label-hipp_inner.surf.gii",
+            "surf/{participant_id}_{session_id}_hemi-L_space-T1w_den-8k_label-hipp_outer.surf.gii",
+            "surf/{participant_id}_{session_id}_hemi-R_space-T1w_den-8k_label-hipp_outer.surf.gii",
+            "surf/{participant_id}_{session_id}_hemi-L_space-unfold_den-8k_label-hipp_midthickness.surf.gii",
+            "surf/{participant_id}_{session_id}_hemi-R_space-unfold_den-8k_label-hipp_midthickness.surf.gii"
+        ]
+
         required_freesurfer_files = [
             "{participant_id}_{session_id}/surf/lh.white",
             "{participant_id}_{session_id}/surf/rh.white",
@@ -450,19 +495,29 @@ class zbdataset():
             
             # Check hippocampal files if enabled
             if self.hippocampus and self.hippunfold_directory:
-                for file_pattern in required_hippocampal_files:
+                
+                # Select required files based on detected version
+                if self.hippunfold_version == 2:
+                    req_patterns = required_hippocampal_files_v2
+                    base_dir_for_file = self.hippunfold_directory
+                else:
+                    req_patterns = required_hippocampal_files
+                    base_dir_for_file = os.path.join(self.hippunfold_directory, "hippunfold")
+
+                for file_pattern in req_patterns:
                     file_path = os.path.join(
-                        self.hippunfold_directory,
-                        "hippunfold",
+                        base_dir_for_file,
                         participant_id,
                         session_id,
                         file_pattern.format(participant_id=participant_id, session_id=session_id)
                     )
+                    
                     if not os.path.exists(file_path):
                         subject_missing_files.append(file_path)
-                        print(f"Missing required hippocampal file for subject {participant_id}/{session_id}: {file_path}")
+                        # Only spam print if verbose or just rely on summary
+                        # print(f"Missing required hippocampal file for subject {participant_id}/{session_id}: {file_path}")
                         has_required_hippocampal = False
-            
+
             # Check subcortical files if enabled
             if self.subcortical and self.freesurfer_directory:
                 for file_pattern in required_subcortical_files:
@@ -728,6 +783,9 @@ class zbdataset():
         blur_features = [feature for feature in self.features if feature.endswith("*blur")]
         base_features = [feature.replace("*blur", "") for feature in blur_features]
         
+        # Determine hippocampal resolution str
+        hipp_res = "8k" if self.hippunfold_version == 2 else "0p5mm"
+
         # Define a function to process a single subject
         def process_single_subject(subject):
             participant_id, session_id = subject
@@ -824,9 +882,6 @@ class zbdataset():
                                             and subject in self.valid_subjects[f]['structures']['hippocampus']]
                         
                         if valid_hipp_features:
-                            if verbose:
-                                print(f"  Processing hippocampal data for features: {', '.join(valid_hipp_features)}")
-                            
                             apply_hippocampal_processing(
                                 participant_id=participant_id,
                                 session_id=session_id,
@@ -836,7 +891,9 @@ class zbdataset():
                                 micapipe_directory=self.micapipe_directory,
                                 hippunfold_directory=self.hippunfold_directory,
                                 tmp_dir=session_tmp_dir,
-                                smoothing_fwhm=hippocampal_smoothing,
+                                smoothing_fwhm=self.hippocampal_smoothing,
+                                resolution=hipp_res,
+                                hippunfold_version=self.hippunfold_version,
                                 verbose=verbose
                             )
 
@@ -1057,7 +1114,7 @@ class zbdataset():
 
         resolutions = ["32k", "5k"]
         surface_labels = ["midthickness", "white"]
-        hippocampal_resolution = "0p5mm"
+        hippocampal_resolution = "8k" if self.hippunfold_version == 2 else "0p5mm"
         blur_suffixes = [
             "_surf-fsnative_desc-raw.func.gii",
             "_surf-fsnative_desc-dist.func.gii",
@@ -1134,10 +1191,10 @@ class zbdataset():
             
             if self.hippocampus:
                 structural_expected.extend([
-                    f"{bids_id}_hemi-L_space-unfold_den-0p5mm_label-hipp_midthickness.surf.gii",
-                    f"{bids_id}_hemi-R_space-unfold_den-0p5mm_label-hipp_midthickness.surf.gii",
-                    f"{bids_id}_hemi-L_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii",
-                    f"{bids_id}_hemi-R_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii"
+                    f"{bids_id}_hemi-L_space-unfold_den-{hippocampal_resolution}_label-hipp_midthickness.surf.gii",
+                    f"{bids_id}_hemi-R_space-unfold_den-{hippocampal_resolution}_label-hipp_midthickness.surf.gii",
+                    f"{bids_id}_hemi-L_space-T1w_den-{hippocampal_resolution}_label-hipp_midthickness.surf.gii",
+                    f"{bids_id}_hemi-R_space-T1w_den-{hippocampal_resolution}_label-hipp_midthickness.surf.gii"
                 ])
 
             for filename in structural_expected:
@@ -1576,6 +1633,9 @@ class zbdataset():
         if analyses is None:
             analyses = ['regional']  # Default to regional analysis
             
+        # Determine hippocampal resolution for report
+        res_hip_param = "8k" if self.hippocampus and self.hippunfold_version == 2 else "high"
+
         # Validate output directory
         if output_directory is None:
             raise ValueError("output_directory must be specified")
@@ -1630,13 +1690,13 @@ class zbdataset():
                 sex = int(sex)
                 # Convert binary sex encoding back to string if needed
                 if sex is not None and isinstance(sex, (int, float)):
-                    if hasattr(self.reference_demographics, 'binary_encodings') and 'SEX' in self.demographics.binary_encodings:
+                    if hasattr(self.reference_demographics, 'binary_encodings'):
                         # Find the original value that maps to this binary code
                         print("ref binary encodings:", self.reference_demographics.binary_encodings)
                         encoding = self.reference_demographics.binary_encodings['SEX']
                         sex = next((k for k, v in encoding.items() if v == sex), sex)
                     else:
-                        sex = 'M' if sex == 1 else 'F'  # Default mapping
+                        raise ValueError("Reference demographics must have binary_encodings for 'SEX' to decode numeric values.")
                 
                 # Subject directory path
                 subject_dir = os.path.join(output_directory, participant_id, session_id)
@@ -1666,6 +1726,7 @@ class zbdataset():
                     tag=f"{participant_id}_{session_id}_{approach}_clinical_report",
                     smooth_ctx=self.cortical_smoothing,
                     smooth_hip=self.hippocampal_smoothing,
+                    res_hip=res_hip_param,
                     env=env,
                     verbose=verbose,
                     control_data=self.reference_demographics,
@@ -1739,10 +1800,31 @@ class zbdataset():
         ]
         
         if self.hippocampus:
-            surface_files.append(os.path.join(self.hippunfold_directory, "hippunfold", participant_id, session_id, f"surf/{participant_id}_{session_id}_hemi-L_space-unfold_den-0p5mm_label-hipp_midthickness.surf.gii"))
-            surface_files.append(os.path.join(self.hippunfold_directory, "hippunfold", participant_id, session_id, f"surf/{participant_id}_{session_id}_hemi-R_space-unfold_den-0p5mm_label-hipp_midthickness.surf.gii"))
-            surface_files.append(os.path.join(self.hippunfold_directory, "hippunfold", participant_id, session_id, f"surf/{participant_id}_{session_id}_hemi-L_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii"))
-            surface_files.append(os.path.join(self.hippunfold_directory, "hippunfold", participant_id, session_id, f"surf/{participant_id}_{session_id}_hemi-R_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii"))
+            # Determine correct path structure based on version
+            if self.hippunfold_version == 2:
+                # Flat structure: /hippunfold_dir/sub-X/ses-Y/
+                hipp_base = self.hippunfold_directory
+                den_tag = "8k"
+            else:
+                # Nested structure: /hippunfold_dir/hippunfold/sub-X/ses-Y/
+                hipp_base = os.path.join(self.hippunfold_directory, "hippunfold")
+                den_tag = "0p5mm"
+
+            # Left hemisphere space-unfold
+            surface_files.append(os.path.join(hipp_base, participant_id, session_id, 
+                f"surf/{participant_id}_{session_id}_hemi-L_space-unfold_den-{den_tag}_label-hipp_midthickness.surf.gii"))
+
+            # Right hemisphere space-unfold
+            surface_files.append(os.path.join(hipp_base, participant_id, session_id, 
+                f"surf/{participant_id}_{session_id}_hemi-R_space-unfold_den-{den_tag}_label-hipp_midthickness.surf.gii"))
+
+            # Left hemisphere space-T1w
+            surface_files.append(os.path.join(hipp_base, participant_id, session_id, 
+                f"surf/{participant_id}_{session_id}_hemi-L_space-T1w_den-{den_tag}_label-hipp_midthickness.surf.gii"))
+
+            # Right hemisphere space-T1w
+            surface_files.append(os.path.join(hipp_base, participant_id, session_id, 
+                f"surf/{participant_id}_{session_id}_hemi-R_space-T1w_den-{den_tag}_label-hipp_midthickness.surf.gii"))
 
         success = True
         for file_path in surface_files:

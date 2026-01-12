@@ -957,6 +957,9 @@ def analyze_dataset(dataset, reference, method='zscore', output_directory=None, 
             if verbose:
                 print(f"  Processing hippocampal data for {feature}...")
             
+            # Determine resolution string from dataset
+            hipp_res = "8k" if getattr(dataset, "hippunfold_version", 1) == 2 else "0p5mm"
+            
             # Get valid subjects for this feature and structure
             dataset_hippocampal_subjects = dataset.valid_subjects[feature]['structures']['hippocampus'] if feature in dataset.valid_subjects else []
             reference_hippocampal_subjects = reference.valid_subjects[feature]['structures']['hippocampus'] if feature in reference.valid_subjects else []
@@ -971,7 +974,7 @@ def analyze_dataset(dataset, reference, method='zscore', output_directory=None, 
             for hemi in hemispheres:
                 for analysis in ['regional', 'asymmetry']:
                     map_key = f"{hemi}_hippocampus_{analysis}"  # Include analysis in map_key
-                    file_suffix = f"hemi-{hemi}_den-0p5mm_label-hipp_midthickness_feature-{output_feat}_smooth-{dataset.hippocampal_smoothing}mm.func.gii"
+                    file_suffix = f"hemi-{hemi}_den-{hipp_res}_label-hipp_midthickness_feature-{output_feat}_smooth-{dataset.hippocampal_smoothing}mm.func.gii"
                     
                     # Load reference data
                     reference_data, successfully_loaded_subjects = load_reference_hippocampal_data(

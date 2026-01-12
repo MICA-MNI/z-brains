@@ -9,6 +9,23 @@ import scipy
 import tempfile
 from zbrains.fmri import compute_fmri_features
 
+def _debug_save_files(base_dir, command_name, files_dict):
+    """
+    Save copies of files used in wb_command calls for debugging.
+    """
+    # Save to current working directory instead of base_dir
+    debug_dir = os.path.join(os.getcwd(), "wb_debug", command_name)
+    os.makedirs(debug_dir, exist_ok=True)
+    
+    for var_name, file_path in files_dict.items():
+        if file_path and isinstance(file_path, str) and os.path.exists(file_path):
+            try:
+                # Create a filename that includes the variable name
+                dest_name = f"{var_name}__{os.path.basename(file_path)}"
+                shutil.copy2(file_path, os.path.join(debug_dir, dest_name))
+            except Exception as e:
+                print(f"Debug copy failed for {file_path}: {e}")
+
 def fixmatrix(path, inputmap, outputmap, basemap, BIDS_ID, temppath, wb_path, mat_path):
     """
     Transform a volume using an affine transformation matrix.
@@ -81,6 +98,8 @@ def fixmatrix(path, inputmap, outputmap, basemap, BIDS_ID, temppath, wb_path, ma
     else:
         input_for_wb = inputmap
 
+    affine_file = os.path.join(temppath, f"{BIDS_ID}_real_world_affine.txt")
+
     command3 = [
         os.path.join(wb_path, "wb_command"),
         "-volume-resample",
@@ -89,7 +108,7 @@ def fixmatrix(path, inputmap, outputmap, basemap, BIDS_ID, temppath, wb_path, ma
         "ENCLOSING_VOXEL",
         outputmap,
         "-affine",
-        os.path.join(temppath, f"{BIDS_ID}_real_world_affine.txt"),
+        affine_file,
     ]
 
     subprocess.run(command3)
@@ -230,7 +249,7 @@ def apply_blurring(participant_id, session_id, features, output_directory, workb
                 midthickness_func,
                 "-trilinear"
             ])
-            
+
             subprocess.run([
                 os.path.join(workbench_path, "wb_command"),
                 "-volume-to-surface-mapping",
@@ -409,7 +428,8 @@ def apply_hippocampal_processing(
     hippunfold_directory, 
     tmp_dir, 
     smoothing_fwhm=2, 
-    resolution="0p5mm", 
+    resolution="0p5mm",
+    hippunfold_version=1,
     verbose=True
 ):
     """
@@ -453,7 +473,11 @@ def apply_hippocampal_processing(
     
     # Input directories for the subject
     input_dir = os.path.join(micapipe_directory, participant_id, session_id)
-    hipp_dir = os.path.join(hippunfold_directory, "hippunfold", participant_id, session_id)
+    
+    if hippunfold_version == 2:
+        hipp_dir = os.path.join(hippunfold_directory, participant_id, session_id)
+    else:
+        hipp_dir = os.path.join(hippunfold_directory, "hippunfold", participant_id, session_id)
     
     if verbose:
         print(f"  Processing hippocampal data for {participant_id}/{session_id}")
@@ -475,11 +499,6 @@ def apply_hippocampal_processing(
         
         # Set up volume map path based on feature type
         if feature.lower() == "thickness":
-            intermediate_file = os.path.join(
-                hipp_dir, 
-                "surf",
-                f"{participant_id}_{session_id}_hemi-L_space-T1w_den-{resolution}_label-hipp_thickness.shape.gii"
-            )
             output_feat = "thickness"
         elif feature.lower() == "t1map" or feature.lower() == "qt1":
             volumemap = os.path.join(input_dir, "maps", f"{participant_id}_{session_id}_space-nativepro_map-T1map.nii.gz")
@@ -509,7 +528,16 @@ def apply_hippocampal_processing(
         n_processed = 0
         for hemi in ["L", "R"]:
             # Define paths for hippocampal surfaces
-        
+            if feature.lower() == "thickness":
+                # In HippUnfold v2, thickness metrics are in 'metric', not 'surf'
+                hipp_subdir = "metric" if hippunfold_version == 2 else "surf"
+                
+                intermediate_file = os.path.join(
+                    hipp_dir, 
+                    hipp_subdir,
+                    f"{participant_id}_{session_id}_hemi-{hemi}_space-T1w_den-{resolution}_label-hipp_thickness.shape.gii" if hippunfold_version == 1 
+                    else f"{participant_id}_{session_id}_hemi-{hemi}_den-{resolution}_label-hipp_thickness.shape.gii"
+                )
             # Set up paths
             surf_file = os.path.join(
                 hipp_dir, 
@@ -813,7 +841,7 @@ def apply_cortical_processing(
     """
     
     # Path to standard sphere templates
-    data_dir = "data"
+    data_dir = os.path.join(os.path.dirname(__file__), "data")
     
     # Convert single feature to list if needed
     if isinstance(features, str):
@@ -1053,6 +1081,7 @@ def apply_cortical_processing(
                                 cortex_dir,
                                 f"{bids_id}_hemi-{hemi}_surf-fsLR-5k_label-midthickness_feature-{feature_name}_smooth-{cortical_smoothing}mm.func.gii"
                             )
+
                             subprocess.run([
                                 os.path.join(workbench_path, "wb_command"),
                                 "-metric-resample",
@@ -1069,8 +1098,6 @@ def apply_cortical_processing(
                                 f"{bids_id}_hemi-{hemi}_surf-fsLR-{resolution}_label-{label}_feature-{feature_name}_smooth-{cortical_smoothing}mm.func.gii"
                             )
                             resample_to_5k(data_file, hemi, feature_name)
-                        
-    
     if verbose:
         print(f"  Completed cortical processing for {participant_id}/{session_id}")
     

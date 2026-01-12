@@ -977,7 +977,11 @@ def _load_surfaces_hip(
     """Load hippocampal surfaces - prioritize native subject surfaces if available"""
     
     # Map resolution
-    res_hip = map_resolution("hippocampus", res)
+    if res == "8k":
+        res_hip = "8k"
+    else:
+        res_hip = map_resolution("hippocampus", res)
+        
     label = "midthickness"
     
     # Try to load native subject-specific surfaces if subject info is provided
@@ -1640,18 +1644,23 @@ def report_struct(
             
         elif struct == "hippocampus":
             # Map resolution for hippocampal files
-            res_mapped = "0p5" if res == "high" else "1p0"
+            if res == "8k":
+                res_mapped = "8k"
+                suffix = ""
+            else:
+                res_mapped = "0p5" if res == "high" else "1p0"
+                suffix = "mm"
             
             # Hippocampal files - always include analysis type
             file_lh = os.path.join(
                 path_analysis, struct_dir,
-                f"{sid}_{ses}_hemi-L_den-{res_mapped}mm_label-hipp_{label}_feature-{feat}_smooth-{smooth}mm_analysis-{analysis}.func.gii"
+                f"{sid}_{ses}_hemi-L_den-{res_mapped}{suffix}_label-hipp_{label}_feature-{feat}_smooth-{smooth}mm_analysis-{analysis}.func.gii"
             )
             
             if analysis != "asymmetry":
                 file_rh = os.path.join(
                     path_analysis, struct_dir,
-                    f"{sid}_{ses}_hemi-R_den-{res_mapped}mm_label-hipp_{label}_feature-{feat}_smooth-{smooth}mm_analysis-{analysis}.func.gii"
+                    f"{sid}_{ses}_hemi-R_den-{res_mapped}{suffix}_label-hipp_{label}_feature-{feat}_smooth-{smooth}mm_analysis-{analysis}.func.gii"
                 )
             # For asymmetry, we only need the left hemisphere file
     
@@ -1662,7 +1671,10 @@ def report_struct(
         if struct == "cortex":
             res_display = "32k" if res == "high" else "5k"
         else:
-            res_display = "0.5mm" if res == "high" else "1.0mm"
+            if res == "8k":
+                res_display = "8k"
+            else:
+                res_display = "0.5mm" if res == "high" else "1.0mm"
         info = f"| {smooth}mm smooth | resolution {res_display} "
     
     # Check if files exist
@@ -1985,17 +1997,23 @@ def generate_clinical_report(
         feat_sctx = "volume" if feat == "thickness" else feat
         
         # Check cortex files
-        res_mapped = "32k" if res_ctx == "high" else "5k"
+        res_mapped_ctx = "32k" if res_ctx == "high" else "5k"
         file_ctx_lh = os.path.join(
             path_analysis, "cortex",
-            f"{bids_id}_hemi-L_surf-fsLR-{res_mapped}_label-{label_ctx}_feature-{feat}_smooth-{smooth_ctx}mm_analysis-{analysis}.func.gii"
+            f"{bids_id}_hemi-L_surf-fsLR-{res_mapped_ctx}_label-{label_ctx}_feature-{feat}_smooth-{smooth_ctx}mm_analysis-{analysis}.func.gii"
         )
         
         # Check hippocampus files
-        res_mapped = "0p5" if res_hip == "high" else "1p0"
+        if res_hip == "8k":
+            res_mapped_hip = "8k"
+            suffix = ""
+        else:
+            res_mapped_hip = "0p5" if res_hip == "high" else "1p0"
+            suffix = "mm"
+
         file_hip_lh = os.path.join(
             path_analysis, "hippocampus",
-            f"{sid}_{ses}_hemi-L_den-{res_mapped}mm_label-hipp_{label_hip}_feature-{feat}_smooth-{smooth_hip}mm_analysis-{analysis}.func.gii"
+            f"{sid}_{ses}_hemi-L_den-{res_mapped_hip}{suffix}_label-hipp_{label_hip}_feature-{feat}_smooth-{smooth_hip}mm_analysis-{analysis}.func.gii"
         )
         
         # Check subcortical files
@@ -2049,7 +2067,7 @@ def generate_clinical_report(
                 )
                 
                 # Generate feature header
-                extra = "" if thresh is None else f"| Threshold: {thresh}"
+                extra = "" if thresh is None else f" | Threshold: {thresh}"
                 report += feature_header_template(feat, extra=extra)
                 
                 # Common kwargs for report generation
