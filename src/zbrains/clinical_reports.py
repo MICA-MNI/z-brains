@@ -198,9 +198,9 @@ def controls_summary_html(data, subject_age=None):
         if is_binary_encoded:
             # Create reverse mapping from codes to labels
             sex_codes = {v: k.upper() for k, v in binary_encoding.items()}
-            male_code = binary_encoding.get('m', 1)  # Default to 1 if not specified
-            female_code = binary_encoding.get('f', 0)  # Default to 0 if not specified
-            
+            male_code = binary_encoding.get('M', None)  # Default to None if not specified
+            female_code = binary_encoding.get('F', None)  # Default to None if not specified
+
             # Count by binary codes
             Fnumber = (df[sex_col] == female_code).sum()
             Mnumber = (df[sex_col] == male_code).sum()
@@ -1025,6 +1025,10 @@ def _load_surfaces_hip(
                 mid_rh = read_surface(native_canonical_path_rh)
                 unf_rh = read_surface(native_unfold_path_rh)
                 
+                # Flip right to left surface
+                mid_lh.Points[:, 0] *= -1
+                unf_lh.Points[:, 0] *= -1
+
                 # Rotate surfaces
                 # Rotate around Y-axis 270 for right hemisphere unfolded
                 rot_y270 = Rotation.from_rotvec(3 * np.pi / 2 * np.array([0, 1, 0]))

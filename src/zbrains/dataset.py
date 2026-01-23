@@ -1092,8 +1092,12 @@ class zbdataset():
 
             hippo_token = None if is_blur else feature_output_mapping.get(base_lower, feat)
             subcortical_token = None
-            if not is_blur and base_lower not in {"thickness", "volume"}:
-                subcortical_token = feature_output_mapping.get(base_lower, feat.upper())
+            if not is_blur:
+                if base_lower in {"thickness", "volume"}:
+                     # Map thickness/volume to the "volume" CSV file
+                     subcortical_token = "volume"
+                elif base_lower not in {"thickness", "volume"}:
+                    subcortical_token = feature_output_mapping.get(base_lower, feat.upper())
 
             feature_meta.append({
                 "original": feat,
