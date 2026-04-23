@@ -59,7 +59,11 @@ def fixmatrix(path, inputmap, outputmap, basemap, BIDS_ID, temppath, wb_path, ma
     )
 
     # Extract variables from the .mat file
-    affine_transform = mat["AffineTransform_double_3_3"].flatten()
+    try:
+        affine_transform = mat["AffineTransform_double_3_3"].flatten()
+    except KeyError:
+        affine_transform = mat["AffineTransform_float_3_3"].flatten()
+
     fixed = mat["fixed"].flatten()
 
     temp = np.identity(4)
@@ -853,7 +857,7 @@ def apply_cortical_processing(
     micapipe_directory,
     tmp_dir,
     cortical_smoothing=5,
-    resolutions=["32k", "5k"],
+    resolutions=["32k"],#, "5k"],
     labels=["midthickness", "white"],
     verbose=True
 ):

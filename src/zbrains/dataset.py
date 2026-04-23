@@ -887,7 +887,7 @@ class zbdataset():
                                 micapipe_directory=self.micapipe_directory,
                                 tmp_dir=session_tmp_dir,
                                 cortical_smoothing=cortical_smoothing,
-                                resolutions=["32k", "5k"],
+                                resolutions=["32k"],#, "5k"],
                                 labels=["midthickness", "white"],
                                 verbose=verbose
                             )
@@ -1141,7 +1141,7 @@ class zbdataset():
                 )
             })
 
-        resolutions = ["32k", "5k"]
+        resolutions = ["32k"]#, "5k"]
         surface_labels = ["midthickness", "white"]
         hippocampal_resolution = "8k" if self.hippunfold_version == 2 else "0p5mm"
         blur_suffixes = [
@@ -1267,7 +1267,7 @@ class zbdataset():
                                     )
                                     all_files_count += 1
                                     if not os.path.exists(cortical_path):
-                                        subject_missing.append(cortical_path)
+                                        subject_missing.append(cortical_path)                                      
                                         missing_files_count += 1
                                         subject_feature_structures[feature_name]['cortex'] = False
                                         subject_missing_features.add(feature_name)
@@ -1500,7 +1500,7 @@ class zbdataset():
             
             # Find session directories
             session_dirs = [d for d in os.listdir(subject_path) 
-                        if os.path.isdir(os.path.join(subject_path, d)) and d.startswith('ses-')]
+                        if os.path.isdir(os.path.join(subject_path, d))]
             
             for session_dir in session_dirs:
                 session_id = session_dir
@@ -1724,7 +1724,14 @@ class zbdataset():
                 # Extract demographics
                 age = subject_demo['AGE'].iloc[0] if 'AGE' in subject_demo.columns else None
                 sex = subject_demo['SEX'].iloc[0] if 'SEX' in subject_demo.columns else None
-                sex = int(sex)
+                
+                # Make sure sex is an int ONLY if it is safely convertible
+                if sex is not None:
+                    try:
+                        sex = int(float(sex))
+                    except (ValueError, TypeError):
+                        pass # keep sex as string like 'F', 'M'
+                        
                 # Convert binary sex encoding back to string if needed
                 if sex is not None and isinstance(sex, (int, float)):
                     if hasattr(self.reference_demographics, 'binary_encodings'):
