@@ -1517,14 +1517,28 @@ def _make_png_hip(
                                                                         participant_id=participant_id,
                                                                         session_id=session_id,
                                                                         hippunfold_version=hippunfold_version)
-    
 
-    if hippunfold_version == 2:
-        data_unf_lh = data_lh.reshape(128, 64).T.flatten()
-        data_unf_rh = data_rh.reshape(128, 64).T.flatten()
-    else:
-        data_unf_lh = data_lh
-        data_unf_rh = data_rh
+    def _prepare_unfold_values(data, surf, hemi):
+        arr = np.asarray(data).squeeze()
+        if arr.ndim > 1:
+            arr = arr.reshape(-1)
+
+        n_points = surf.n_points
+        if arr.size == n_points:
+            return arr
+
+        # In some v2 outputs, data can be duplicated/stacked relative to unfolded
+        # surface vertices. Keep one hemisphere-length block to avoid wrap/banding.
+        if hippunfold_version == 2 and arr.size == 2 * n_points:
+            return arr[:n_points]
+
+        raise ValueError(
+            f"Unexpected unfolded data size for hemi-{hemi}: "
+            f"{arr.size} values for {n_points} vertices"
+        )
+
+    data_unf_lh = _prepare_unfold_values(data_lh, unf_lh, "L")
+    data_unf_rh = _prepare_unfold_values(data_rh, unf_rh, "R")
 
     if analysis == "asymmetry":
         kwds = dict()

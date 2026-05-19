@@ -9,6 +9,246 @@ import scipy
 import tempfile
 from zbrains.fmri import compute_fmri_features
 
+def generate_t1w_flair_ratios(participant_id, session_id, raw_dir, output_dir, micapipe_dir, tmp_dir, wb_path, threads=1, verbose=True):
+    """
+    Generate T1w/FLAIR ratio maps from raw BIDS files (translation of the bash script).
+    """
+    import glob
+    
+    bids_id = f"{participant_id}_{session_id}"
+    anat_dir = os.path.join(raw_dir, participant_id, session_id, "anat")
+    
+    if not os.path.exists(anat_dir):
+        raise ValueError(f"Raw anatomy directory missing: {anat_dir}")
+        
+    # Find files ending in .nii.gz and select latest sorted
+    t1w_files = sorted([f for f in glob.glob(os.path.join(anat_dir, "*.nii*")) if ("t1w" in os.path.basename(f).lower() and "acq-" not in os.path.basename(f) and "desc-" not in os.path.basename(f)) or "unit1" in os.path.basename(f).lower()])
+    
+    flair_files = sorted([f for f in glob.glob(os.path.join(anat_dir, "*.nii*")) if "flair" in os.path.basename(f).lower() and "acq-" not in os.path.basename(f) and "desc-" not in os.path.basename(f)])
+    
+    if not t1w_files or not flair_files:
+        raise ValueError(f"Missing T1w or FLAIR in {anat_dir}")
+    
+    t1 = t1w_files[-1]
+    t2 = flair_files[-1]
+    
+    os.makedirs(tmp_dir, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Paths
+    t1_obl = os.path.join(tmp_dir, f"{bids_id}_T1w_obl.nii.gz")
+    t1_reo = os.path.join(tmp_dir, f"{bids_id}_T1w_reo.nii.gz")
+    t2_obl = os.path.join(tmp_dir, f"{bids_id}_T2w_obl.nii.gz")
+    t2_reo = os.path.join(tmp_dir, f"{bids_id}_T2w_reo.nii.gz")
+    
+    # 1 - Deoblique/reorient to standard
+    if not os.path.exists(t1_reo) or not os.path.exists(t2_reo):
+        if verbose: print("  Running LPI reorientation and native reorientation...")
+        import nibabel.orientations as nio
+        
+        def reorient_lpi_py(in_file, out_file):
+            img = nib.load(in_file)
+            orig_ornt = nio.io_orientation(img.affine)
+            targ_ornt = nio.axcodes2ornt(('L', 'P', 'I'))
+            transform = nio.ornt_transform(orig_ornt, targ_ornt)
+            img_orient = img.as_reoriented(transform)
+            nib.save(img_orient, out_file)
+
+        def fslreorient2std_py(in_file, out_file):
+            img = nib.load(in_file)
+            img_can = nib.as_closest_canonical(img)
+            nib.save(img_can, out_file)
+
+        reorient_lpi_py(t1, t1_obl)
+        fslreorient2std_py(t1_obl, t1_reo)
+        
+        reorient_lpi_py(t2, t2_obl)
+        fslreorient2std_py(t2_obl, t2_reo)
+
+    # 2 - Bias field correction & mri_convert
+    t1_n4 = os.path.join(tmp_dir, f"{bids_id}_T1w_n4.nii.gz")
+    t2_n4 = os.path.join(tmp_dir, f"{bids_id}_T2w_n4.nii.gz")
+    if not os.path.exists(t1_n4) or not os.path.exists(t2_n4):
+        if verbose: print("  Running ANTs N4 and native 1mm resampling...")
+        import ants
+        import nibabel.processing
+        
+        def n4_and_resample_py(in_file, out_file):
+            img = ants.image_read(in_file)
+            img_n4 = ants.n4_bias_field_correction(img)
+            
+            with tempfile.NamedTemporaryFile(suffix=".nii.gz", delete=False) as tmp:
+                ants.image_write(img_n4, tmp.name)
+                tmp_name = tmp.name
+                
+            nib_img = nib.load(tmp_name)
+            resampled_img = nibabel.processing.resample_to_output(nib_img, voxel_sizes=(1.0, 1.0, 1.0))
+            nib.save(resampled_img, out_file)
+            os.remove(tmp_name)
+            
+        n4_and_resample_py(t1_reo, t1_n4)
+        n4_and_resample_py(t2_reo, t2_n4)
+
+    # Helper function for Mode calculation natively using Python
+    def normalize_by_mode(n4_path, synthseg_out_path, norm_out_path, txt_out_path):
+        # Run synthseg using python -m synthseg
+        subprocess.run([
+            "lamareg", "synthseg", "--i", n4_path, "--o", synthseg_out_path,
+            "--robust", "--threads", str(threads), "--cpu"
+        ], check=True)
+        
+        # Load the synthseg data and input data
+        n4_img = nib.load(n4_path)
+        n4_data = n4_img.get_fdata()
+        synth_data = nib.load(synthseg_out_path).get_fdata()
+        
+        # White matter mask uses labels 2 and 41
+        mask = (synth_data == 2) | (synth_data == 41)
+        wm_values = n4_data[mask]
+        
+        # Extract mode matching the 1000 bins of mrhistogram
+        if len(wm_values) > 0:
+            hist, bin_edges = np.histogram(wm_values[wm_values > 0], bins=1000)
+            mode_val = bin_edges[np.argmax(hist)]
+        else:
+            mode_val = 1.0
+            
+        with open(txt_out_path, "w") as f:
+            f.write(f"{mode_val}\\n")
+            
+        # Normalize via mrcalc equivalent
+        norm_data = np.where(n4_data != 0, n4_data / mode_val, 0)
+        nib.save(nib.Nifti1Image(norm_data, n4_img.affine, n4_img.header), norm_out_path)
+
+    # 3 - White matter mode normalization
+    t1_synthseg = os.path.join(tmp_dir, "T1w_synthseg.nii.gz")
+    t2_synthseg = os.path.join(tmp_dir, "T2w_synthseg.nii.gz")
+    fixed_synthseg = os.path.join(tmp_dir, "fixed_synthseg.nii.gz")
+    t1_norm = os.path.join(tmp_dir, f"{bids_id}_T1w_norm.nii.gz")
+    t2_norm = os.path.join(tmp_dir, f"{bids_id}_T2w_norm.nii.gz")
+    
+    if not os.path.exists(t1_norm) or not os.path.exists(t2_norm):
+        if verbose: print("  Running SynthSeg and mode normalization...")
+        normalize_by_mode(t1_n4, t1_synthseg, t1_norm, os.path.join(output_dir, f"{bids_id}_mode-wm_T1w.txt"))
+        normalize_by_mode(t2_n4, t2_synthseg, t2_norm, os.path.join(output_dir, f"{bids_id}_mode-wm_T2w.txt"))
+
+    # 4 - Register to nativepro T1w space
+    nativepro_t1_ref = os.path.join(micapipe_dir, participant_id, session_id, "anat", f"{bids_id}_space-nativepro_T1w.nii.gz")
+    nativepro_t1_n4 = os.path.join(output_dir, f"{bids_id}_space-nativepro_T1w.nii.gz")
+    nativepro_t2_n4 = os.path.join(output_dir, f"{bids_id}_space-nativepro_T2w.nii.gz")
+
+    def _find_micapipe_flair_transform_paths():
+        xfm_dir = os.path.join(micapipe_dir, participant_id, session_id, "xfm")
+        if not os.path.isdir(xfm_dir):
+            raise ValueError(f"Missing micapipe transform directory: {xfm_dir}")
+
+        affine_path = os.path.join(
+            xfm_dir,
+            f"{bids_id}_from-flair_to-nativepro_mode-image_desc-affine_0GenericAffine.mat",
+        )
+
+        # Fallback to glob-based discovery for minor naming variations.
+        if not os.path.exists(affine_path):
+            import glob
+
+            affine_candidates = sorted(
+                glob.glob(
+                    os.path.join(
+                        xfm_dir,
+                        f"{bids_id}_from-flair_to-nativepro*_0GenericAffine.mat",
+                    )
+                )
+            )
+            if not os.path.exists(affine_path) and affine_candidates:
+                affine_path = affine_candidates[-1]
+
+        return affine_path
+    
+    if not os.path.exists(nativepro_t1_n4) or not os.path.exists(nativepro_t2_n4):
+        import ants
+
+        if not os.path.exists(nativepro_t1_n4):
+            if verbose:
+                print("  Registering T1w to nativepro via ANTs (quick linear)...")
+            reg = ants.registration(
+                fixed=ants.image_read(nativepro_t1_ref),
+                moving=ants.image_read(t1_norm),
+                type_of_transform="Affine",
+            )
+            ants.image_write(reg["warpedmovout"], nativepro_t1_n4)
+
+        if not os.path.exists(nativepro_t2_n4):
+            if verbose:
+                print("  Mapping FLAIR to nativepro using micapipe transforms...")
+
+            affine_path = _find_micapipe_flair_transform_paths()
+
+            if os.path.exists(affine_path):
+                flair_nativepro = ants.apply_transforms(
+                    fixed=ants.image_read(nativepro_t1_ref),
+                    moving=ants.image_read(t2_norm),
+                    transformlist=[affine_path],
+                    interpolator="linear",
+                )
+                ants.image_write(flair_nativepro, nativepro_t2_n4)
+            else:
+                raise ValueError(
+                    f"Missing FLAIR->nativepro transform files in {os.path.dirname(affine_path)}"
+                )
+
+    # Ensure FLAIR and T1w have matching dimensions before ratio calculation
+    if os.path.exists(nativepro_t1_n4) and os.path.exists(nativepro_t2_n4):
+        # Load both images to check dimensions
+        t1_img = nib.load(nativepro_t1_n4)
+        t2_img = nib.load(nativepro_t2_n4)
+        
+        # If dimensions don't match, resample T2w to match T1w
+        if t1_img.shape != t2_img.shape or not np.allclose(t1_img.affine, t2_img.affine):
+            if verbose:
+                print("  Resampling FLAIR to match T1w dimensions...")
+            from nibabel.processing import resample_from_to
+
+            # Resample T2w/FLAIR directly onto the T1w grid
+            t2_data_resampled = resample_from_to(t2_img, (t1_img.shape, t1_img.affine))
+            nib.save(t2_data_resampled, nativepro_t2_n4)
+
+    # 5 - Calculate inverse ratios via Workbench
+    t1w_div_t2w = os.path.join(output_dir, f"{bids_id}_space-nativepro_map-T1wDividedByFlair.nii.gz")
+    t2w_div_t1w = os.path.join(output_dir, f"{bids_id}_space-nativepro_map-FlairDividedByT1w.nii.gz")
+    wb_cmd = os.path.join(wb_path, "wb_command")
+    
+    if not os.path.exists(t1w_div_t2w):
+        if verbose: print("  Calculating mapping ratios...")
+        # T1w/FLAIR ratio
+        subprocess.run([
+            wb_cmd, "-volume-math", "clamp((t1w / t2w), 0, 100)", t1w_div_t2w,
+            "-var", "t1w", nativepro_t1_n4, "-var", "t2w", nativepro_t2_n4, "-fixnan", "0"
+        ], check=True)
+        subprocess.run([
+            wb_cmd, "-volume-palette", t1w_div_t2w,
+            "MODE_AUTO_SCALE_PERCENTAGE", "-pos-percent", "4", "96",
+            "-interpolate", "true", "-palette-name", "videen_style",
+            "-disp-pos", "true", "-disp-neg", "false", "-disp-zero", "false"
+        ], check=True)
+
+    if not os.path.exists(t2w_div_t1w):
+        # FLAIR/T1w ratio
+        subprocess.run([
+            wb_cmd, "-volume-math", "clamp((t2w / t1w), 0, 100)", t2w_div_t1w,
+            "-var", "t1w", nativepro_t1_n4, "-var", "t2w", nativepro_t2_n4, "-fixnan", "0"
+        ], check=True)
+        subprocess.run([
+            wb_cmd, "-volume-palette", t2w_div_t1w,
+            "MODE_AUTO_SCALE_PERCENTAGE", "-pos-percent", "4", "96",
+            "-interpolate", "true", "-palette-name", "videen_style",
+            "-disp-pos", "true", "-disp-neg", "false", "-disp-zero", "false"
+        ], check=True)
+        
+    return {
+        "T1w": t1w_div_t2w,
+        "FLAIR": t2w_div_t1w
+    }
+
 def _debug_save_files(base_dir, command_name, files_dict):
     """
     Save copies of files used in wb_command calls for debugging.
@@ -121,6 +361,67 @@ def fixmatrix(path, inputmap, outputmap, basemap, BIDS_ID, temppath, wb_path, ma
     if inputmap.endswith('.mgz') and os.path.exists(temp_nifti):
         os.unlink(temp_nifti)
 
+def generate_superficial_white_matter(participant_id, session_id, output_directory, workbench_path, micapipe_directory, freesurfer_directory, tmp_dir, verbose=True):
+    """
+    Generate superficial white matter surfaces for both hemispheres.
+    """
+    bids_id = f"{participant_id}_{session_id}"
+    subject_output_dir = os.path.join(output_directory, participant_id, session_id)
+    struct_dir = os.path.join(subject_output_dir, "structural")
+    os.makedirs(struct_dir, exist_ok=True)
+
+    input_dir = os.path.join(micapipe_directory, participant_id, session_id)
+    freesurfer_path = os.path.join(freesurfer_directory, f"{participant_id}_{session_id}")
+    aparc_path = os.path.join(freesurfer_path, "mri", "aparc+aseg.mgz")
+    temp_parc_path = os.path.join(tmp_dir, f"{participant_id}_{session_id}_surf-fsnative_label-temp.nii.gz")
+    laplace_path = os.path.join(struct_dir, f"{bids_id}-laplace.nii.gz")
+
+    if not os.path.exists(aparc_path):
+        raise ValueError(f"Missing dependency {aparc_path}")
+
+    if not os.path.exists(temp_parc_path):
+        fixmatrix(
+            path=input_dir,
+            BIDS_ID=bids_id,
+            temppath=tmp_dir,
+            wb_path=workbench_path,
+            inputmap=aparc_path,
+            outputmap=temp_parc_path,
+            basemap=os.path.join(input_dir, "anat", f"{bids_id}_space-nativepro_T1w_brain.nii.gz"),
+            mat_path="from-fsnative_to_nativepro_T1w_0GenericAffine",
+        )
+
+    if not os.path.exists(laplace_path) or os.path.getsize(laplace_path) == 0:
+        if verbose:
+            print(f"    Generating shared Laplace volume for {participant_id}/{session_id}...")
+        laplace_solver.solve_laplace(temp_parc_path, laplace_path)
+
+    for hemi in ["L", "R"]:
+        swm_1mm = os.path.join(struct_dir, f"{participant_id}_{session_id}_hemi-{hemi}_sfwm-1.0mm.surf.gii")
+        swm_2mm = os.path.join(struct_dir, f"{participant_id}_{session_id}_hemi-{hemi}_sfwm-2.0mm.surf.gii")
+
+        if (
+            os.path.exists(laplace_path)
+            and os.path.exists(swm_1mm)
+            and os.path.exists(swm_2mm)
+            and os.path.getsize(laplace_path) > 0
+            and os.path.getsize(swm_1mm) > 0
+            and os.path.getsize(swm_2mm) > 0
+        ):
+            if verbose:
+                print(f"    Superficial white matter already exists for {participant_id}/{session_id}, hemisphere {hemi}")
+            continue
+
+        if verbose:
+            print(f"    Generating superficial white matter for {participant_id}/{session_id}, hemisphere {hemi}...")
+
+        surface_generator.shift_surface(
+            os.path.join(input_dir, "surf", f"{bids_id}_hemi-{hemi}_space-nativepro_surf-fsnative_label-white.surf.gii"),
+            laplace_path,
+            os.path.join(struct_dir, f"{bids_id}_hemi-{hemi}_sfwm-"),
+            [1.0, 2.0],
+        )
+
 def apply_blurring(participant_id, session_id, features, output_directory, workbench_path, micapipe_directory, freesurfer_directory, tmp_dir, smoothing_fwhm=5, verbose=True):
     """
     Apply depth-dependent blurring to one or more features for a subject.
@@ -169,71 +470,20 @@ def apply_blurring(participant_id, session_id, features, output_directory, workb
     # Input directory for the subject
     input_dir = os.path.join(micapipe_directory, participant_id, session_id)
     bids_id = f"{participant_id}_{session_id}"
+
+    generate_superficial_white_matter(
+        participant_id=participant_id,
+        session_id=session_id,
+        output_directory=output_directory,
+        workbench_path=workbench_path,
+        micapipe_directory=micapipe_directory,
+        freesurfer_directory=freesurfer_directory,
+        tmp_dir=tmp_dir,
+        verbose=verbose,
+    )
     
     # Process each hemisphere
     for hemi in ["L", "R"]:
-        if verbose:
-            print(f"    Processing hemisphere {hemi} for {participant_id}/{session_id}...")
-        
-        # Define paths
-        freesurfer_path = os.path.join(freesurfer_directory, f"{participant_id}_{session_id}")
-        temp_parc_path = os.path.join(tmp_dir, f"{participant_id}_{session_id}_{hemi}_surf-fsnative_label-temp.nii.gz")
-        output_path = os.path.join(struct_dir, f"{participant_id}_{session_id}-laplace.nii.gz")
-        
-        # Get FreeSurfer parcellation path (using .mgz directly)
-        aparc_path = os.path.join(freesurfer_path, "mri", "aparc+aseg.mgz")
-        
-        # Check dependency explicitly
-        if not os.path.exists(aparc_path):
-            print(f"      Error: Missing dependency {aparc_path}. Skipping {hemi}.")
-            continue
-        
-        # Check if we need to generate Laplace solution and shifted surfaces
-        # Must check BOTH Laplace file AND all shifted surfaces exist
-        needs_generation = False
-        
-        if not os.path.exists(output_path):
-            needs_generation = True
-        else:
-            # Check if all shifted surfaces exist
-            for surf_dist in [1.0, 2.0]:
-                swm_surf = os.path.join(struct_dir, f"{participant_id}_{session_id}_hemi-{hemi}_sfwm-{surf_dist}mm.surf.gii")
-                # Also check if file is empty (size 0) just in case
-                if not os.path.exists(swm_surf) or os.path.getsize(swm_surf) == 0:
-                    needs_generation = True
-                    break
-        
-        # Generate Laplace and surfaces if needed
-        if needs_generation:
-            # Transform FreeSurfer parcellation to native space if needed
-            if not os.path.exists(temp_parc_path):
-                # Pass the MGZ file directly to fixmatrix
-                fixmatrix(
-                    path=input_dir,
-                    BIDS_ID=f"{participant_id}_{session_id}",
-                    temppath=tmp_dir,
-                    wb_path=workbench_path,
-                    inputmap=aparc_path,
-                    outputmap=temp_parc_path,
-                    basemap=os.path.join(input_dir, "anat", f"{participant_id}_{session_id}_space-nativepro_T1w_brain.nii.gz"),
-                    mat_path="from-fsnative_to_nativepro_T1w_0GenericAffine"
-                )
-            
-            import shutil
-            # Solve Laplace equation
-            shutil.copy(src=temp_parc_path, dst="temp_parc_copy.nii.gz")  # Backup for laplace solver
-
-            laplace_solver.solve_laplace(temp_parc_path, output_path)
-            
-            # Generate ONLY 1mm and 2mm shifted surfaces
-            surface_generator.shift_surface(
-                os.path.join(input_dir, "surf", f"{participant_id}_{session_id}_hemi-{hemi}_space-nativepro_surf-fsnative_label-white.surf.gii"),
-                output_path,
-                os.path.join(struct_dir, f"{participant_id}_{session_id}_hemi-{hemi}_sfwm-"),
-                [1.0, 2.0]
-            )
-            shutil.copy(src=os.path.join(input_dir, "surf", f"{participant_id}_{session_id}_hemi-{hemi}_space-nativepro_surf-fsnative_label-white.surf.gii"), dst="surf-fsnative_label-white.surf.gii") 
-        
         # Process each feature
         for feature in features:
             if verbose:
@@ -262,6 +512,17 @@ def apply_blurring(participant_id, session_id, features, output_directory, workb
             else:
                 volumemap = os.path.join(input_dir, "maps", f"{participant_id}_{session_id}_space-nativepro_map-{feature_lower}.nii.gz")
                 output_feat = feature_lower
+                
+            # Overwrite with newly generated T1w/FLAIR ratio data if available
+            ratio_map = None
+            if feature_lower == "t1w" or feature_lower == "t1w*blur":
+                ratio_map = os.path.join(subject_output_dir, "maps", f"{participant_id}_{session_id}_space-nativepro_map-T1wDividedByFlair.nii.gz")
+            elif feature_lower == "flair" or feature_lower == "flair*blur":
+                ratio_map = os.path.join(subject_output_dir, "maps", f"{participant_id}_{session_id}_space-nativepro_map-FlairDividedByT1w.nii.gz")
+                
+            if ratio_map and os.path.exists(ratio_map):
+                volumemap = ratio_map
+                if verbose: print(f"      Overriding volumemap with newly generated ratio: {ratio_map}")
         
             # Skip if the volume map doesn't exist
             if not os.path.exists(volumemap):
@@ -552,6 +813,17 @@ def apply_hippocampal_processing(
         else:
             volumemap = os.path.join(input_dir, "maps", f"{participant_id}_{session_id}_space-nativepro_map-{feature.lower()}.nii.gz")
             output_feat = feature.lower()
+            
+        # Overwrite with newly generated T1w/FLAIR ratio data if available
+        ratio_map = None
+        if feature.lower() == "t1w" or feature.lower() == "t1w*blur":
+            ratio_map = os.path.join(subject_output_dir, "maps", f"{participant_id}_{session_id}_space-nativepro_map-T1wDividedByFlair.nii.gz")
+        elif feature.lower() == "flair" or feature.lower() == "flair*blur":
+            ratio_map = os.path.join(subject_output_dir, "maps", f"{participant_id}_{session_id}_space-nativepro_map-FlairDividedByT1w.nii.gz")
+            
+        if ratio_map and os.path.exists(ratio_map):
+            volumemap = ratio_map
+            if verbose: print(f"    Overriding volumemap with newly generated ratio: {ratio_map}")
         
         # Skip if volume map doesn't exist
         if output_feat == "thickness":
@@ -1078,38 +1350,90 @@ def apply_cortical_processing(
                             output_file
                         ], check=False)
 
-                    elif feat_lower == "t1w":
-                        # T1w intensity (native T1 volume mapped to surface)
-                        volumemap = os.path.join(
-                            os.path.dirname(input_dir), 
-                            "anat", 
-                            f"{bids_id}_space-nativepro_T1w.nii.gz"
-                        )
-                        
+                    elif feat_lower in ["t1w", "flair", "qt1", "adc", "fa"]:
+                        # Recalculate directly from the original images for this surface label.
+                        if feat_lower == "t1w":
+                            volumemap = os.path.join(subject_output_dir, "maps", f"{bids_id}_space-nativepro_map-T1wDividedByFlair.nii.gz")
+                            if not os.path.exists(volumemap):
+                                volumemap = os.path.join(input_dir, "anat", f"{bids_id}_space-nativepro_T1w.nii.gz")
+                        elif feat_lower == "flair":
+                            volumemap = os.path.join(subject_output_dir, "maps", f"{bids_id}_space-nativepro_map-FlairDividedByT1w.nii.gz")
+                            if not os.path.exists(volumemap):
+                                volumemap = os.path.join(input_dir, f"{bids_id}_space-nativepro_map-flair.nii.gz")
+                        elif feat_lower == "qt1":
+                            volumemap = os.path.join(input_dir, f"{bids_id}_space-nativepro_map-T1map.nii.gz")
+                        else:
+                            volumemap = os.path.join(input_dir, f"{bids_id}_space-nativepro_model-DTI_map-{feat_lower.upper()}.nii.gz")
+
                         if not os.path.exists(volumemap):
-                            if verbose: print(f"      Warning: T1w volume not found: {volumemap}")
+                            if verbose:
+                                print(f"      Warning: {feat_lower} volume not found: {volumemap}")
                             continue
 
                         native_surf = os.path.join(
-                            surf_dir, 
+                            surf_dir,
                             f"{bids_id}_hemi-{hemi}_space-nativepro_surf-fsnative_label-{label}.surf.gii"
                         )
-                        
-                        # Temp files
-                        native_func = os.path.join(tmp_dir, f"{bids_id}_hemi-{hemi}_label-{label}_desc-t1w_native.func.gii")
-                        fsLR_func_unsmoothed = os.path.join(tmp_dir, f"{bids_id}_hemi-{hemi}_label-{label}_desc-t1w_fsLR-{resolution}.func.gii")
+                        native_midthickness = os.path.join(
+                            surf_dir,
+                            f"{bids_id}_hemi-{hemi}_space-nativepro_surf-fsnative_label-midthickness.surf.gii"
+                        )
+                        swm_1mm_surf = os.path.join(
+                            struct_dir,
+                            f"{bids_id}_hemi-{hemi}_sfwm-1.0mm.surf.gii"
+                        )
 
-                        # 1. Map Volume to Native Surface
-                        subprocess.run([
-                            os.path.join(workbench_path, "wb_command"),
-                            "-volume-to-surface-mapping",
-                            volumemap,
-                            native_surf,
-                            native_func,
-                            "-trilinear"
-                        ], check=False)
-                        
-                        # 2. Resample to fsLR
+                        native_func = os.path.join(
+                            tmp_dir,
+                            f"{bids_id}_hemi-{hemi}_label-{label}_desc-{feat_lower}_native.func.gii"
+                        )
+                        fsLR_func_unsmoothed = os.path.join(
+                            tmp_dir,
+                            f"{bids_id}_hemi-{hemi}_label-{label}_desc-{feat_lower}_fsLR-{resolution}.func.gii"
+                        )
+
+                        if feat_lower in ["qt1", "adc", "fa"]:
+                            if not os.path.exists(swm_1mm_surf):
+                                if verbose:
+                                    print(f"      Warning: 1mm SWM surface not found: {swm_1mm_surf}")
+                                continue
+
+                            subprocess.run([
+                                os.path.join(workbench_path, "wb_command"),
+                                "-volume-to-surface-mapping",
+                                volumemap,
+                                native_surf,
+                                native_func,
+                                "-ribbon-constrained",
+                                swm_1mm_surf,
+                                native_midthickness,
+                            ], check=False)
+                        elif label == "white":
+                            if not os.path.exists(swm_1mm_surf):
+                                if verbose:
+                                    print(f"      Warning: 1mm SWM surface not found: {swm_1mm_surf}")
+                                continue
+
+                            subprocess.run([
+                                os.path.join(workbench_path, "wb_command"),
+                                "-volume-to-surface-mapping",
+                                volumemap,
+                                native_surf,
+                                native_func,
+                                "-ribbon-constrained",
+                                swm_1mm_surf,
+                                native_midthickness,
+                            ], check=False)
+                        else:
+                            subprocess.run([
+                                os.path.join(workbench_path, "wb_command"),
+                                "-volume-to-surface-mapping",
+                                volumemap,
+                                native_surf,
+                                native_func,
+                                "-trilinear"
+                            ], check=False)
+
                         subprocess.run([
                             os.path.join(workbench_path, "wb_command"),
                             "-metric-resample",
@@ -1119,8 +1443,7 @@ def apply_cortical_processing(
                             "BARYCENTRIC",
                             fsLR_func_unsmoothed,
                         ], check=False)
-                        
-                        # 3. Apply Smoothing
+
                         subprocess.run([
                             os.path.join(workbench_path, "wb_command"),
                             "-metric-smoothing",

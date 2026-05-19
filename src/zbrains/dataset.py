@@ -1,7 +1,7 @@
 import os
 import sys
 import datetime
-from zbrains.processing import apply_blurring, apply_hippocampal_processing, apply_subcortical_processing, apply_cortical_processing
+from zbrains.processing import apply_blurring, apply_hippocampal_processing, apply_subcortical_processing, apply_cortical_processing, generate_superficial_white_matter
 from zbrains.analysis import analyze_dataset
 from zbrains.clinical_reports import generate_clinical_report
 import shutil
@@ -189,13 +189,14 @@ class demographics():
         return self
 
 class zbdataset():
-    def __init__(self, name, demographics : demographics, micapipe_directory, hippunfold_directory=None, freesurfer_directory=None, cortex=True, hippocampus=True, subcortical=True):
+    def __init__(self, name, demographics : demographics, micapipe_directory, hippunfold_directory=None, freesurfer_directory=None, raw_data_directory=None, cortex=True, hippocampus=True, subcortical=True):
         
         self.name = name
         self.demographics = demographics
         self.micapipe_directory = micapipe_directory
         self.hippunfold_directory = hippunfold_directory
         self.freesurfer_directory = freesurfer_directory
+        self.raw_data_directory = raw_data_directory
         self.features = []
         self.cortex = cortex
         self.hippocampus = hippocampus
@@ -214,10 +215,14 @@ class zbdataset():
             print("Warning: hippunfold_directory is not specified, hippocampal data will not be available.")
         if self.freesurfer_directory is None:
             print("Warning: freesurfer_directory is not specified, subcortical data will not be available.")
+        if not getattr(self, 'raw_data_directory', None):
+            print("Warning: raw_data_directory is not specified, generation of precise T1w/FLAIR ratio maps will not be available.")
         print("Checking agreement between demographics data and micapipe directory...")
 
         if not os.path.exists(self.micapipe_directory):
             raise ValueError(f"Micapipe directory {self.micapipe_directory} does not exist.")
+        if getattr(self, 'raw_data_directory', None) and not os.path.exists(self.raw_data_directory):
+            raise ValueError(f"Raw data directory {self.raw_data_directory} does not exist.")
         if self.hippunfold_directory and not os.path.exists(self.hippunfold_directory):
             raise ValueError(f"Hippunfold directory {self.hippunfold_directory} does not exist.")
         if self.freesurfer_directory and not os.path.exists(self.freesurfer_directory):
@@ -842,6 +847,37 @@ class zbdataset():
                     # Copy structural files
                     self._copy_structural_files(participant_id, session_id, output_directory, verbose=verbose)
                     self._create_midline_from_freesurfer(participant_id, session_id, output_directory, verbose=verbose)
+
+                    if self.freesurfer_directory:
+                        generate_superficial_white_matter(
+                            participant_id=participant_id,
+                            session_id=session_id,
+                            output_directory=output_directory,
+                            workbench_path=env.connectome_workbench_path,
+                            micapipe_directory=self.micapipe_directory,
+                            freesurfer_directory=self.freesurfer_directory,
+                            tmp_dir=session_tmp_dir,
+                            verbose=verbose,
+                        )
+                    
+                    if getattr(self, 'raw_data_directory', None):
+                        from zbrains.processing import generate_t1w_flair_ratios
+                        try:
+                            generate_t1w_flair_ratios(
+                                participant_id=participant_id,
+                                session_id=session_id,
+                                raw_dir=self.raw_data_directory,
+                                output_dir=os.path.join(output_directory, participant_id, session_id, "maps"),
+                                micapipe_dir=self.micapipe_directory,
+                                tmp_dir=session_tmp_dir,
+                                wb_path=env.connectome_workbench_path,
+                                threads=env.num_threads,
+                                verbose=verbose
+                            )
+                        except ValueError as e:
+                            if verbose: print(f"Error preparing t1w/flair ratios for {participant_id}: {e}")
+                            return participant_id, session_id, False
+                            
                     # Apply blurring to features that need it
                     if blur_features:
                         # Check which base features are available for this subject
@@ -964,14 +1000,14 @@ class zbdataset():
             return (participant_id, session_id, True)
         
         # Process subjects using joblib (or sequentially if n_jobs=1)
-        if n_jobs == 1:
-            print(f"Running sequential processing for {len(valid_subjects_to_process)} subjects")
-            results = [process_single_subject(subject) for subject in valid_subjects_to_process]
-        else:
-            print(f"Running parallel processing with {n_jobs} jobs for {len(valid_subjects_to_process)} subjects")
-            results = Parallel(n_jobs=n_jobs, verbose=10 if verbose else 0)(
-                delayed(process_single_subject)(subject) for subject in valid_subjects_to_process
-            )
+        # if n_jobs == 1:
+        print(f"Running sequential processing for {len(valid_subjects_to_process)} subjects")
+        results = [process_single_subject(subject) for subject in valid_subjects_to_process]
+        # else:
+        #     print(f"Running parallel processing with {n_jobs} jobs for {len(valid_subjects_to_process)} subjects")
+        #     results = Parallel(n_jobs=n_jobs, verbose=10 if verbose else 0)(
+        #         delayed(process_single_subject)(subject) for subject in valid_subjects_to_process
+        #     )
         
         # Process results
         failed_subjects = [(pid, sid) for pid, sid, success in results if not success]
