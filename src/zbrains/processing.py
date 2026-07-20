@@ -1355,7 +1355,7 @@ def apply_cortical_processing(
                         if feat_lower == "t1w":
                             volumemap = os.path.join(subject_output_dir, "maps", f"{bids_id}_space-nativepro_map-T1wDividedByFlair.nii.gz")
                             if not os.path.exists(volumemap):
-                                volumemap = os.path.join(input_dir, "anat", f"{bids_id}_space-nativepro_T1w.nii.gz")
+                                volumemap = os.path.join(subject_dir, "anat", f"{bids_id}_space-nativepro_T1w.nii.gz")
                         elif feat_lower == "flair":
                             volumemap = os.path.join(subject_output_dir, "maps", f"{bids_id}_space-nativepro_map-FlairDividedByT1w.nii.gz")
                             if not os.path.exists(volumemap):
