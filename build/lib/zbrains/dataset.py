@@ -1,147 +1,52 @@
 import os
 import sys
 import datetime
-import copy
 from zbrains.processing import apply_blurring, apply_hippocampal_processing, apply_subcortical_processing, apply_cortical_processing, generate_superficial_white_matter
 from zbrains.normalization import (
-    apply_nyul_model_to_subject,
     apply_ravel_model_to_subject,
-    compose_normalization_label,
-    decompose_normalization_label,
-    ensure_synthseg_csf,
-    fit_and_apply_nyul_to_controls,
     fit_and_apply_ravel_to_controls,
-    normalize_normalization_mode,
-    prepare_t1w_flair_identity,
     prepare_t1w_flair_whitestripe,
-    prepare_t1w_flair_wmmean,
     requested_ravel_modalities,
-    resolve_normalization_desc,
 )
 from zbrains.analysis import analyze_dataset
 from zbrains.clinical_reports import generate_clinical_report
 import shutil
-import re
-import threading
 import multiprocessing
 from joblib import Parallel, delayed
 import nibabel as nib
 import numpy as np
 
 class LogRedirect:
-    """Redirect stdout to a per-subject log file, optionally mirroring to terminal.
-
-    With ``mirror_terminal=False`` it writes ONLY to the log file -- used by the
-    parallel subject loop, where mirroring N concurrent subjects onto one terminal
-    would interleave into noise (each subject's complete log still lands on disk).
     """
-    def __init__(self, log_file, mirror_terminal=True):
+    Class for redirecting stdout/stderr to a log file while still displaying output.
+    """
+    def __init__(self, log_file):
         self.log_file = log_file
-        # Capture the REAL stdout, unwrapping the thread-local proxy if one is
-        # installed, so mirroring can never recurse back through the proxy into
-        # this same object.
-        self.terminal_stdout = getattr(sys.stdout, "_default", sys.stdout)
-        self.mirror_terminal = mirror_terminal
-
+        self.terminal_stdout = sys.stdout
+        
         # Remove old log file if it exists
         if os.path.exists(log_file):
             os.remove(log_file)
-
+            
         # Open in write mode to create a new file
         self.log = open(self.log_file, "w", encoding="utf-8")
-
+        
     def __del__(self):
-        self.close()
-
-    def close(self):
-        if getattr(self, "log", None):
-            try:
-                self.log.close()
-            finally:
-                self.log = None
-
+        if hasattr(self, 'log') and self.log:
+            self.log.close()
+        
     def write(self, message):
-        if self.mirror_terminal:
-            self.terminal_stdout.write(message)
+        self.terminal_stdout.write(message)
         self.log.write(message)
         self.log.flush()
-
+        
     def flush(self):
-        if self.mirror_terminal:
-            self.terminal_stdout.flush()
+        self.terminal_stdout.flush()
         self.log.flush()
-
-
-class _ThreadLocalStdout:
-    """A ``sys.stdout`` stand-in that dispatches writes to a PER-THREAD target.
-
-    Installed once around the parallel subject loop so each worker thread logs to
-    its own file via ``set_target`` -- WITHOUT the shared-global ``sys.stdout``
-    swap that made concurrent subjects clobber each other's redirect (the reason
-    the parallel path was originally disabled). A thread with no target set (e.g.
-    the orchestrating main thread) falls back to the real stdout.
-    """
-    def __init__(self, default):
-        self._default = default
-        self._local = threading.local()
-
-    def _get_local(self):
-        # Read via __dict__ (never __getattr__, which raises for underscore names)
-        # and re-create lazily if absent, so a proxy reconstructed WITHOUT __init__
-        # (deepcopy/pickle) or read mid-teardown degrades gracefully instead of
-        # raising AttributeError('_local') out of a caller's print().
-        local = self.__dict__.get("_local")
-        if local is None:
-            local = threading.local()
-            self.__dict__["_local"] = local
-        return local
-
-    def _current(self):
-        # A logging proxy must NEVER be able to crash the compute: fall back all the
-        # way to the real interpreter stdout rather than raising if internal state
-        # is missing (half-built instance, teardown, unexpected access order).
-        target = getattr(self._get_local(), "target", None)
-        return target or self.__dict__.get("_default") or sys.__stdout__
-
-    def set_target(self, stream):
-        self._get_local().target = stream
-
-    def clear_target(self):
-        self._get_local().target = None
-
-    def write(self, message):
-        return self._current().write(message)
-
-    def flush(self):
-        cur = self._current()
-        flush = getattr(cur, "flush", None)
-        if callable(flush):
-            flush()
-
-    def __getattr__(self, name):
-        # Delegate isatty()/fileno()/encoding/etc. to the current target; guard
-        # private names so an early/attribute miss can't recurse via _current().
-        if name.startswith("_"):
-            raise AttributeError(name)
-        return getattr(self._current(), name)
-
-
-# Per-subject processing runs each subject in a worker THREAD: the heavy work is
-# external wb_command/ANTs subprocesses that release the GIL, so threads give real
-# speedup with bit-identical output. A process pool is deliberately avoided --
-# loky/fork + this numpy build double-inits ("CPU dispatcher tracer already
-# initlized") and SIGSEGVs. Capped because each concurrent subject holds a
-# subject's volumes in RAM; raise/lower via env.num_threads if you have the memory.
-PROCESSING_MAX_THREADS = 12
-
 
 class demographics():
     def __init__(self, csv_file, column_mapping=None, normative_columns=None, normative_dtypes=None, reference=None, subset=None):
-        # Resolve to an ABSOLUTE path at construction time (cwd is correct here).
-        # Later steps of the pipeline change the working directory, and the
-        # demographics may be re-read then (e.g. when building a control subset for
-        # held-out-control K-fold scoring); a stored relative path would fail.
-        self.csv_file = os.path.abspath(csv_file) if isinstance(csv_file, (str, os.PathLike)) else csv_file
+        self.csv_file = csv_file
         self.data = None
         self.column_mapping = {
             "ID": "participant_id",
@@ -228,22 +133,15 @@ class demographics():
                 try:
                     # Validate column values based on specified data type
                     if dtype.lower() == 'int':
-                        # Coerce numeric values and round them to integer years.
-                        # Many BIDS/site exports store age as decimal years
-                        # (e.g. 32.7); downstream normative models expect an
-                        # integer column when dtype="int".
-                        numeric_values = pd.to_numeric(self.data[col], errors='raise')
-                        rounded_values = np.rint(numeric_values).astype(int)
-                        changed = ~np.isclose(numeric_values, rounded_values)
-                        if np.any(changed):
-                            changed_values = [
-                                float(v) for v in sorted(pd.Series(numeric_values[changed]).unique())
-                            ]
-                            print(
-                                f"Rounded non-integer values in column '{col}' "
-                                f"to nearest integer: {changed_values}"
-                            )
-                        self.data[col] = rounded_values
+                        # Try converting to int and check if values are preserved
+                        original_values = self.data[col].values
+                        int_values = self.data[col].astype(int).values
+                        # Check if conversion to int maintains the original values
+                        if not np.allclose(original_values, int_values, rtol=1e-05, atol=1e-08, equal_nan=True):
+                            problematic_values = self.data.loc[~np.isclose(original_values, int_values)][col].unique()
+                            raise ValueError(f"Column '{col}' has non-integer values: {problematic_values}")
+                        # Convert to int
+                        self.data[col] = self.data[col].astype(int)
                     
                     elif dtype.lower() == 'float':
                         # Try converting to float
@@ -296,219 +194,6 @@ class demographics():
     
         return self
 
-
-def _link_structural_to_cache(output_directory, participant_id, session_id, verbose=False):
-    """Point this base's ``structural/`` dir at a base-independent per-subject cache.
-
-    The structural outputs (native/fsLR surfaces, hippocampal surfaces, the Laplace
-    field and SWM depth surfaces) are pure geometry -- they depend only on the
-    subject's anatomy (freesurfer/micapipe/hippunfold), NOT on the intensity
-    normalization, smoothing, or outlier exclusion that key a base. So we generate
-    them ONCE into ``<prefix>/struct_cache/<sub>/<ses>/structural`` and symlink that
-    dir into every base, instead of re-solving the Laplace PDE + regenerating
-    surfaces for each greedy arm. No-op when ``output_directory`` has no ``zbrains_*``
-    component (legacy) or a REAL structural dir already exists here (existing base --
-    left untouched). Must be called BEFORE any structural files are written.
-    """
-    parts = os.path.abspath(output_directory).split(os.sep)
-    idx = next((i for i, p in enumerate(parts)
-                if p.startswith("zbrains_") or p.startswith("zbrains-")), None)
-    if idx is None:
-        return None
-    parts[idx] = "struct_cache"
-    cache_struct = os.path.join(os.sep.join(parts), participant_id, session_id, "structural")
-    base_struct = os.path.join(output_directory, participant_id, session_id, "structural")
-    if os.path.isdir(base_struct) and not os.path.islink(base_struct):
-        return base_struct                 # real dir already here -> leave it
-    os.makedirs(cache_struct, exist_ok=True)
-    os.makedirs(os.path.dirname(base_struct), exist_ok=True)
-    cache_abs = os.path.abspath(cache_struct)
-    if os.path.islink(base_struct):
-        if os.path.realpath(base_struct) == cache_abs:
-            return base_struct             # already linked correctly
-        try:
-            os.remove(base_struct)
-        except OSError:
-            pass
-    try:
-        os.symlink(cache_abs, base_struct)
-        if verbose:
-            print(f"  Structural cache: {participant_id}/{session_id} -> {cache_struct}")
-    except FileExistsError:
-        pass
-    return base_struct
-
-
-# --- Norm-phase volume cache (smoothing-independent) --------------------------
-# WhiteStripe/RAVEL/Nyul produce nativepro ``desc-<final>_{T1w,FLAIR}.nii.gz`` volumes
-# (and, for RAVEL/Nyul, a dataset-level fit model) BEFORE any volume-to-surface
-# sampling; on-surface smoothing is applied later, per-vertex. So those volumes are
-# byte-identical across every cortical/hippocampal smoothing (and sampling) arm. The
-# processed base directory is keyed by smoothing, so each smoothing arm otherwise
-# re-runs the whole (usually RAVEL-dominated) normalization. These helpers reuse the
-# volumes from a sibling cache keyed by everything EXCEPT smoothing.
-_SMOOTH_TOKEN_RE = re.compile(r"_smoothctx\d+hip\d+")
-_NORM_MODEL_DIRS = ("ravel", "nyul")
-
-
-def _norm_cache_dir_for(output_directory):
-    """Sibling norm-cache base dir for a processed base, keyed by everything EXCEPT
-    on-surface smoothing. Derived from the base path so the per-fold ``_reffold{k}``
-    tag and any exclusion tag are PRESERVED -- a cross-validation fold's train-only
-    RAVEL/Nyul fit is never shared with the full-controls run or another fold (no
-    leakage). Returns None for a non-``zbrains_`` path (legacy/direct)."""
-    parts = os.path.abspath(output_directory).split(os.sep)
-    idx = next((i for i, p in enumerate(parts)
-                if p.startswith("zbrains_") or p.startswith("zbrains-")), None)
-    if idx is None:
-        return None
-    comp = parts[idx]
-    sep = "_" if comp.startswith("zbrains_") else "-"
-    comp = "norm_cache" + sep + comp.split("zbrains" + sep, 1)[1]
-    comp = _SMOOTH_TOKEN_RE.sub("", comp)                 # smoothing arms share ONE cache
-    parts[idx] = comp
-    return os.sep.join(parts[:idx + 1])
-
-
-def _atomic_symlink(src, dst):
-    """Point ``dst`` at ``src`` atomically (temp symlink + os.replace) so a peer on
-    shared storage never sees a half-made link. Leaves a REAL file/dir at ``dst``
-    untouched (only creates when absent or already the same link)."""
-    if os.path.lexists(dst):
-        if os.path.islink(dst) and os.path.realpath(dst) == os.path.realpath(src):
-            return True
-        return os.path.exists(dst)                        # something real is here -> keep it
-    tmp = f"{dst}.link.{os.getpid()}.{threading.get_ident()}"
-    try:
-        os.symlink(os.path.abspath(src), tmp)
-        os.replace(tmp, dst)
-    except FileExistsError:
-        pass
-    except OSError:
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
-        return False
-    return True
-
-
-def _copy_atomic(src, dst):
-    """Copy ``src`` -> ``dst`` atomically, skipping if ``dst`` already exists (so
-    concurrent arms/machines populating one shared cache never clobber each other)."""
-    if os.path.exists(dst):
-        return True
-    os.makedirs(os.path.dirname(dst), exist_ok=True)
-    tmp = f"{dst}.tmp.{os.getpid()}.{threading.get_ident()}"
-    try:
-        shutil.copy2(src, tmp)
-        os.replace(tmp, dst)
-    except OSError:
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
-        return False
-    return True
-
-
-def _mirror_model_dirs(src_root, dst_root):
-    """Copy any RAVEL/Nyul fit-model files from ``src_root/<model>/`` into
-    ``dst_root/<model>/`` (real files only, skip existing). Small .npz/.json; used
-    both to save a fit into the cache and to restore it into a base."""
-    for name in _NORM_MODEL_DIRS:
-        sdir = os.path.join(src_root, name)
-        if not os.path.isdir(sdir):
-            continue
-        try:
-            entries = os.listdir(sdir)
-        except OSError:
-            continue
-        for fn in entries:
-            sp = os.path.join(sdir, fn)
-            if os.path.isfile(sp) and not os.path.islink(sp):
-                _copy_atomic(sp, os.path.join(dst_root, name, fn))
-
-
-def _norm_volume_filename(participant_id, session_id, desc, modality):
-    return f"{participant_id}_{session_id}_space-nativepro_desc-{desc}_{modality}.nii.gz"
-
-
-def _norm_cache_hydrate(cache_dir, base_dir, subjects_modalities, desc, *, verbose=False):
-    """Symlink cached desc-<final> volumes into ``base_dir`` maps/ (ALL-OR-NOTHING)
-    and restore any cached fit model. Returns True iff EVERY (subject, modality) was
-    present in the cache -- a partial cache hydrates nothing (beyond the model) and
-    returns False so the norm phase recomputes fully (never leaving some controls
-    without the desc-<subject_norm> the dataset fit needs)."""
-    if os.path.isdir(cache_dir):
-        _mirror_model_dirs(cache_dir, base_dir)          # model first (patient apply may need it)
-    pending = []
-    for (participant_id, session_id), mods in subjects_modalities.items():
-        for modality in mods:
-            fn = _norm_volume_filename(participant_id, session_id, desc, modality)
-            src = os.path.join(cache_dir, participant_id, session_id, "maps", fn)
-            if not os.path.exists(src):
-                return False                             # incomplete -> full recompute
-            dst = os.path.join(base_dir, participant_id, session_id, "maps", fn)
-            pending.append((src, dst))
-    if not pending:
-        return False                                    # nothing cacheable to reuse
-    for src, dst in pending:
-        os.makedirs(os.path.dirname(dst), exist_ok=True)
-        if not _atomic_symlink(src, dst):
-            return False
-    return True
-
-
-def _norm_cache_save(cache_dir, base_dir, subjects_modalities, desc, *, verbose=False):
-    """Persist freshly-computed desc-<final> volumes (+ fit model) into the norm cache
-    so sibling smoothing/sampling arms reuse them. Skips symlinks (already cached) and
-    missing/failed subjects; atomic + skip-existing so it is safe under concurrency."""
-    if not cache_dir:
-        return
-    os.makedirs(cache_dir, exist_ok=True)
-    _mirror_model_dirs(base_dir, cache_dir)
-    n = 0
-    for (participant_id, session_id), mods in subjects_modalities.items():
-        for modality in sorted(mods):
-            fn = _norm_volume_filename(participant_id, session_id, desc, modality)
-            src = os.path.join(base_dir, participant_id, session_id, "maps", fn)
-            if not os.path.isfile(src) or os.path.islink(src):
-                continue                                # failed/missing, or already a cache symlink
-            if _copy_atomic(src, os.path.join(cache_dir, participant_id, session_id, "maps", fn)):
-                n += 1
-    if verbose and n:
-        print(f"Cached {n} desc-{desc} volume(s) to {cache_dir} for smoothing/sampling reuse.")
-
-
-def _cortex_bool_mask(cortex_idx, n_vertices, *, hemi="", label=""):
-    """Build a length-``n_vertices`` cortex boolean mask from FreeSurfer label indices.
-
-    The medial-wall mask must stay aligned to the fsnative surface (``lh/rh.white``),
-    so it is always sized to that surface. FreeSurfer's ``?h.cortex.label`` and
-    ``?h.white`` should share a vertex count, but for some subjects the label carries
-    an index at/after the surface's last vertex (a 1-past-the-end off-by-one, or a
-    surface/label recon mismatch). Rather than crash the whole subject on the
-    out-of-bounds fancy-index assignment, drop the offending indices (they name
-    vertices that don't exist on this surface anyway) and warn so a gross mismatch
-    stays visible instead of silently corrupting the mask.
-    """
-    idx = np.asarray(cortex_idx, dtype=np.int64).ravel()
-    mask = np.zeros(int(n_vertices), dtype=bool)
-    if idx.size == 0:
-        return mask
-    in_range = (idx >= 0) & (idx < n_vertices)
-    n_bad = int((~in_range).sum())
-    if n_bad:
-        print(
-            f"  Warning: {label} hemi-{hemi} cortex label has {n_bad} vertex "
-            f"index(es) outside the fsnative surface (n={n_vertices}, "
-            f"max idx {int(idx.max())}); dropping them from the cortex mask."
-        )
-    mask[idx[in_range]] = True
-    return mask
-
-
 class zbdataset():
     def __init__(self, name, demographics : demographics, micapipe_directory, hippunfold_directory=None, freesurfer_directory=None, raw_data_directory=None, cortex=True, hippocampus=True, subcortical=True):
         
@@ -524,61 +209,12 @@ class zbdataset():
         self.subcortical = subcortical
         self.valid_dataset = False
         self.hippunfold_version = 1
-        # Optional feature-specific control QC mask.  The staged correlation arms
-        # populate this as ``{feature: {(participant_id, session_id), ...}}``.
-        # A masked scan remains a member of the dataset and stays available for
-        # every other feature; it is removed only from the matching feature (and
-        # that feature's *blur companion, which shares the same source volume).
-        self.control_feature_exclusions = {}
        
     def __repr__(self):
         return f"Dataset(name={self.name})"
 
     def __str__(self):
         return f"Dataset: {self.name}"
-
-    @staticmethod
-    def _feature_exclusion_key(feature):
-        """Canonical base-feature key used by feature-specific control masks."""
-        key = str(feature).strip().lower().replace("*blur", "")
-        return "qt1" if key == "t1map" else key
-
-    def _apply_control_feature_exclusions(self, valid_subjects=None):
-        """Prune only masked subject-feature observations from a validity table.
-
-        ``base`` and the dataset-wide structure lists are deliberately untouched:
-        a control excluded for FLAIR, for example, must still contribute T1w, FA,
-        and every other available feature.  A base feature and its ``*blur``
-        companion share one mask because both are extracted from the same volume
-        and therefore cannot use different RAVEL/Nyul training cohorts.
-        """
-        target = self.valid_subjects if valid_subjects is None else valid_subjects
-        exclusions = getattr(self, "control_feature_exclusions", None) or {}
-        if not exclusions or not target:
-            return target
-
-        by_feature = {}
-        for feature, pairs in exclusions.items():
-            key = self._feature_exclusion_key(feature)
-            by_feature.setdefault(key, set()).update(
-                (str(pid), str(ses)) for pid, ses in (pairs or ())
-            )
-
-        for feature in list(getattr(self, "features", ())) or list(target):
-            data = target.get(feature)
-            if not isinstance(data, dict) or "all" not in data:
-                continue
-            excluded = by_feature.get(self._feature_exclusion_key(feature), set())
-            if not excluded:
-                continue
-            data["all"] = [tuple(pair) for pair in data.get("all", ())
-                           if tuple(map(str, pair)) not in excluded]
-            for structure, pairs in data.get("structures", {}).items():
-                data["structures"][structure] = [
-                    tuple(pair) for pair in pairs
-                    if tuple(map(str, pair)) not in excluded
-                ]
-        return target
     
     def check_directories(self):
         if self.hippunfold_directory is None:
@@ -729,8 +365,6 @@ class zbdataset():
             "fmri": "fMRI",
             "t1w": "T1w",
             "t1w*blur": "T1w*blur",
-            "adc*blur": "ADC*blur",
-            "fa*blur": "FA*blur",
         }
         
         # Normalize all features to consistent case
@@ -768,9 +402,7 @@ class zbdataset():
             # Fix: Remove surface file requirement for blur features (inputs only)
             "FLAIR*blur": ["maps/{participant_id}_{session_id}_space-nativepro_map-flair.nii.gz"],
             "qT1*blur": ["maps/{participant_id}_{session_id}_space-nativepro_map-T1map.nii.gz"],
-            "ADC*blur": ["maps/{participant_id}_{session_id}_space-nativepro_model-DTI_map-ADC.nii.gz"],
-            "FA*blur": ["maps/{participant_id}_{session_id}_space-nativepro_model-DTI_map-FA.nii.gz"],
-
+            
             "fMRI": ["func/desc-se_task-rest_acq-AP_bold/surf/{participant_id}_{session_id}_surf-fsLR-32k_desc-timeseries_clean.shape.gii"],
             "SA": ["surf/{participant_id}_{session_id}_hemi-{hemi}_space-nativepro_surf-fsnative_label-{surfacetype}.surf.gii"],
             "T1w": ["anat/{participant_id}_{session_id}_space-nativepro_T1w.nii.gz"],
@@ -1028,22 +660,11 @@ class zbdataset():
             else:
                 subjects_with_complete_data.append(subject)
         
-        # Apply staged correlation QC BEFORE any dataset-level normalization.
-        # This changes only the feature-specific lists consulted by
-        # subject_normalization_modalities() and the per-feature processing loops;
-        # the control remains in ``base`` for all of its unaffected features.
-        self._apply_control_feature_exclusions(self.valid_subjects)
-        for feature in self.features:
-            if feature in self.valid_subjects:
-                feature_availability[feature] = len(self.valid_subjects[feature]["all"])
-
         # Store the results
         self.subjects_with_complete_data = subjects_with_complete_data
         self.missing_files = missing_files
         self.missing_features = missing_features
         self.feature_availability = feature_availability
-        self.source_valid_subjects = copy.deepcopy(self.valid_subjects)
-        self.source_feature_availability = dict(feature_availability)
         
         # Report findings
         if verbose:
@@ -1098,18 +719,7 @@ class zbdataset():
         
         return self
 
-    def process(
-        self,
-        output_directory,
-        features,
-        cortical_smoothing=5,
-        hippocampal_smoothing=2,
-        env=None,
-        verbose=True,
-        n_jobs=None,
-        normalization="ravel",
-        skip_existing=True,
-    ):
+    def process(self, output_directory, features, cortical_smoothing=5, hippocampal_smoothing=2, env=None, verbose=True, n_jobs=None):
         """
         Process the dataset with specified features and smoothing parameters using joblib parallelization.
         Logs all output to a log file in each subject's session directory.
@@ -1131,10 +741,6 @@ class zbdataset():
         n_jobs : int, optional
             Number of parallel jobs to run. If None, uses all available CPU cores.
             If 1, runs sequentially.
-        normalization : {"ravel", "whitestripe"}, default="ravel"
-            T1w/FLAIR normalization source used for volume-to-surface and
-            subcortical extraction. "ravel" runs WhiteStripe then RAVEL.
-            "whitestripe" runs only WhiteStripe and uses those outputs.
             
         Returns:
         --------
@@ -1154,8 +760,6 @@ class zbdataset():
             "fmri": "fMRI",
             "t1w": "T1w",
             "t1w*blur": "T1w*blur",
-            "adc*blur": "ADC*blur",
-            "fa*blur": "FA*blur",
         }
         
         # Normalize features consistently
@@ -1170,42 +774,21 @@ class zbdataset():
                     print(f"Warning: Unknown feature '{feature}' in process method")
         
         features = normalized_features
-        # Composable normalization: decompose the (possibly composite) label into
-        # a subject-level phase (none/whitestripe/wmmean) and a dataset-level phase
-        # (none/ravel/nyul). The subject phase writes desc-<subject_norm>; the
-        # dataset phase reads that and writes desc-<composite>; extraction (via
-        # get_normalized_modality_path) reads desc-<composite>.
-        subject_norm, dataset_norm = decompose_normalization_label(normalization)
-        normalization = compose_normalization_label(subject_norm, dataset_norm)
-        self.intensity_normalization = normalization
         self.cortical_smoothing = cortical_smoothing
         self.hippocampal_smoothing = hippocampal_smoothing
         self.add_features(*features, verbose=verbose)
-
+        
         if verbose:
             print(f"Processing dataset {self.name} with cortical smoothing {cortical_smoothing} and hippocampal smoothing {hippocampal_smoothing}.")
-            if requested_ravel_modalities(features):
-                print(f"T1w/FLAIR extraction will use subject-norm '{subject_norm}' + "
-                      f"dataset-norm '{dataset_norm}' (desc-{normalization}).")
         
         if env is None:
             raise ValueError("Environment (zbenv) must be provided for processing.")
 
         if not os.path.exists(output_directory):
-            os.makedirs(output_directory, exist_ok=True)
+            os.makedirs(output_directory)
             print(f"Created output directory: {output_directory}")
         else:
             print(f"Output directory already exists: {output_directory}")
-
-        # Pin the process working directory to a stable, absolute location that
-        # persists for the whole run. Long multi-stage runs have been observed to
-        # lose their launch CWD (os.getcwd() -> FileNotFoundError, and relative
-        # PYTHONPATH breaks child Python startup); anchoring CWD here makes the
-        # pipeline immune regardless of the cause. All pipeline paths are absolute.
-        try:
-            os.chdir(os.path.abspath(output_directory))
-        except OSError:
-            pass
 
         # Timestamp for all logs
         timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -1228,42 +811,9 @@ class zbdataset():
         
         # Use all base valid subjects
         valid_subjects_to_process = self.valid_subjects['base']
-
-        # Per-subject REUSE: skip subjects whose outputs (maps/ + structural/)
-        # already exist in this base, so a re-run or an enlarged cohort only
-        # processes the genuinely-missing subjects instead of everything. This is
-        # only safe for subject-level normalizations (dataset_norm == "none", i.e.
-        # none/whitestripe/wmmean) where each subject is processed independently;
-        # RAVEL/Nyul (dataset_norm in {ravel,nyul}) are DATASET-level fits that need
-        # every control, so they are never filtered here.
-        if skip_existing and dataset_norm == "none":
-            def _outputs_complete(subject):
-                pid, sid = subject
-                sess = os.path.join(output_directory, pid, sid)
-                maps_dir, struct_dir = os.path.join(sess, "maps"), os.path.join(sess, "structural")
-                return (os.path.isdir(maps_dir) and bool(os.listdir(maps_dir))
-                        and os.path.isdir(struct_dir) and bool(os.listdir(struct_dir)))
-            all_valid = list(valid_subjects_to_process)
-            valid_subjects_to_process = [s for s in all_valid if not _outputs_complete(s)]
-            n_skipped = len(all_valid) - len(valid_subjects_to_process)
-            if n_skipped and verbose:
-                print(f"Per-subject reuse: skipping {n_skipped}/{len(all_valid)} already-processed "
-                      f"subjects; processing {len(valid_subjects_to_process)}.")
-
-        # Threads for the per-subject loop: coerce to the item count, then cap for
-        # memory. Set once here; the loop below installs a thread-local stdout proxy
-        # (see _ThreadLocalStdout) so concurrent subjects don't clobber each other.
-        subject_n_jobs = _coerce_job_count(n_jobs, len(valid_subjects_to_process))
-        if subject_n_jobs > PROCESSING_MAX_THREADS:
-            if verbose:
-                print(f"Capping per-subject threads {subject_n_jobs} -> {PROCESSING_MAX_THREADS} "
-                      f"(memory); set env.num_threads to override.")
-            subject_n_jobs = PROCESSING_MAX_THREADS
-        _stdout_proxy = None    # set to a _ThreadLocalStdout only while the parallel loop runs
-
+        
         if verbose:
-            print(f"Using {subject_n_jobs if subject_n_jobs > 1 else 'sequential'} processing "
-                  f"for {len(valid_subjects_to_process)} subjects")
+            print(f"Using {n_jobs if n_jobs > 1 else 'sequential'} processing for {len(valid_subjects_to_process)} subjects")
 
         # Identify blur features
         blur_features = [feature for feature in self.features if feature.endswith("*blur")]
@@ -1277,8 +827,9 @@ class zbdataset():
         if normalization_modalities:
             dataset_name = str(self.name).lower()
             is_control_dataset = dataset_name in {"control", "controls", "hc", "healthy_controls", "reference", "normative"}
-            normalization_n_jobs = 1
-            normalization_threads = max(1, int(env.num_threads or 1))
+            normalization_n_jobs = _coerce_job_count(n_jobs, len(valid_subjects_to_process))
+            total_threads = env.num_threads or normalization_n_jobs
+            normalization_threads = max(1, int(total_threads) // normalization_n_jobs)
             micapipe_directory = self.micapipe_directory
             raw_data_directory = getattr(self, "raw_data_directory", None)
 
@@ -1288,177 +839,40 @@ class zbdataset():
                     f"Preparing {role} T1w/FLAIR normalization for "
                     f"{len(valid_subjects_to_process)} subjects: {', '.join(normalization_modalities)}"
                 )
-                print(
-                    "Running T1w/FLAIR normalization one session at a time "
-                    f"({normalization_threads} ANTs/SynthSeg threads)."
-                )
-
-            def subject_normalization_modalities(subject):
-                subject_modalities = []
-                for modality in normalization_modalities:
-                    modality_features = [modality, f"{modality}*blur"]
-                    if any(
-                        feature in self.valid_subjects
-                        and subject in self.valid_subjects[feature]["all"]
-                        for feature in modality_features
-                    ):
-                        subject_modalities.append(modality)
-                return subject_modalities
-
-            # Reuse smoothing-independent normalized volumes across smoothing/sampling
-            # arms (see _norm_cache_* helpers). Keyed by the base path with the smoothing
-            # token stripped, so the per-fold _reffold{k} tag is preserved -> no CV leak.
-            _final_desc = resolve_normalization_desc(normalization)
-            _norm_cache_dir = _norm_cache_dir_for(output_directory)
-            _subjects_modalities = {
-                subject: subject_normalization_modalities(subject)
-                for subject in valid_subjects_to_process
-            }
-
-            norm_hydrated = False
-            if _norm_cache_dir:
-                norm_hydrated = _norm_cache_hydrate(
-                    _norm_cache_dir, output_directory, _subjects_modalities, _final_desc,
-                    verbose=verbose,
-                )
-                if norm_hydrated and verbose:
-                    print(f"Reusing cached desc-{_final_desc} T1w/FLAIR volumes "
-                          f"(smoothing-independent) from {_norm_cache_dir}; skipping "
-                          f"WhiteStripe/RAVEL/Nyul.")
+                if normalization_n_jobs > 1:
+                    print(
+                        f"Running WhiteStripe normalization with {normalization_n_jobs} "
+                        f"parallel jobs ({normalization_threads} tool threads/job)."
+                    )
 
             def prepare_subject_whitestripe(subject):
                 participant_id, session_id = subject
-                subject_modalities = subject_normalization_modalities(subject)
-                if not subject_modalities:
-                    if verbose:
-                        print(f"Skipping T1w/FLAIR normalization for {participant_id}/{session_id}; no requested T1w/FLAIR modalities are available.")
-                    return participant_id, session_id, True, None, []
-
-                # Cache reuse: the full desc-<norm> volume set was hydrated from a
-                # sibling smoothing/sampling arm, so neither WhiteStripe nor the dataset
-                # fit needs to run. (All-or-nothing: norm_hydrated is only True when every
-                # subject/modality was present, so the dataset fit never lacks an input.)
-                if norm_hydrated:
-                    return participant_id, session_id, True, None, subject_modalities
-
                 session_output_dir = os.path.join(output_directory, participant_id, session_id)
                 maps_dir = os.path.join(session_output_dir, "maps")
+                session_tmp_dir = os.path.join(session_output_dir, f"tmp_norm_{participant_id}_{session_id}")
                 os.makedirs(maps_dir, exist_ok=True)
-
-                # RAVEL needs the SynthSeg CSF control region regardless of the
-                # subject-level normalization; the identity/wmmean paths do not
-                # write it, so fill it in when dataset_norm == "ravel".
-                def _ensure_ravel_csf():
-                    if dataset_norm == "ravel":
-                        ensure_synthseg_csf(
-                            participant_id=participant_id,
-                            session_id=session_id,
-                            output_dir=maps_dir,
-                            micapipe_dir=micapipe_directory,
-                            modalities=subject_modalities,
-                            threads=normalization_threads,
-                            verbose=verbose,
-                        )
-
-                if subject_norm == "none":
-                    # Self-normalization: link raw nativepro T1w/FLAIR as desc-none.
-                    # The dataset-level phase (ravel/nyul) reads this intermediate.
-                    try:
-                        prepare_t1w_flair_identity(
-                            participant_id=participant_id,
-                            session_id=session_id,
-                            output_dir=maps_dir,
-                            micapipe_dir=micapipe_directory,
-                            modalities=subject_modalities,
-                            verbose=verbose,
-                        )
-                        _ensure_ravel_csf()
-                        return participant_id, session_id, True, None, subject_modalities
-                    except Exception as identity_error:
-                        import traceback
-                        return (
-                            participant_id,
-                            session_id,
-                            False,
-                            f"{identity_error}\n{traceback.format_exc()}",
-                            subject_modalities,
-                        )
-
-                if subject_norm == "wmmean":
-                    # WM-mean image normalization: SynthSeg WM mask + whole-WM
-                    # tissue mean/SD -> desc-wmmean (writes the SynthSeg label too).
-                    try:
-                        prepare_t1w_flair_wmmean(
-                            participant_id=participant_id,
-                            session_id=session_id,
-                            output_dir=maps_dir,
-                            micapipe_dir=micapipe_directory,
-                            modalities=subject_modalities,
-                            threads=normalization_threads,
-                            verbose=verbose,
-                        )
-                        _ensure_ravel_csf()
-                        return participant_id, session_id, True, None, subject_modalities
-                    except Exception as wmmean_error:
-                        import traceback
-                        return (participant_id, session_id, False,
-                                f"{wmmean_error}\n{traceback.format_exc()}", subject_modalities)
-
-                # subject_norm == "whitestripe": WhiteStripe writes desc-whitestripe
-                # plus the SynthSeg label and CSF mask (RAVEL-ready).
-                session_tmp_dir = os.path.join(
-                    session_output_dir,
-                    f"tmp_norm_{participant_id}_{session_id}_{os.getpid()}_{threading.get_ident()}")
                 os.makedirs(session_tmp_dir, exist_ok=True)
 
                 try:
-                    completed_modalities = []
-                    modality_errors = []
                     if verbose:
-                        print(
-                            f"Normalizing {participant_id}/{session_id} with WhiteStripe "
-                            f"({', '.join(subject_modalities)})..."
-                        )
-                    for modality in subject_modalities:
-                        try:
-                            prepare_t1w_flair_whitestripe(
-                                participant_id=participant_id,
-                                session_id=session_id,
-                                output_dir=maps_dir,
-                                micapipe_dir=micapipe_directory,
-                                tmp_dir=session_tmp_dir,
-                                raw_dir=raw_data_directory,
-                                modalities=[modality],
-                                threads=normalization_threads,
-                                verbose=verbose,
-                            )
-                            completed_modalities.append(modality)
-                        except Exception as modality_error:
-                            modality_errors.append(f"{modality}: {modality_error}")
-                            if verbose:
-                                print(
-                                    f"Error during {modality} WhiteStripe normalization for "
-                                    f"{participant_id}/{session_id}: {modality_error}"
-                                )
-
-                    if completed_modalities:
-                        error_text = "\n".join(modality_errors) if modality_errors else None
-                        return participant_id, session_id, True, error_text, completed_modalities
-
-                    return (
-                        participant_id,
-                        session_id,
-                        False,
-                        "No requested modalities completed WhiteStripe normalization. "
-                        + "\n".join(modality_errors),
-                        subject_modalities,
+                        print(f"Normalizing {participant_id}/{session_id} with WhiteStripe...")
+                    prepare_t1w_flair_whitestripe(
+                        participant_id=participant_id,
+                        session_id=session_id,
+                        output_dir=maps_dir,
+                        micapipe_dir=micapipe_directory,
+                        tmp_dir=session_tmp_dir,
+                        raw_dir=raw_data_directory,
+                        threads=normalization_threads,
+                        verbose=verbose,
                     )
+                    return participant_id, session_id, True, None
                 except Exception as e:
                     import traceback
-                    return participant_id, session_id, False, f"{e}\n{traceback.format_exc()}", subject_modalities
+                    return participant_id, session_id, False, f"{e}\n{traceback.format_exc()}"
                 finally:
                     if os.path.exists(session_tmp_dir):
-                        shutil.rmtree(session_tmp_dir, ignore_errors=True)
+                        shutil.rmtree(session_tmp_dir)
 
             if normalization_n_jobs == 1:
                 whitestripe_results = [
@@ -1466,120 +880,37 @@ class zbdataset():
                     for subject in valid_subjects_to_process
                 ]
             else:
-                whitestripe_results = Parallel(n_jobs=normalization_n_jobs, backend="threading")(
+                whitestripe_results = Parallel(n_jobs=normalization_n_jobs)(
                     delayed(prepare_subject_whitestripe)(subject)
                     for subject in valid_subjects_to_process
                 )
 
-            normalized_modalities_by_subject = {}
-            for participant_id, session_id, success, error, subject_modalities in whitestripe_results:
-                subject = (participant_id, session_id)
+            for participant_id, session_id, success, error in whitestripe_results:
                 if not success:
-                    normalization_failed_subjects.add(subject)
+                    normalization_failed_subjects.add((participant_id, session_id))
                     if verbose:
                         print(f"Error during WhiteStripe normalization for {participant_id}/{session_id}: {error}")
-                else:
-                    normalized_modalities_by_subject[subject] = set(subject_modalities)
 
-            normalization_subjects = [
+            ravel_subjects = [
                 subject for subject in valid_subjects_to_process
                 if subject not in normalization_failed_subjects
-                and normalized_modalities_by_subject.get(subject)
             ]
-            if not normalization_subjects:
-                raise ValueError("No subjects completed WhiteStripe normalization.")
+            if not ravel_subjects:
+                raise ValueError("No subjects completed WhiteStripe normalization; cannot run RAVEL.")
 
-            if dataset_norm == "none":
+            if is_control_dataset:
                 if verbose:
-                    source_label = {
-                        "none": "raw (self-normalized) nativepro",
-                        "wmmean": "WM-mean-normalized",
-                    }.get(subject_norm, "WhiteStripe-normalized")
-                    print(
-                        f"No dataset-level harmonization; downstream extraction will use "
-                        f"{source_label} (desc-{normalization}) T1w/FLAIR images."
-                    )
-            elif dataset_norm == "nyul":
-                if is_control_dataset:
-                    if norm_hydrated:
-                        if verbose:
-                            print(f"Reusing cached desc-{normalization} Nyul control volumes; skipping fit.")
-                    else:
-                        if verbose:
-                            print(f"Fitting control Nyul-Udupa standard scale on desc-{subject_norm} "
-                                  f"images before extraction (writing desc-{normalization})...")
-                        try:
-                            fit_and_apply_nyul_to_controls(
-                                subjects=normalization_subjects,
-                                output_directory=output_directory,
-                                micapipe_dir=micapipe_directory,
-                                modalities=normalization_modalities,
-                                verbose=verbose,
-                                input_desc=subject_norm,
-                                output_desc=normalization,
-                                n_jobs=normalization_threads,
-                            )
-                        except Exception as e:
-                            if verbose:
-                                print(f"Error fitting/applying Nyul control model: {e}")
-                                import traceback
-                                traceback.print_exc()
-                            raise
-                else:
-                    if verbose:
-                        print("Applying fitted control Nyul standard scale to patient dataset...")
-                    for subject in normalization_subjects:
-                        participant_id, session_id = subject
-                        subject_modalities = sorted(normalized_modalities_by_subject.get(subject, set()))
-                        if not subject_modalities:
-                            continue
-                        if norm_hydrated:
-                            continue                    # cached (hydrated from a sibling arm)
-                        try:
-                            apply_nyul_model_to_subject(
-                                participant_id=participant_id,
-                                session_id=session_id,
-                                output_directory=output_directory,
-                                micapipe_dir=micapipe_directory,
-                                modalities=subject_modalities,
-                                verbose=verbose,
-                                input_desc=subject_norm,
-                                output_desc=normalization,
-                            )
-                        except Exception as e:
-                            normalization_failed_subjects.add(subject)
-                            if verbose:
-                                print(f"Error applying Nyul model for {participant_id}/{session_id}: {e}")
-            elif is_control_dataset:
-                if verbose:
-                    print(f"Fitting control RAVEL model on desc-{subject_norm} images "
-                          f"(writing desc-{normalization}) before any volume-to-surface extraction...")
+                    print("Fitting control RAVEL model before any volume-to-surface extraction...")
                 try:
-                    for modality in normalization_modalities:
-                        modality_subjects = [
-                            subject for subject in normalization_subjects
-                            if modality in normalized_modalities_by_subject.get(subject, set())
-                        ]
-                        if not modality_subjects:
-                            if verbose:
-                                print(f"Skipping control RAVEL model for {modality}; no subjects have that modality.")
-                            continue
-                        if norm_hydrated:
-                            if verbose:
-                                print(f"Reusing cached desc-{normalization} {modality} for controls; skipping RAVEL fit.")
-                            continue                    # hydrated from a sibling smoothing arm
-                        fit_and_apply_ravel_to_controls(
-                            subjects=modality_subjects,
-                            output_directory=output_directory,
-                            micapipe_dir=micapipe_directory,
-                            modalities=[modality],
-                            k=1,
-                            verbose=verbose,
-                            n_jobs=normalization_n_jobs,
-                            threads=normalization_threads,
-                            input_desc=subject_norm,
-                            output_desc=normalization,
-                        )
+                    fit_and_apply_ravel_to_controls(
+                        subjects=ravel_subjects,
+                        output_directory=output_directory,
+                        micapipe_dir=micapipe_directory,
+                        modalities=normalization_modalities,
+                        k=1,
+                        verbose=verbose,
+                        n_jobs=normalization_n_jobs,
+                    )
                 except Exception as e:
                     if verbose:
                         print(f"Error fitting/applying RAVEL control model: {e}")
@@ -1592,22 +923,14 @@ class zbdataset():
 
                 def apply_subject_ravel(subject):
                     participant_id, session_id = subject
-                    subject_modalities = sorted(normalized_modalities_by_subject.get(subject, set()))
-                    if not subject_modalities:
-                        return participant_id, session_id, True, None
-                    if norm_hydrated:
-                        return participant_id, session_id, True, None   # cached (hydrated)
                     try:
                         apply_ravel_model_to_subject(
                             participant_id=participant_id,
                             session_id=session_id,
                             output_directory=output_directory,
                             micapipe_dir=micapipe_directory,
-                            modalities=subject_modalities,
-                            threads=normalization_threads,
+                            modalities=normalization_modalities,
                             verbose=verbose,
-                            input_desc=subject_norm,
-                            output_desc=normalization,
                         )
                         return participant_id, session_id, True, None
                     except Exception as e:
@@ -1615,13 +938,13 @@ class zbdataset():
                         return participant_id, session_id, False, f"{e}\n{traceback.format_exc()}"
 
                 if normalization_n_jobs == 1:
-                    ravel_results = [apply_subject_ravel(subject) for subject in normalization_subjects]
+                    ravel_results = [apply_subject_ravel(subject) for subject in ravel_subjects]
                 else:
                     if verbose:
                         print(f"Applying patient RAVEL normalization with {normalization_n_jobs} parallel jobs...")
-                    ravel_results = Parallel(n_jobs=normalization_n_jobs, backend="threading")(
+                    ravel_results = Parallel(n_jobs=normalization_n_jobs)(
                         delayed(apply_subject_ravel)(subject)
-                        for subject in normalization_subjects
+                        for subject in ravel_subjects
                     )
 
                 for participant_id, session_id, success, error in ravel_results:
@@ -1629,14 +952,6 @@ class zbdataset():
                         normalization_failed_subjects.add((participant_id, session_id))
                         if verbose:
                             print(f"Error applying RAVEL model for {participant_id}/{session_id}: {error}")
-
-            # Persist the freshly-computed smoothing-independent volumes (+ fit model)
-            # so sibling smoothing/sampling arms of this SAME (norm, exclusion, fold)
-            # reuse them. No-op when hydrated from cache (volumes are symlinks) or when
-            # the base path is not a zbrains_ dir.
-            if _norm_cache_dir and not norm_hydrated:
-                _norm_cache_save(_norm_cache_dir, output_directory,
-                                 normalized_modalities_by_subject, _final_desc, verbose=verbose)
 
         # Define a function to process a single subject
         def process_single_subject(subject):
@@ -1654,32 +969,17 @@ class zbdataset():
             log_file = os.path.join(session_output_dir, f"{participant_id}_{session_id}_processing_{timestamp}.log")
             
             # Create session-specific tmp directory
-            # Per-process/thread-unique scratch dir: two machines sharing storage (or
-            # two threads) may build the SAME shared base (e.g. the 0mm ROBPCA detector
-            # base) concurrently -- a deterministic tmp path would let one process's
-            # rmtree race another's writes ("Directory not empty"). Unique suffix +
-            # tolerant cleanup makes it collision-proof.
-            session_tmp_dir = os.path.join(
-                session_output_dir,
-                f"tmp_{participant_id}_{session_id}_{os.getpid()}_{threading.get_ident()}")
+            session_tmp_dir = os.path.join(session_output_dir, f"tmp_{participant_id}_{session_id}")
             os.makedirs(session_tmp_dir, exist_ok=True)
             
-            # Per-subject logging. In the PARALLEL loop a thread-local proxy routes
-            # THIS thread's prints to its own log file (no shared sys.stdout swap, so
-            # concurrent subjects can't clobber each other); SERIALLY we swap
-            # sys.stdout directly so output still mirrors live to the terminal.
+            # Redirect stdout to log file for this subject
+            original_stdout = sys.stdout
             log_redirect = None
-            original_stdout = None
             try:
-                if _stdout_proxy is not None:
-                    # parallel: log to file only (N interleaved terminals = noise)
-                    log_redirect = LogRedirect(log_file, mirror_terminal=False)
-                    _stdout_proxy.set_target(log_redirect)
-                else:
-                    original_stdout = sys.stdout
-                    log_redirect = LogRedirect(log_file)
-                    sys.stdout = log_redirect
-
+                # Create log file
+                log_redirect = LogRedirect(log_file)
+                sys.stdout = log_redirect
+                
                 print(f"Processing subject {participant_id}/{session_id}...")
                 print(f"Started at: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
                 print(f"Features: {features}")
@@ -1694,11 +994,7 @@ class zbdataset():
                 print("-" * 50)
                 
                 try:
-                    # Redirect structural/ to a base-independent per-subject cache
-                    # (geometry doesn't depend on the base) BEFORE any structural
-                    # write, so surfaces + Laplace/SWM are built once and reused.
-                    _link_structural_to_cache(output_directory, participant_id, session_id, verbose=verbose)
-                    # Copy structural files (into the shared cache via the symlink)
+                    # Copy structural files
                     self._copy_structural_files(participant_id, session_id, output_directory, verbose=verbose)
                     self._create_midline_from_freesurfer(participant_id, session_id, output_directory, verbose=verbose)
 
@@ -1738,8 +1034,7 @@ class zbdataset():
                                 freesurfer_directory=self.freesurfer_directory,
                                 tmp_dir=session_tmp_dir,
                                 smoothing_fwhm=self.cortical_smoothing,
-                                verbose=verbose,
-                                normalization=normalization,
+                                verbose=verbose
                             )
 
                     # Process cortical features if cortex is enabled
@@ -1762,8 +1057,7 @@ class zbdataset():
                                 cortical_smoothing=cortical_smoothing,
                                 resolutions=["32k"],#, "5k"],
                                 labels=["midthickness", "white"],
-                                verbose=verbose,
-                                normalization=normalization,
+                                verbose=verbose
                             )
                 
                     # If hippocampus is enabled, process hippocampal data
@@ -1786,8 +1080,7 @@ class zbdataset():
                                 smoothing_fwhm=self.hippocampal_smoothing,
                                 resolution=hipp_res,
                                 hippunfold_version=self.hippunfold_version,
-                                verbose=verbose,
-                                normalization=normalization,
+                                verbose=verbose
                             )
 
                     # If subcortex is enabled, extract subcortical stats
@@ -1808,8 +1101,7 @@ class zbdataset():
                                 output_directory=output_directory,
                                 micapipe_directory=self.micapipe_directory,
                                 freesurfer_directory=self.freesurfer_directory,
-                                verbose=verbose,
-                                normalization=normalization,
+                                verbose=verbose
                             )
                     
                     print(f"Completed processing {participant_id}/{session_id} at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -1823,50 +1115,32 @@ class zbdataset():
                     return (participant_id, session_id, False)
                 
                 finally:
-                    # Clean up session-specific tmp directory. Best-effort: a concurrent
-                    # peer (two-machine shared storage) writing into a same-named scratch
-                    # dir must never crash the run -- a leaked tmp dir is harmless.
+                    # Clean up session-specific tmp directory
                     if os.path.exists(session_tmp_dir):
-                        shutil.rmtree(session_tmp_dir, ignore_errors=True)
+                        shutil.rmtree(session_tmp_dir)
                         if verbose:
                             print(f"  Cleaned up temporary directory: {session_tmp_dir}")
                     
                     print("-" * 50)
                     print(f"Processing finished at: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             finally:
-                if _stdout_proxy is not None:
-                    _stdout_proxy.clear_target()
-                elif original_stdout is not None:
-                    sys.stdout = original_stdout
-                # Ensure this subject's log is closed
-                if log_redirect is not None:
-                    log_redirect.close()
-
+                sys.stdout = original_stdout
+                # Ensure log is closed
+                if log_redirect and hasattr(log_redirect, 'log'):
+                    log_redirect.log.close()
+            
             return (participant_id, session_id, True)
         
-        # Process subjects. The heavy per-subject work is external wb_command/ANTs
-        # subprocesses (GIL released), so THREADS give real speedup with output
-        # bit-identical to the serial path -- each subject writes its own maps under
-        # its own (subject-keyed) paths and caches, so there is no cross-thread race.
-        # A process pool is avoided (loky/fork + numpy double-init -> SIGSEGV).
-        if subject_n_jobs > 1 and len(valid_subjects_to_process) > 1:
-            print(f"Running parallel processing with {subject_n_jobs} threads for "
-                  f"{len(valid_subjects_to_process)} subjects")
-            _saved_stdout = sys.stdout
-            _stdout_proxy = _ThreadLocalStdout(_saved_stdout)   # visible to process_single_subject
-            sys.stdout = _stdout_proxy
-            try:
-                results = Parallel(n_jobs=subject_n_jobs, backend="threading")(
-                    delayed(process_single_subject)(subject)
-                    for subject in valid_subjects_to_process
-                )
-            finally:
-                sys.stdout = _saved_stdout
-                _stdout_proxy = None
-        else:
-            print(f"Running sequential processing for {len(valid_subjects_to_process)} subjects")
-            results = [process_single_subject(subject) for subject in valid_subjects_to_process]
-
+        # Process subjects using joblib (or sequentially if n_jobs=1)
+        # if n_jobs == 1:
+        print(f"Running sequential processing for {len(valid_subjects_to_process)} subjects")
+        results = [process_single_subject(subject) for subject in valid_subjects_to_process]
+        # else:
+        #     print(f"Running parallel processing with {n_jobs} jobs for {len(valid_subjects_to_process)} subjects")
+        #     results = Parallel(n_jobs=n_jobs, verbose=10 if verbose else 0)(
+        #         delayed(process_single_subject)(subject) for subject in valid_subjects_to_process
+        #     )
+        
         # Process results
         failed_subjects = [(pid, sid) for pid, sid, success in results if not success]
         
@@ -1912,20 +1186,14 @@ class zbdataset():
             output_directory=output_directory,
             cortical_smoothing=cortical_smoothing,
             hippocampal_smoothing=hippocampal_smoothing,
-            verbose=verbose,
-            normalization=normalization,
+            verbose=verbose
         )
         return self
 
     def validate(self, output_directory, features=None, cortical_smoothing=5, hippocampal_smoothing=2,
-                 verbose=True, error_threshold=0, warning_threshold=25,
-                 only_demographics_subjects=True, normalization=None):
+                 verbose=True, error_threshold=0, warning_threshold=25, only_demographics_subjects=True):
         """
         Validate that all expected processed files exist for each subject.
-
-        The optional normalization argument is accepted so callers can reuse the
-        same settings dictionary passed to process(). Validation checks the
-        derived files generated from the selected normalization source.
 
         Returns
         -------
@@ -1936,13 +1204,6 @@ class zbdataset():
                 "summary": {...}
             }
         """
-        if normalization is not None:
-            # Accept composite labels (e.g. noneRavel/whitestripeNyul) as well as
-            # the legacy single modes; store the canonical composite desc so
-            # downstream path resolution reads the right desc-<composite> volumes.
-            subject_norm, dataset_norm = decompose_normalization_label(normalization)
-            self.intensity_normalization = compose_normalization_label(subject_norm, dataset_norm)
-
         feature_case_mapping = {
             "fa": "FA",
             "adc": "ADC",
@@ -1956,8 +1217,6 @@ class zbdataset():
             "fmri": "fMRI",
             "t1w": "T1w",
             "t1w*blur": "T1w*blur",
-            "adc*blur": "ADC*blur",
-            "fa*blur": "FA*blur",
         }
 
         if features is None:
@@ -1978,28 +1237,6 @@ class zbdataset():
 
         if not hasattr(self, "valid_subjects") or "base" not in self.valid_subjects:
             self.check_directories()
-
-        source_valid_subjects = getattr(self, "source_valid_subjects", None)
-        if source_valid_subjects is None or any(feature not in source_valid_subjects for feature in self.features):
-            self.add_features(*self.features, verbose=False)
-            source_valid_subjects = copy.deepcopy(self.valid_subjects)
-
-        def source_has_structure(subject, structure_name):
-            if not source_valid_subjects:
-                return True
-            structures = source_valid_subjects.get("structures", {})
-            if structure_name not in structures:
-                return True
-            return subject in structures[structure_name]
-
-        def source_has_feature_structure(subject, feature_name, structure_name):
-            if not source_valid_subjects or feature_name not in source_valid_subjects:
-                return True
-            feature_data = source_valid_subjects[feature_name]
-            structures = feature_data.get("structures", {})
-            if structure_name not in structures:
-                return True
-            return subject in structures[structure_name]
 
         output_subjects = self.check_output_directories(
             output_directory,
@@ -2117,35 +1354,18 @@ class zbdataset():
             subcortical_dir = os.path.join(subject_dir, "maps", "subcortical")
             structural_dir = os.path.join(subject_dir, "structural")
 
-            subject = (participant_id, session_id)
             subject_structures = {
-                'cortex': True if self.cortex and source_has_structure(subject, 'cortex') else None,
-                'hippocampus': True if self.hippocampus and self.hippunfold_directory and source_has_structure(subject, 'hippocampus') else None,
-                'subcortical': True if self.subcortical and self.freesurfer_directory and source_has_structure(subject, 'subcortical') else None
+                'cortex': True if self.cortex else None,
+                'hippocampus': True if self.hippocampus and self.hippunfold_directory else None,
+                'subcortical': True if self.subcortical and self.freesurfer_directory else None
             }
-            subject_feature_structures = {}
-            for meta in feature_meta:
-                feature_name = meta['original']
-                subject_feature_structures[feature_name] = {
-                    'cortex': (
-                        True
-                        if meta['requires_cortex']
-                        and source_has_feature_structure(subject, feature_name, 'cortex')
-                        else None
-                    ),
-                    'hippocampus': (
-                        True
-                        if meta['requires_hippocampus']
-                        and source_has_feature_structure(subject, feature_name, 'hippocampus')
-                        else None
-                    ),
-                    'subcortical': (
-                        True
-                        if meta['requires_subcortical']
-                        and source_has_feature_structure(subject, feature_name, 'subcortical')
-                        else None
-                    )
-                }
+            subject_feature_structures = {
+                meta['original']: {
+                    'cortex': True if meta['requires_cortex'] else None,
+                    'hippocampus': True if meta['requires_hippocampus'] else None,
+                    'subcortical': True if meta['requires_subcortical'] else None
+                } for meta in feature_meta
+            }
 
             structural_expected = [
                 f"{bids_id}_hemi-L_space-nativepro_surf-fsLR-32k_label-midthickness.surf.gii",
@@ -2161,17 +1381,12 @@ class zbdataset():
                 f"{bids_id}_hemi-R_surf-fsnative_label-medialwall.label.gii"
             ]
             
-            # Only require Laplace file for subjects with at least one
-            # source-available blur feature.
-            has_subject_blur_features = any(
-                meta['is_blur']
-                and source_has_feature_structure(subject, meta['original'], 'cortex')
-                for meta in feature_meta
-            )
-            if has_subject_blur_features:
+            # Only require Laplace file if blur features are present
+            has_blur_features = any(feat.lower().endswith("*blur") for feat in self.features)
+            if has_blur_features:
                 structural_expected.append(f"{participant_id}_{session_id}-laplace.nii.gz")
             
-            if subject_structures['hippocampus'] is True:
+            if self.hippocampus:
                 structural_expected.extend([
                     f"{bids_id}_hemi-L_space-unfold_den-{hippocampal_resolution}_label-hipp_midthickness.surf.gii",
                     f"{bids_id}_hemi-R_space-unfold_den-{hippocampal_resolution}_label-hipp_midthickness.surf.gii",
@@ -2196,8 +1411,6 @@ class zbdataset():
                     if not meta['requires_cortex']:
                         continue
                     feature_name = meta['original']
-                    if subject_feature_structures[feature_name]['cortex'] is not True:
-                        continue
                     for hemi in ["L", "R"]:
                         for res in resolutions:
                             for label in (["midthickness"] if meta['is_blur'] or (meta['base_lower'] == 'fmri')  else surface_labels):
@@ -2247,8 +1460,6 @@ class zbdataset():
                     if not meta['requires_hippocampus']:
                         continue
                     feature_name = meta['original']
-                    if subject_feature_structures[feature_name]['hippocampus'] is not True:
-                        continue
                     for hemi in ["L", "R"]:
                         hippo_path = os.path.join(
                             hippocampus_dir,
@@ -2264,14 +1475,7 @@ class zbdataset():
 
             if self.subcortical and self.freesurfer_directory:
                 # Only check for volume file if thickness or volume is requested as a feature
-                check_volume = (
-                    subject_structures['subcortical'] is True
-                    and any(
-                        feat.lower() in ['thickness', 'volume']
-                        and source_has_feature_structure(subject, feat, 'subcortical')
-                        for feat in self.features
-                    )
-                )
+                check_volume = any(feat.lower() in ['thickness', 'volume'] for feat in self.features)
                 
                 if check_volume:
                     volume_file = os.path.join(subcortical_dir, f"{bids_id}_feature-volume.csv")
@@ -2286,8 +1490,6 @@ class zbdataset():
                     if not meta['requires_subcortical']:
                         continue
                     feature_name = meta['original']
-                    if subject_feature_structures[feature_name]['subcortical'] is not True:
-                        continue
                     subcort_path = os.path.join(
                         subcortical_dir,
                         f"{bids_id}_feature-{meta['subcortical_token']}.csv"
@@ -2338,15 +1540,6 @@ class zbdataset():
 
         processed_valid_subjects.update(feature_processed)
 
-        # Validation may target a shared, already-populated subject-normalized
-        # base. Reapply the logical mask so excluded files on disk are not admitted
-        # back into the normative reference merely because they physically exist.
-        self._apply_control_feature_exclusions(processed_valid_subjects)
-        for feature_name in feature_processed:
-            feature_availability[feature_name] = len(
-                processed_valid_subjects[feature_name]["all"]
-            )
-
         self.valid_subjects = processed_valid_subjects
         self.subjects_with_complete_data = subjects_with_complete_data
         self.missing_files = missing_files
@@ -2380,10 +1573,9 @@ class zbdataset():
                 if len(files) > 10:
                     print(f"    - ... and {len(files) - 10} more")
 
-        feature_subject_count = sum(len(data['all']) for data in feature_processed.values())
-        if feature_subject_count == 0:
+        if complete_subjects == 0:
             self.valid_dataset = False
-            raise ValueError("Validation failed: no subjects have any complete processed feature data.")
+            raise ValueError("Validation failed: no subjects have complete processed data.")
 
         if error_threshold > 0 and complete_percentage < error_threshold:
             self.valid_dataset = False
@@ -2547,30 +1739,7 @@ class zbdataset():
 
         return valid_output_subjects
     
-    def analyze(
-        self,
-        reference,
-        method='zscore',
-        output_directory=None,
-        verbose=True,
-        use_curvature_covariates=True,
-        gyrification_matching=None,
-        predictive_wscore=False,
-        wscore_distribution="gaussian",
-        wscore_preprocessing="none",
-        wscore_covariate_model="linear",
-        wscore_surface_smoothing_iterations=0,
-        blur_depth_model="mean_slope_rms",
-        intensity_depth_model="raw",
-        quant_sample_surface=None,
-        control_correlation_filter=False,
-        control_correlation_quantile=None,
-        prediction_variance_percentile=None,
-        export_control_features=None,
-        site_harmonizer=None,
-        site=None,
-        scoring_site_covariate=False,
-    ):
+    def analyze(self, reference, method='zscore', output_directory=None, verbose=True):
         """
         Analyze the dataset by comparing it to a reference dataset using specified method.
         
@@ -2584,39 +1753,7 @@ class zbdataset():
             Directory where z-score maps will be saved. If None, uses validation output directory
         verbose : bool, default=True
             If True, prints detailed information about the analysis process
-        use_curvature_covariates : bool, default=True
-            If True, cortical W-score models include vertex-wise micapipe
-            curvature as an additional covariate, and cortical Z-score maps
-            residualize each vertex against the same curvature covariates.
-        gyrification_matching : bool, optional
-            Deprecated alias for use_curvature_covariates.
-        predictive_wscore : bool, default=False
-            If True, W-score maps include patient prediction uncertainty in
-            the denominator.
-        wscore_distribution : str, default="gaussian"
-            Distribution fitted to normative-model residuals.
-        wscore_preprocessing : {"none", "spatial_zscore", "spatial_robust_z"}, default="none"
-            Optional within-subject robust spatial normalization before the
-            normative regression.
-        wscore_covariate_model : str, default="linear"
-            Optional quadratic-age and/or age-by-sex demographic design.
-        wscore_surface_smoothing_iterations : int, default=0
-            Post-score one-ring smoothing steps for fsLR-32k cortex maps.
-        blur_depth_model : {"mean_slope_rms", "mean", "gradient_flattening"}, default="mean_slope_rms"
-            Multi-depth blur reduction used for cortical W-score maps.
-        intensity_depth_model : {"raw", "white_swm1_direction_cosine", "multisurface_median_abs_dominant"}, default="raw"
-            Optional local depth normalization for fsLR-32k white-surface
-            T1w and FLAIR intensity abnormalities.
-        control_correlation_filter : bool, default=False
-            If True, each vertex-map feature drops the bottom
-            ``control_correlation_quantile`` fraction of controls by their average
-            correlation to the other controls for that feature (rank-based).
-        control_correlation_quantile : float or dict or None, default=None
-            Drop-fraction for the rank-based control filter, applied independently
-            per feature/map. A scalar uses the same fraction for every feature; a
-            mapping ``feature -> fraction`` sets a per-feature fraction (a feature
-            absent from the mapping, or mapped to ``None``, is not filtered).
-
+        
         Returns:
         --------
         dict
@@ -2624,33 +1761,8 @@ class zbdataset():
 
         """
         
-        if gyrification_matching is not None:
-            use_curvature_covariates = bool(gyrification_matching)
-
         # Call the analysis function and store results
-        results = analyze_dataset(
-            self,
-            reference,
-            method,
-            output_directory,
-            verbose,
-            use_curvature_covariates=use_curvature_covariates,
-            predictive_wscore=predictive_wscore,
-            wscore_distribution=wscore_distribution,
-            wscore_preprocessing=wscore_preprocessing,
-            wscore_covariate_model=wscore_covariate_model,
-            wscore_surface_smoothing_iterations=wscore_surface_smoothing_iterations,
-            blur_depth_model=blur_depth_model,
-            intensity_depth_model=intensity_depth_model,
-            quant_sample_surface=quant_sample_surface,
-            control_correlation_filter=control_correlation_filter,
-            control_correlation_quantile=control_correlation_quantile,
-            prediction_variance_percentile=prediction_variance_percentile,
-            export_control_features=export_control_features,
-            site_harmonizer=site_harmonizer,
-            site=site,
-            scoring_site_covariate=scoring_site_covariate,
-        )
+        results = analyze_dataset(self, reference, method, output_directory, verbose)
         self.analysis_results = results
         self.reference_demographics = reference.demographics
         return results
@@ -2658,7 +1770,7 @@ class zbdataset():
     def clinical_report(self, output_directory=None, approach='wscore', analyses=['regional','asymmetry'], features=None, 
                     threshold=1.96, threshold_alpha=0.3, color_range=(-3, 3), 
                     cmap='cmo.balance', cmap_asymmetry='cmo.balance_r', 
-                    color_bar='bottom', tmp_dir=None, env=None, verbose=True, normalization=None):
+                    color_bar='bottom', tmp_dir=None, env=None, verbose=True):
         """
         Generate clinical reports for each subject in the dataset.
         
@@ -2688,8 +1800,6 @@ class zbdataset():
             Base temporary directory. If None, uses session directory
         verbose : bool, default=True
             If True, prints detailed information
-        normalization : {"ravel", "whitestripe"}, optional
-            Accepted for compatibility with process() settings dictionaries.
             
         Returns:
         --------
@@ -2699,13 +1809,6 @@ class zbdataset():
 
         if env == None:
             raise ValueError("env must be specified to access workbench and other paths")
-
-        if normalization is not None:
-            # Accept composite labels (e.g. noneRavel/whitestripeNyul) as well as
-            # the legacy single modes; store the canonical composite desc so
-            # downstream path resolution reads the right desc-<composite> volumes.
-            subject_norm, dataset_norm = decompose_normalization_label(normalization)
-            self.intensity_normalization = compose_normalization_label(subject_norm, dataset_norm)
 
         # Check if analysis has been run
         if not hasattr(self, 'analysis_results'):
@@ -2727,8 +1830,6 @@ class zbdataset():
             "fmri": "fMRI",
             "t1w": "T1w",
             "t1w*blur": "T1w*blur",
-            "adc*blur": "ADC*blur",
-            "fa*blur": "FA*blur",
         }
 
         features = [feature_mapping.get(f.lower(), f) for f in features]
@@ -2860,8 +1961,6 @@ class zbdataset():
             except Exception as e:
                 if verbose:
                     print(f"Error generating report for {participant_id}/{session_id}: {e}")
-                    import traceback
-                    traceback.print_exc()
                 # Clean up temporary directory even on error
                 import shutil
                 session_tmp_dir = os.path.join(output_directory, participant_id, session_id, "tmp_clinical_report")
@@ -2973,12 +2072,9 @@ class zbdataset():
         lh_cortex_idx = nib.freesurfer.read_label(os.path.join(self.freesurfer_directory,f"{participant_id}_{session_id}", "label", "lh.cortex.label"))
         rh_cortex_idx = nib.freesurfer.read_label(os.path.join(self.freesurfer_directory,f"{participant_id}_{session_id}", "label", "rh.cortex.label"))
 
-        # Boolean masks (True = cortex, False = medial wall). Sized to the fsnative
-        # white surface; out-of-range label indices are dropped (with a warning)
-        # instead of crashing the whole subject -- see _cortex_bool_mask.
-        _who = f"{participant_id}/{session_id}"
-        lh_is_cortex = _cortex_bool_mask(lh_cortex_idx, n_lh, hemi="L", label=_who)
-        rh_is_cortex = _cortex_bool_mask(rh_cortex_idx, n_rh, hemi="R", label=_who)
+        # Boolean masks (True = cortex, False = medial wall)
+        lh_is_cortex = np.zeros(n_lh, dtype=bool); lh_is_cortex[lh_cortex_idx] = True
+        rh_is_cortex = np.zeros(n_rh, dtype=bool); rh_is_cortex[rh_cortex_idx] = True
 
         # Medial-wall masks (True = medial wall)
         lh_medial_wall = ~lh_is_cortex

@@ -10,48 +10,16 @@ import scipy
 import tempfile
 from zbrains.fmri import compute_fmri_features
 
-
-def _smooth_or_copy_metric(workbench_path, surf_file, input_metric, fwhm, output_file,
-                           *, verbose=False):
-    """Surface-smooth ``input_metric`` by ``fwhm`` mm into ``output_file``.
-
-    A FWHM of 0 (or None) means NO smoothing: the unsmoothed metric IS the output,
-    so we COPY it rather than calling ``wb_command -metric-smoothing`` (whose kernel
-    must be > 0 -- a 0 kernel errors and would leave no output). Mirrors the existing
-    calls (check=False, FWHM convention) for any positive kernel."""
-    try:
-        fwhm_val = float(fwhm)
-    except (TypeError, ValueError):
-        fwhm_val = 0.0
-    if fwhm_val <= 0:
-        if os.path.exists(input_metric):
-            shutil.copyfile(input_metric, output_file)
-            if verbose:
-                print(f"      Smoothing FWHM=0 -> copied unsmoothed metric to {output_file}")
-        elif verbose:
-            print(f"      Warning: cannot copy unsmoothed metric (missing): {input_metric}")
-        return
-    subprocess.run([
-        os.path.join(workbench_path, "wb_command"),
-        "-metric-smoothing",
-        surf_file,
-        input_metric,
-        str(fwhm),
-        output_file,
-        "-fwhm",  # kernel is FWHM (mm), not wb_command's default sigma
-    ], check=False)
-
-
 def generate_t1w_flair_ratios(participant_id, session_id, raw_dir, output_dir, micapipe_dir, tmp_dir, wb_path, threads=1, verbose=True):
     """
     Legacy ratio generation is disabled.
 
-    T1w and FLAIR processing now requires dataset-level normalization.
+    T1w and FLAIR processing now requires dataset-level RAVEL normalization.
     """
     raise RuntimeError(
         "T1w/FLAIR ratio maps are no longer supported. Run zbdataset.process() "
-        "so T1w and FLAIR are WhiteStripe-normalized, optionally RAVEL-normalized, "
-        "and then extracted."
+        "so T1w and FLAIR are WhiteStripe-normalized and then RAVEL-normalized "
+        "before feature extraction."
     )
 
 def _debug_save_files(base_dir, command_name, files_dict):
@@ -227,19 +195,7 @@ def generate_superficial_white_matter(participant_id, session_id, output_directo
             [1.0, 2.0],
         )
 
-def apply_blurring(
-    participant_id,
-    session_id,
-    features,
-    output_directory,
-    workbench_path,
-    micapipe_directory,
-    freesurfer_directory,
-    tmp_dir,
-    smoothing_fwhm=5,
-    verbose=True,
-    normalization="ravel",
-):
+def apply_blurring(participant_id, session_id, features, output_directory, workbench_path, micapipe_directory, freesurfer_directory, tmp_dir, smoothing_fwhm=5, verbose=True):
     """
     Apply depth-dependent blurring to one or more features for a subject.
     Memory-optimized implementation to reduce RAM usage.
@@ -318,15 +274,13 @@ def apply_blurring(
                 volumemap = os.path.join(input_dir, "maps", f"{participant_id}_{session_id}_space-nativepro_map-T1map.nii.gz")
                 output_feat = "qT1"
             elif feature_lower == "flair":
-                volumemap = get_normalized_modality_path(subject_output_dir, input_dir, "FLAIR", normalization=normalization)
+                volumemap = get_normalized_modality_path(subject_output_dir, input_dir, "FLAIR")
                 output_feat = "FLAIR"
             elif feature_lower in ["adc", "fa"]:
-                # DTI volumes are stored uppercase (map-ADC/map-FA), matching the
-                # standard cortical path; the blur companion output is uppercase too.
-                volumemap = os.path.join(input_dir, "maps", f"{participant_id}_{session_id}_space-nativepro_model-DTI_map-{feature_lower.upper()}.nii.gz")
-                output_feat = feature_lower.upper()
+                volumemap = os.path.join(input_dir, "maps", f"{participant_id}_{session_id}_space-nativepro_model-DTI_map-{feature_lower}.nii.gz")
+                output_feat = feature_lower
             elif feature_lower == "t1w":
-                volumemap = get_normalized_modality_path(subject_output_dir, input_dir, "T1w", normalization=normalization)
+                volumemap = get_normalized_modality_path(subject_output_dir, input_dir, "T1w")
                 output_feat = "T1w"
             else:
                 volumemap = os.path.join(input_dir, "maps", f"{participant_id}_{session_id}_space-nativepro_map-{feature_lower}.nii.gz")
@@ -495,9 +449,15 @@ def apply_blurring(
             del gradients, grad_array, gii_grad
             gc.collect()
             
-            # Apply smoothing (FWHM=0 -> copy the unsmoothed metric)
-            _smooth_or_copy_metric(workbench_path, midthickness_surf, raw_data_path,
-                                   smoothing_fwhm, smoothed_data_path, verbose=verbose)
+            # Apply smoothing
+            subprocess.run([
+                os.path.join(workbench_path, "wb_command"),
+                "-metric-smoothing",
+                midthickness_surf,
+                raw_data_path,
+                str(smoothing_fwhm),
+                smoothed_data_path
+            ], check=False)
             
             # Set structure attribute
             subprocess.run([
@@ -528,8 +488,7 @@ def apply_hippocampal_processing(
     smoothing_fwhm=2, 
     resolution="0p5mm",
     hippunfold_version=1,
-    verbose=True,
-    normalization="ravel",
+    verbose=True
 ):
     """
     Apply processing to hippocampal features for a subject.
@@ -608,10 +567,10 @@ def apply_hippocampal_processing(
             volumemap = os.path.join(input_dir, "maps", f"{participant_id}_{session_id}_space-nativepro_model-DTI_map-{feature.upper()}.nii.gz")
             output_feat = feature.upper()
         elif feature.lower() == "flair":
-            volumemap = get_normalized_modality_path(subject_output_dir, input_dir, "FLAIR", normalization=normalization)
+            volumemap = get_normalized_modality_path(subject_output_dir, input_dir, "FLAIR")
             output_feat = "FLAIR"
         elif feature.lower() == "t1w":
-            volumemap = get_normalized_modality_path(subject_output_dir, input_dir, "T1w", normalization=normalization)
+            volumemap = get_normalized_modality_path(subject_output_dir, input_dir, "T1w")
             output_feat = "T1w"
         else:
             volumemap = os.path.join(input_dir, "maps", f"{participant_id}_{session_id}_space-nativepro_map-{feature.lower()}.nii.gz")
@@ -698,9 +657,15 @@ def apply_hippocampal_processing(
                     outer_surf_file,
                 ], check=False)
                 
-            # Apply smoothing (FWHM=0 -> copy the unsmoothed metric)
-            _smooth_or_copy_metric(workbench_path, surf_file, intermediate_file,
-                                   smoothing_fwhm, output_file, verbose=verbose)
+            # Apply smoothing
+            subprocess.run([
+                os.path.join(workbench_path, "wb_command"),
+                "-metric-smoothing",
+                surf_file,
+                intermediate_file,
+                str(smoothing_fwhm),
+                output_file
+            ], check=False)
             
             # Set structure attribute
             subprocess.run([
@@ -728,8 +693,7 @@ def apply_subcortical_processing(
     output_directory,
     micapipe_directory,
     freesurfer_directory,
-    verbose=True,
-    normalization="ravel",
+    verbose=True
 ):
     """
     Apply subcortical processing to features for a subject.
@@ -853,10 +817,10 @@ def apply_subcortical_processing(
                 input_file = os.path.join(subject_micapipe_dir, "maps", f"{bids_id}_space-nativepro_model-DTI_map-{feat_lower.upper()}.nii.gz")
                 output_feat = feat_lower.upper()
             elif feat_lower == "flair":
-                input_file = get_normalized_modality_path(subject_output_dir, subject_micapipe_dir, "FLAIR", normalization=normalization)
+                input_file = get_normalized_modality_path(subject_output_dir, subject_micapipe_dir, "FLAIR")
                 output_feat = "FLAIR"
             elif feat_lower == "t1w":
-                input_file = get_normalized_modality_path(subject_output_dir, subject_micapipe_dir, "T1w", normalization=normalization)
+                input_file = get_normalized_modality_path(subject_output_dir, subject_micapipe_dir, "T1w")
                 output_feat = "T1w"
             else:
                 input_file = os.path.join(subject_micapipe_dir, "maps", f"{bids_id}_space-nativepro_map-{feat_lower}.nii.gz")
@@ -918,8 +882,7 @@ def apply_cortical_processing(
     cortical_smoothing=5,
     resolutions=["32k"],#, "5k"],
     labels=["midthickness", "white"],
-    verbose=True,
-    normalization="ravel",
+    verbose=True
 ):
     """
     Apply processing to cortical features for a subject.
@@ -1128,16 +1091,22 @@ def apply_cortical_processing(
                             fsLR_sa_unsmoothed
                         ], check=False)
                         
-                        # 2. Apply smoothing (FWHM=0 -> copy the unsmoothed metric)
-                        _smooth_or_copy_metric(workbench_path, surf_file, fsLR_sa_unsmoothed,
-                                               cortical_smoothing, output_file, verbose=verbose)
+                        # 2. Apply smoothing
+                        subprocess.run([
+                            os.path.join(workbench_path, "wb_command"),
+                            "-metric-smoothing",
+                            surf_file,
+                            fsLR_sa_unsmoothed,
+                            str(cortical_smoothing),
+                            output_file
+                        ], check=False)
 
                     elif feat_lower in ["t1w", "flair", "qt1", "adc", "fa"]:
                         # Recalculate directly from the normalized/native images for this surface label.
                         if feat_lower == "t1w":
-                            volumemap = get_normalized_modality_path(subject_output_dir, subject_dir, "T1w", normalization=normalization)
+                            volumemap = get_normalized_modality_path(subject_output_dir, subject_dir, "T1w")
                         elif feat_lower == "flair":
-                            volumemap = get_normalized_modality_path(subject_output_dir, subject_dir, "FLAIR", normalization=normalization)
+                            volumemap = get_normalized_modality_path(subject_output_dir, subject_dir, "FLAIR")
                         elif feat_lower == "qt1":
                             volumemap = os.path.join(input_dir, f"{bids_id}_space-nativepro_map-T1map.nii.gz")
                         else:
@@ -1222,9 +1191,14 @@ def apply_cortical_processing(
                             fsLR_func_unsmoothed,
                         ], check=False)
 
-                        # Apply smoothing (FWHM=0 -> copy the unsmoothed metric)
-                        _smooth_or_copy_metric(workbench_path, surf_file, fsLR_func_unsmoothed,
-                                               cortical_smoothing, output_file, verbose=verbose)
+                        subprocess.run([
+                            os.path.join(workbench_path, "wb_command"),
+                            "-metric-smoothing",
+                            surf_file,
+                            fsLR_func_unsmoothed,
+                            str(cortical_smoothing),
+                            output_file
+                        ], check=False)
 
                     else:
                         # Regular feature processing (nonBlur)
@@ -1251,9 +1225,15 @@ def apply_cortical_processing(
                                 print(f"      Warning: Input file not found: {input_file}")
                             continue
                         
-                        # Apply smoothing (FWHM=0 -> copy the unsmoothed metric)
-                        _smooth_or_copy_metric(workbench_path, surf_file, input_file,
-                                               cortical_smoothing, output_file, verbose=verbose)
+                        # Apply smoothing
+                        subprocess.run([
+                            os.path.join(workbench_path, "wb_command"),
+                            "-metric-smoothing",
+                            surf_file,
+                            input_file,
+                            str(cortical_smoothing),
+                            output_file
+                        ], check=False)
                     
                     # Set structure attribute
                     if os.path.exists(output_file):

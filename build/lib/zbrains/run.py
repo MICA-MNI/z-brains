@@ -15,7 +15,7 @@ import logging
 from typing import List
 from zbrains.dataset import zbdataset, demographics
 from zbrains.environment import zbenv
-from zbrains.normalization import normalize_normalization_mode, ravel_models_exist, requested_ravel_modalities
+from zbrains.normalization import ravel_models_exist, requested_ravel_modalities
 
 
 def setup_logger(log_file: str = None) -> logging.Logger:
@@ -88,21 +88,7 @@ def run(
     verbose: bool = True, 
     force_reprocess: bool = False, 
     method: str = 'wscore',
-    log_file: str = None,
-    normalization: str = "ravel",
-    use_curvature_covariates: bool = True,
-    gyrification_matching: bool = None,
-    predictive_wscore: bool = False,
-    wscore_distribution: str = "gaussian",
-    wscore_preprocessing: str = "none",
-    wscore_covariate_model: str = "linear",
-    wscore_surface_smoothing_iterations: int = 0,
-    blur_depth_model: str = "mean_slope_rms",
-    intensity_depth_model: str = "raw",
-    quant_sample_surface=None,
-    control_correlation_filter: bool = False,
-    control_correlation_quantile=None,
-    prediction_variance_percentile: float = None,
+    log_file: str = None
 ) -> None:
     """
     Run the complete Z-Brains neuroimaging processing pipeline.
@@ -195,44 +181,9 @@ def run(
         Statistical method for patient-control comparison.
         Options: 'wscore' (Weighted score) or 'zscore'
         Default is 'wscore'
-    use_curvature_covariates : bool, optional
-        If True, cortical W-score models include vertex-wise micapipe
-        curvature as an additional covariate, and cortical Z-score maps
-        residualize each vertex against the same curvature covariates.
-        Default is True.
-    gyrification_matching : bool, optional
-        Deprecated alias for use_curvature_covariates.
-    predictive_wscore : bool, optional
-        If True and method='wscore', divide by the predictive standard
-        deviation for a new patient instead of only the control residual SD.
-    wscore_distribution : str, optional
-        Distribution fitted to control residuals for W-scoring.
-    wscore_preprocessing : {"none", "spatial_zscore", "spatial_robust_z"}, optional
-        Optional within-subject robust spatial normalization.
-    wscore_covariate_model : str, optional
-        Optional quadratic-age and/or age-by-sex demographic design.
-    wscore_surface_smoothing_iterations : int, optional
-        Post-score one-ring smoothing steps for fsLR-32k cortex maps.
-    blur_depth_model : {"mean_slope_rms", "mean", "gradient_flattening"}, optional
-        Multi-depth blur reduction used for cortical W-score maps.
-    intensity_depth_model : {"raw", "white_swm1_direction_cosine", "multisurface_median_abs_dominant"}, optional
-        Optional local depth normalization for fsLR-32k white-surface T1w and
-        FLAIR intensity abnormalities.
-    control_correlation_filter : bool, optional
-        If True, each vertex-map feature drops the bottom
-        ``control_correlation_quantile`` fraction of controls by their average
-        correlation to the other controls for that feature (rank-based). Default False.
-    control_correlation_quantile : float or dict or None, optional
-        Drop-fraction for the rank-based control filter, applied independently per
-        feature/map. A scalar uses the same fraction for every feature; a mapping
-        ``feature -> fraction`` sets a per-feature fraction, where a feature absent
-        from the mapping (or mapped to ``None``) is not filtered. Default None.
         
     log_file : str, optional
         Path to log file. If None, logs to console only.
-    normalization : {"ravel", "whitestripe"}, optional
-        T1w/FLAIR normalization source used during processing.
-        Default is "ravel".
         
     Returns
     -------
@@ -249,8 +200,6 @@ def run(
       variables.
     """
     
-    normalization = normalize_normalization_mode(normalization)
-
     # Setup logging
     logger = setup_logger(log_file)
     logger.info("Starting Z-Brains neuroimaging pipeline")
@@ -259,36 +208,6 @@ def run(
     logger.info(f"Pipeline configuration:")
     logger.info(f"  Features: {features}")
     logger.info(f"  Method: {method}")
-    if gyrification_matching is not None:
-        use_curvature_covariates = bool(gyrification_matching)
-
-    logger.info(f"  Per-vertex curvature covariates: {'on' if use_curvature_covariates else 'off'}")
-    logger.info(f"  Predictive W-score uncertainty: {'on' if predictive_wscore else 'off'}")
-    logger.info(f"  W-score residual distribution: {wscore_distribution}")
-    logger.info(f"  W-score preprocessing: {wscore_preprocessing}")
-    logger.info(f"  W-score covariate model: {wscore_covariate_model}")
-    logger.info(
-        "  Cortical W-score smoothing iterations: "
-        f"{wscore_surface_smoothing_iterations}"
-    )
-    logger.info(f"  Blur depth model: {blur_depth_model}")
-    logger.info(f"  T1w/FLAIR intensity depth model: {intensity_depth_model}")
-    if not control_correlation_filter:
-        logger.info("  Control correlation filter: off")
-    elif hasattr(control_correlation_quantile, "items"):
-        desc = ", ".join(
-            f"{name}={'off' if value is None else format(float(value), '.0%')}"
-            for name, value in sorted(control_correlation_quantile.items())
-        )
-        logger.info(f"  Control correlation filter: on (per-feature drop-bottom: {desc})")
-    elif control_correlation_quantile is None:
-        logger.info("  Control correlation filter: on (keep-all; no quantile set)")
-    else:
-        logger.info(
-            "  Control correlation filter: on "
-            f"(drop-bottom {float(control_correlation_quantile):.0%} per feature)"
-        )
-    logger.info(f"  T1w/FLAIR normalization: {normalization}")
     logger.info(f"  Output directory: {output_directory}")
     logger.info(f"  Threads: {num_threads}")
     logger.info(f"  Workbench threads: {num_threads_wb}")
@@ -370,14 +289,8 @@ def run(
 
     ravel_modalities = requested_ravel_modalities(features)
 
-    needs_ravel_models = (
-        normalization == "ravel"
-        and ravel_modalities
-        and not ravel_models_exist(output_directory, ravel_modalities)
-    )
-
     # Process control data if forced, or if T1w/FLAIR RAVEL models are missing.
-    if force_reprocess or needs_ravel_models:
+    if force_reprocess or (ravel_modalities and not ravel_models_exist(output_directory, ravel_modalities)):
         if force_reprocess:
             logger.info("Force reprocessing control dataset...")
         else:
@@ -388,8 +301,7 @@ def run(
             cortical_smoothing=cortical_smoothing, 
             hippocampal_smoothing=hippocampal_smoothing, 
             env=env, 
-            verbose=verbose,
-            normalization=normalization,
+            verbose=verbose
         )
         logger.info("Control dataset processing completed")
 
@@ -401,8 +313,7 @@ def run(
             features=features, 
             cortical_smoothing=cortical_smoothing, 
             hippocampal_smoothing=hippocampal_smoothing, 
-            verbose=verbose,
-            normalization=normalization,
+            verbose=verbose
         )
         if control_dataset.valid_dataset:
             logger.info("Control dataset validation passed")
@@ -421,8 +332,7 @@ def run(
             cortical_smoothing=cortical_smoothing, 
             hippocampal_smoothing=hippocampal_smoothing, 
             env=env, 
-            verbose=verbose,
-            normalization=normalization,
+            verbose=verbose
         )
         logger.info("Control dataset reprocessing completed")
         
@@ -471,8 +381,7 @@ def run(
             cortical_smoothing=cortical_smoothing, 
             hippocampal_smoothing=hippocampal_smoothing, 
             env=env, 
-            verbose=verbose,
-            normalization=normalization,
+            verbose=verbose
         )
         logger.info("Patient dataset processing completed")
 
@@ -484,8 +393,7 @@ def run(
             features=features, 
             cortical_smoothing=cortical_smoothing, 
             hippocampal_smoothing=hippocampal_smoothing, 
-            verbose=verbose,
-            normalization=normalization,
+            verbose=verbose
         )
         if patient_dataset.valid_dataset:
             logger.info("Patient dataset validation passed")
@@ -504,8 +412,7 @@ def run(
             cortical_smoothing=cortical_smoothing, 
             hippocampal_smoothing=hippocampal_smoothing, 
             env=env, 
-            verbose=verbose,
-            normalization=normalization,
+            verbose=verbose
         )
         logger.info("Patient dataset reprocessing completed")
         
@@ -523,19 +430,7 @@ def run(
     patient_dataset.analyze(
         output_directory=output_directory, 
         reference=control_dataset, 
-        method=method,
-        use_curvature_covariates=use_curvature_covariates,
-        predictive_wscore=predictive_wscore,
-        wscore_distribution=wscore_distribution,
-        wscore_preprocessing=wscore_preprocessing,
-        wscore_covariate_model=wscore_covariate_model,
-        wscore_surface_smoothing_iterations=wscore_surface_smoothing_iterations,
-        blur_depth_model=blur_depth_model,
-        intensity_depth_model=intensity_depth_model,
-        quant_sample_surface=quant_sample_surface,
-        control_correlation_filter=control_correlation_filter,
-        control_correlation_quantile=control_correlation_quantile,
-        prediction_variance_percentile=prediction_variance_percentile,
+        method=method
     )
     logger.info("Statistical analysis completed")
 
@@ -546,8 +441,7 @@ def run(
         approach=method,
         features=features,
         env=env,
-        verbose=verbose,
-        normalization=normalization,
+        verbose=verbose
     )
     logger.info("Clinical reports generated")
     

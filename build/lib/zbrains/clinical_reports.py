@@ -2089,25 +2089,13 @@ def generate_clinical_report(
     # Function to check if files exist for a given feature/analysis combination
     def check_feature_exists(feat, analysis):
         """Check if required files exist for a feature/analysis combination"""
-        return any(
-            check_structure_exists(feat, analysis, struct)
-            for struct in ("cortex", "subcortex", "hippocampus")
-        )
-
-    def check_structure_exists(feat, analysis, struct):
-        """Check if required files exist for a specific structure."""
         feat_sctx = "volume" if feat == "thickness" else feat
-        bids_id = f"{sid}_{ses}" if ses else sid
-
+        
         # Check cortex files
         res_mapped_ctx = "32k" if res_ctx == "high" else "5k"
         file_ctx_lh = os.path.join(
             path_analysis, "cortex",
             f"{bids_id}_hemi-L_surf-fsLR-{res_mapped_ctx}_label-{label_ctx}_feature-{feat}_smooth-{smooth_ctx}mm_analysis-{analysis}.func.gii"
-        )
-        file_ctx_rh = os.path.join(
-            path_analysis, "cortex",
-            f"{bids_id}_hemi-R_surf-fsLR-{res_mapped_ctx}_label-{label_ctx}_feature-{feat}_smooth-{smooth_ctx}mm_analysis-{analysis}.func.gii"
         )
         
         # Check hippocampus files
@@ -2122,28 +2110,17 @@ def generate_clinical_report(
             path_analysis, "hippocampus",
             f"{sid}_{ses}_hemi-L_den-{res_mapped_hip}{suffix}_label-hipp_{label_hip}_feature-{feat}_smooth-{smooth_hip}mm_analysis-{analysis}.func.gii"
         )
-        file_hip_rh = os.path.join(
-            path_analysis, "hippocampus",
-            f"{sid}_{ses}_hemi-R_den-{res_mapped_hip}{suffix}_label-hipp_{label_hip}_feature-{feat}_smooth-{smooth_hip}mm_analysis-{analysis}.func.gii"
-        )
         
         # Check subcortical files
         file_sctx = os.path.join(
             path_analysis, "subcortical",
             f"{bids_id}_feature-{feat_sctx}_analysis-{analysis}.csv"
         )
-
-        if struct == "cortex":
-            return os.path.exists(file_ctx_lh) and (
-                analysis == "asymmetry" or os.path.exists(file_ctx_rh)
-            )
-        if struct == "hippocampus":
-            return os.path.exists(file_hip_lh) and (
-                analysis == "asymmetry" or os.path.exists(file_hip_rh)
-            )
-        if struct == "subcortex":
-            return os.path.exists(file_sctx)
-        return False
+        
+        # Return True if at least one structure has data for this feature/analysis
+        return (os.path.exists(file_ctx_lh) or 
+                os.path.exists(file_hip_lh) or 
+                os.path.exists(file_sctx))
     
     # Fix fMRI features if present:
     fmri_features = ['rmssd', 'timescales', 'alff', 'falff']
@@ -2205,36 +2182,36 @@ def generate_clinical_report(
                     hippunfold_version=hippunfold_version,
                 )
                 
-                if check_structure_exists(feat, analysis, "cortex"):
-                    report += report_struct(
-                        struct="cortex",
-                        feat=feat,
-                        res=res_ctx,
-                        label=label_ctx,
-                        smooth=smooth_ctx,
-                        feature_means=feature_means,
-                        env=env,
-                        **kwds,
-                    )
-
-                if check_structure_exists(feat, analysis, "subcortex"):
-                    report += report_struct(
-                        struct="subcortex",
-                        feat=feat_sctx,
-                        feature_means=feature_means,
-                        **kwds
-                    )
-
-                if check_structure_exists(feat, analysis, "hippocampus"):
-                    report += report_struct(
-                        struct="hippocampus",
-                        feat=feat,
-                        res=res_hip,
-                        label=label_hip,
-                        smooth=smooth_hip,
-                        feature_means=feature_means,
-                        **kwds,
-                    )
+                # Generate cortical report section
+                report += report_struct(
+                    struct="cortex",
+                    feat=feat,
+                    res=res_ctx,
+                    label=label_ctx,
+                    smooth=smooth_ctx,
+                    feature_means=feature_means,
+                    env=env,
+                    **kwds,
+                )
+                
+                # Generate subcortical report section
+                report += report_struct(
+                    struct="subcortex", 
+                    feat=feat_sctx, 
+                    feature_means=feature_means,
+                    **kwds
+                )
+                
+                # Generate hippocampal report section
+                report += report_struct(
+                    struct="hippocampus",
+                    feat=feat,
+                    res=res_hip,
+                    label=label_hip,
+                    smooth=smooth_hip,
+                    feature_means=feature_means,
+                    **kwds,
+                )
                 
                 # Add color legend
                 report += report_colors(analysis=analysis)
@@ -2256,9 +2233,7 @@ def generate_clinical_report(
             f.write(report)
 
         # Convert HTML to PDF
-        pdf_errors = convert_html_to_pdf(report, file_pdf)
-        if pdf_errors:
-            raise RuntimeError(f"PDF conversion failed for {file_pdf}; HTML report was written to {file_html}")
+        convert_html_to_pdf(report, file_pdf)
         
         if verbose:
             logger.info(f"Clinical report successfully created: {file_pdf}")
