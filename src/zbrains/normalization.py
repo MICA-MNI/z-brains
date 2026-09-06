@@ -1,10 +1,14 @@
 import glob
+import hashlib
 import json
 import os
 import shutil
 import subprocess
 import tempfile
 import threading
+from contextlib import contextmanager
+
+import fcntl
 
 import nibabel as nib
 import numpy as np
@@ -35,6 +39,53 @@ def _write_json(path, payload):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2, sort_keys=True)
+
+
+def _write_json_atomic(path, payload):
+    """Write JSON without exposing a partially-written cache sidecar."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp_path = (
+        f"{path}.tmp-{os.getpid()}-{threading.get_ident()}"
+    )
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, sort_keys=True)
+        os.replace(tmp_path, path)
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+
+@contextmanager
+def _exclusive_file_lock(lock_path):
+    """Serialize writers to a cache entry across threads and Linux processes."""
+    os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+    with open(lock_path, "a+", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def _sha256(path, block_size=1024 * 1024):
+    digest = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for block in iter(lambda: stream.read(block_size), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _file_identity(path, include_hash=False):
+    stat = os.stat(path)
+    identity = {
+        "path": os.path.realpath(path),
+        "size": int(stat.st_size),
+        "mtime_ns": int(stat.st_mtime_ns),
+    }
+    if include_hash:
+        identity["sha256"] = _sha256(path)
+    return identity
 
 
 def _coerce_n_jobs(n_jobs, n_items):
@@ -1147,6 +1198,90 @@ def _ravel_dir(output_directory):
     return os.path.join(output_directory, "ravel")
 
 
+def _shared_ravel_mni_subject_dir(
+    output_directory,
+    participant_id,
+    session_id,
+    input_desc,
+    source_root=None,
+):
+    """Return a fold/base-independent cache directory for RAVEL MNI inputs.
+
+    Subject-level normalized images do not depend on the control fold, exclusion
+    arm, or smoothing setting.  Replacing the ``zbrains_*`` base component with a
+    fixed cache component lets those identical inputs be transformed only once.
+    Direct callers whose output path has no zbrains component retain the legacy
+    per-output-directory layout.
+    """
+    parts = os.path.abspath(output_directory).split(os.sep)
+    for i, part in enumerate(parts):
+        if part.startswith("zbrains_") or part.startswith("zbrains-"):
+            cache_desc = "".join(
+                char if char.isalnum() or char in "._-" else "_"
+                for char in str(input_desc)
+            )
+            parts[i] = "ravel_mni_cache"
+            cache_root = os.sep.join(parts[: i + 1])
+            source_key = hashlib.sha256(
+                os.path.realpath(source_root or output_directory).encode("utf-8")
+            ).hexdigest()[:12]
+            return os.path.join(
+                cache_root,
+                source_key,
+                cache_desc,
+                participant_id,
+                session_id,
+            )
+    return None
+
+
+def _content_identity(path):
+    """Content identity that remains stable across identical copied inputs."""
+    return {
+        "size": int(os.path.getsize(path)),
+        "sha256": _sha256(path),
+    }
+
+
+def _ravel_mni_cache_payload(
+    native_image,
+    native_csf,
+    reference_path,
+    native_to_mni,
+    native_to_mni_invert,
+):
+    return {
+        "cache_version": 1,
+        "native_image": _content_identity(native_image),
+        "native_csf": _content_identity(native_csf),
+        "reference": _file_identity(reference_path),
+        "native_to_mni": [
+            _file_identity(path) for path in native_to_mni
+        ],
+        "native_to_mni_invert": [bool(value) for value in native_to_mni_invert],
+    }
+
+
+def _ravel_mni_cache_is_valid(
+    manifest_path,
+    expected_payload,
+    image_path,
+    csf_path,
+    reference_shape,
+):
+    if not (
+        _image_matches_reference_grid(image_path, reference_shape)
+        and _image_matches_reference_grid(csf_path, reference_shape)
+        and os.path.exists(manifest_path)
+    ):
+        return False
+    try:
+        with open(manifest_path, "r", encoding="utf-8") as stream:
+            return json.load(stream) == expected_payload
+    except (OSError, ValueError, TypeError):
+        return False
+
+
 def ravel_model_path(output_directory, modality):
     return os.path.join(_ravel_dir(output_directory), f"{modality}_ravel_model.npz")
 
@@ -1182,17 +1317,12 @@ def _ensure_mni_inputs(
     input_desc="whitestripe",
     output_desc="ravel",
 ):
-    _configure_native_threads(threads)
-    import ants
-
     bids_id = f"{participant_id}_{session_id}"
     maps_dir = _subject_maps_dir(output_directory, participant_id, session_id)
     ravel_subject_dir = os.path.join(maps_dir, "ravel")
     os.makedirs(ravel_subject_dir, exist_ok=True)
 
     reference_path = _reference_image_path()
-    with _ANTS_LOCK:
-        reference_img = ants.image_read(reference_path)
     reference_shape = nib.load(reference_path).shape
     native_ref = os.path.join(
         micapipe_dir,
@@ -1254,12 +1384,22 @@ def _ensure_mni_inputs(
         "modalities": {},
     }
 
-    fixed = reference_img
+    shared_cache_dir = _shared_ravel_mni_subject_dir(
+        output_directory,
+        participant_id,
+        session_id,
+        input_desc,
+        source_root=micapipe_dir,
+    )
+    if shared_cache_dir:
+        os.makedirs(shared_cache_dir, exist_ok=True)
+
     for modality in modalities:
         native_ws = os.path.join(maps_dir, f"{bids_id}_space-nativepro_desc-{input_desc}_{modality}.nii.gz")
         native_csf = os.path.join(maps_dir, f"{bids_id}_space-nativepro_desc-synthsegCsf_{modality}.nii.gz")
-        mni_ws = os.path.join(ravel_subject_dir, f"{bids_id}_space-MNI152_desc-{input_desc}_{modality}.nii.gz")
-        mni_csf = os.path.join(ravel_subject_dir, f"{bids_id}_space-MNI152_desc-synthsegCsf_{modality}.nii.gz")
+        mni_input_dir = shared_cache_dir or ravel_subject_dir
+        mni_ws = os.path.join(mni_input_dir, f"{bids_id}_space-MNI152_desc-{input_desc}_{modality}.nii.gz")
+        mni_csf = os.path.join(mni_input_dir, f"{bids_id}_space-MNI152_desc-synthsegCsf_{modality}.nii.gz")
         native_ravel = os.path.join(maps_dir, f"{bids_id}_space-nativepro_desc-{output_desc}_{modality}.nii.gz")
         mni_ravel = os.path.join(ravel_subject_dir, f"{bids_id}_space-MNI152_desc-{output_desc}_{modality}.nii.gz")
 
@@ -1268,27 +1408,74 @@ def _ensure_mni_inputs(
         if not os.path.exists(native_csf):
             raise ValueError(f"Missing SynthSeg CSF mask for RAVEL: {native_csf}")
 
-        if not _image_matches_reference_grid(mni_ws, reference_shape):
-            with _ANTS_LOCK:
-                transformed = ants.apply_transforms(
-                    fixed=fixed,
-                    moving=ants.image_read(native_ws),
-                    transformlist=native_to_mni,
-                    whichtoinvert=native_to_mni_invert,
-                    interpolator="linear",
+        if shared_cache_dir:
+            manifest_path = os.path.join(
+                shared_cache_dir,
+                f"{bids_id}_desc-{input_desc}_{modality}_ravel-mni-cache.json",
+            )
+            expected_payload = _ravel_mni_cache_payload(
+                native_ws,
+                native_csf,
+                reference_path,
+                native_to_mni,
+                native_to_mni_invert,
+            )
+            with _exclusive_file_lock(f"{manifest_path}.lock"):
+                if not _ravel_mni_cache_is_valid(
+                    manifest_path,
+                    expected_payload,
+                    mni_ws,
+                    mni_csf,
+                    reference_shape,
+                ):
+                    _forward_transform_ravel_cli(
+                        native_ws,
+                        mni_ws,
+                        reference_path,
+                        native_to_mni,
+                        native_to_mni_invert,
+                        interpolator="Linear",
+                        threads=threads,
+                        atomic=True,
+                    )
+                    _forward_transform_ravel_cli(
+                        native_csf,
+                        mni_csf,
+                        reference_path,
+                        native_to_mni,
+                        native_to_mni_invert,
+                        interpolator="NearestNeighbor",
+                        threads=threads,
+                        atomic=True,
+                    )
+                    _write_json_atomic(manifest_path, expected_payload)
+                elif verbose:
+                    print(
+                        f"  Reusing cached RAVEL MNI inputs for "
+                        f"{bids_id} {modality}."
+                    )
+        else:
+            if not _image_matches_reference_grid(mni_ws, reference_shape):
+                _forward_transform_ravel_cli(
+                    native_ws,
+                    mni_ws,
+                    reference_path,
+                    native_to_mni,
+                    native_to_mni_invert,
+                    interpolator="Linear",
+                    threads=threads,
                 )
-                ants.image_write(transformed, mni_ws)
 
-        if not _image_matches_reference_grid(mni_csf, reference_shape):
-            with _ANTS_LOCK:
-                transformed = ants.apply_transforms(
-                    fixed=fixed,
-                    moving=ants.image_read(native_csf),
-                    transformlist=native_to_mni,
-                    whichtoinvert=native_to_mni_invert,
-                    interpolator="nearestNeighbor",
+            if not _image_matches_reference_grid(mni_csf, reference_shape):
+                _forward_transform_ravel_cli(
+                    native_csf,
+                    mni_csf,
+                    reference_path,
+                    native_to_mni,
+                    native_to_mni_invert,
+                    interpolator="NearestNeighbor",
+                    threads=threads,
                 )
-                ants.image_write(transformed, mni_csf)
 
         outputs["modalities"][modality] = {
             "native_whitestripe": native_ws,
@@ -1437,6 +1624,143 @@ def _ants_apply_transform_args(transformlist, whichtoinvert=None):
     return args
 
 
+def _thread_limited_environment(threads):
+    threads = max(1, int(threads or 1))
+    env = os.environ.copy()
+    env["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = str(threads)
+    for variable in (
+        "OMP_NUM_THREADS",
+        "OPENBLAS_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "NUMEXPR_NUM_THREADS",
+    ):
+        env[variable] = str(threads)
+    return env
+
+
+def _atomic_nifti_path(path):
+    suffix = ".nii.gz" if path.endswith(".nii.gz") else os.path.splitext(path)[1]
+    stem = path[: -len(suffix)] if suffix else path
+    return f"{stem}.tmp-{os.getpid()}-{threading.get_ident()}{suffix}"
+
+
+def _cast_nifti_in_place(path, dtype):
+    """Cast a transform result while retaining its output grid and metadata."""
+    image = nib.load(path)
+    if image.get_data_dtype() == np.dtype(dtype):
+        return path
+    data = np.asarray(image.dataobj, dtype=dtype)
+    header = image.header.copy()
+    header.set_data_dtype(dtype)
+    cast_path = _atomic_nifti_path(path + ".cast.nii.gz")
+    try:
+        nib.save(nib.Nifti1Image(data, image.affine, header), cast_path)
+        os.replace(cast_path, path)
+    finally:
+        if os.path.exists(cast_path):
+            os.remove(cast_path)
+    return path
+
+
+def _apply_ravel_transform_cli(
+    moving_path,
+    output_path,
+    fixed_path,
+    transformlist,
+    whichtoinvert=None,
+    interpolator="Linear",
+    threads=1,
+    atomic=False,
+    output_dtype=None,
+):
+    """Apply an existing ANTs transform without serializing independent jobs."""
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    write_path = _atomic_nifti_path(output_path) if atomic else output_path
+    ants_apply = shutil.which("antsApplyTransforms")
+    try:
+        if ants_apply:
+            cmd = [
+                ants_apply,
+                "-d",
+                "3",
+                "-i",
+                moving_path,
+                "-r",
+                fixed_path,
+                "-o",
+                write_path,
+                "-n",
+                interpolator,
+                "-z",
+                "1",
+                "-v",
+                "0",
+                "--float",
+                "0",
+                "-e",
+                "0",
+                "-f",
+                "0",
+            ]
+            cmd.extend(_ants_apply_transform_args(transformlist, whichtoinvert))
+            subprocess.run(
+                cmd,
+                check=True,
+                env=_thread_limited_environment(threads),
+            )
+        else:
+            # ANTsPy is retained as a compatibility fallback.  It is not safe to
+            # invoke concurrently in this process, hence the narrow fallback lock.
+            import ants
+
+            python_interpolator = {
+                "Linear": "linear",
+                "NearestNeighbor": "nearestNeighbor",
+            }.get(interpolator, interpolator)
+            with _ANTS_LOCK:
+                _configure_native_threads(threads)
+                transformed = ants.apply_transforms(
+                    fixed=ants.image_read(fixed_path),
+                    moving=ants.image_read(moving_path),
+                    transformlist=transformlist,
+                    whichtoinvert=whichtoinvert,
+                    interpolator=python_interpolator,
+                )
+                ants.image_write(transformed, write_path)
+
+        if output_dtype is not None:
+            _cast_nifti_in_place(write_path, output_dtype)
+        if atomic:
+            os.replace(write_path, output_path)
+        return output_path
+    finally:
+        if atomic and os.path.exists(write_path):
+            os.remove(write_path)
+
+
+def _forward_transform_ravel_cli(
+    native_path,
+    mni_path,
+    mni_reference,
+    native_to_mni,
+    native_to_mni_invert=None,
+    interpolator="Linear",
+    threads=1,
+    atomic=False,
+):
+    return _apply_ravel_transform_cli(
+        native_path,
+        mni_path,
+        mni_reference,
+        native_to_mni,
+        whichtoinvert=native_to_mni_invert,
+        interpolator=interpolator,
+        threads=threads,
+        atomic=atomic,
+        output_dtype=np.float32,
+    )
+
+
 def _inverse_transform_ravel_cli(
     mni_path,
     native_path,
@@ -1444,41 +1768,32 @@ def _inverse_transform_ravel_cli(
     mni_to_native,
     mni_to_native_invert=None,
     threads=1,
+    output_dtype=None,
 ):
-    ants_apply = shutil.which("antsApplyTransforms")
-    if not ants_apply:
-        return _inverse_transform_ravel(
-            mni_path,
-            native_path,
-            native_reference,
-            mni_to_native,
-            mni_to_native_invert=mni_to_native_invert,
-            threads=threads,
-        )
-
-    env = os.environ.copy()
-    env["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = str(max(1, int(threads or 1)))
-    env["OMP_NUM_THREADS"] = str(max(1, int(threads or 1)))
-    env["OPENBLAS_NUM_THREADS"] = str(max(1, int(threads or 1)))
-    env["MKL_NUM_THREADS"] = str(max(1, int(threads or 1)))
-    env["NUMEXPR_NUM_THREADS"] = str(max(1, int(threads or 1)))
-
-    cmd = [
-        ants_apply,
-        "-d",
-        "3",
-        "-i",
+    return _apply_ravel_transform_cli(
         mni_path,
-        "-r",
-        native_reference,
-        "-o",
         native_path,
-        "-n",
-        "Linear",
-    ]
-    cmd.extend(_ants_apply_transform_args(mni_to_native, mni_to_native_invert))
-    subprocess.run(cmd, check=True, env=env)
-    return native_path
+        native_reference,
+        mni_to_native,
+        whichtoinvert=mni_to_native_invert,
+        interpolator="Linear",
+        threads=threads,
+        output_dtype=output_dtype,
+    )
+
+
+def _resolve_ravel_tmp_parent(output_directory, tmp_dir=None):
+    """Choose scratch for transient RAVEL memmaps without changing their dtype."""
+    candidate = (
+        tmp_dir
+        or os.environ.get("ZBRAINS_RAVEL_TMPDIR")
+        or os.environ.get("SLURM_TMPDIR")
+    )
+    if candidate:
+        candidate = os.path.abspath(os.fspath(candidate))
+        os.makedirs(candidate, exist_ok=True)
+        return candidate
+    return _ravel_dir(output_directory)
 
 
 def fit_and_apply_ravel_to_controls(
@@ -1492,6 +1807,8 @@ def fit_and_apply_ravel_to_controls(
     threads=1,
     input_desc="whitestripe",
     output_desc="ravel",
+    total_threads=None,
+    tmp_dir=None,
 ):
     """
     Fit RAVEL on the control cohort and write RAVEL-corrected nativepro volumes.
@@ -1505,6 +1822,8 @@ def fit_and_apply_ravel_to_controls(
 
     os.makedirs(_ravel_dir(output_directory), exist_ok=True)
     modalities = list(modalities)
+    total_threads = max(1, int(total_threads or threads or 1))
+    ravel_tmp_parent = _resolve_ravel_tmp_parent(output_directory, tmp_dir=tmp_dir)
 
     def ensure_subject_mni_inputs(subject):
         return subject, _ensure_mni_inputs(
@@ -1541,6 +1860,10 @@ def fit_and_apply_ravel_to_controls(
             )
         )
 
+    # Preserve the pre-optimization parent-process thread budget for the model
+    # fit itself. Per-transform subprocess limits must not leak into NumPy's
+    # deterministic fitting path.
+    _configure_native_threads(total_threads)
     reference_path = _reference_image_path()
     reference_img = nib.load(reference_path)
     brain_data = np.asarray(reference_img.dataobj)
@@ -1569,7 +1892,7 @@ def fit_and_apply_ravel_to_controls(
 
         with tempfile.TemporaryDirectory(
             prefix=f"ravel_{modality}_",
-            dir=_ravel_dir(output_directory),
+            dir=ravel_tmp_parent,
             ignore_cleanup_errors=True,
         ) as ravel_tmp:
             image_vectors, _ = _create_brain_vector_memmaps(
@@ -1695,8 +2018,8 @@ def fit_and_apply_ravel_to_controls(
             del corrected_vectors
             del image_vectors
 
-            inverse_jobs = max(1, min(int(threads or 1), len(subjects)))
-            inverse_threads = max(1, int(threads or 1) // inverse_jobs)
+            inverse_jobs = max(1, min(total_threads, len(subjects)))
+            inverse_threads = max(1, total_threads // inverse_jobs)
             if verbose:
                 print(
                     f"  Inverse-transforming {modality} RAVEL images with "
@@ -1749,6 +2072,34 @@ def fit_and_apply_ravel_to_controls(
                     )
 
 
+def load_ravel_models(output_directory, modalities):
+    """Load each fitted model once into read-only arrays for cohort application."""
+    loaded = {}
+    for modality in modalities:
+        model_path = ravel_model_path(output_directory, modality)
+        if not os.path.exists(model_path):
+            raise ValueError(
+                f"Missing RAVEL model for {modality}: {model_path}. "
+                "Process the control dataset first."
+            )
+        with np.load(model_path, allow_pickle=True) as model:
+            if "beta_w" not in model:
+                raise ValueError(
+                    f"RAVEL model for {modality} uses the old dense format. "
+                    "Reprocess the control dataset to fit a chunked RAVEL model."
+                )
+            values = {
+                "brain_mask": model["brain_mask"].astype(bool),
+                "control_mask": model["control_mask"].astype(bool),
+                "beta_x": model["beta_x"].astype(np.float32),
+                "beta_w": model["beta_w"].astype(np.float32),
+            }
+        for value in values.values():
+            value.setflags(write=False)
+        loaded[modality] = values
+    return loaded
+
+
 def apply_ravel_model_to_subject(
     participant_id,
     session_id,
@@ -1759,6 +2110,7 @@ def apply_ravel_model_to_subject(
     verbose=True,
     input_desc="whitestripe",
     output_desc="ravel",
+    models=None,
 ):
     os.makedirs(_ravel_dir(output_directory), exist_ok=True)
     modalities = list(modalities)
@@ -1775,25 +2127,16 @@ def apply_ravel_model_to_subject(
     )
 
     reference_img = nib.load(_reference_image_path())
+    loaded_models = models or load_ravel_models(output_directory, modalities)
 
     for modality in modalities:
-        model_path = ravel_model_path(output_directory, modality)
-        if not os.path.exists(model_path):
-            raise ValueError(
-                f"Missing RAVEL model for {modality}: {model_path}. "
-                "Process the control dataset first."
-            )
-
-        model = np.load(model_path, allow_pickle=True)
-        brain_mask = model["brain_mask"].astype(bool)
-        control_mask = model["control_mask"].astype(bool)
-        if "beta_w" not in model:
-            raise ValueError(
-                f"RAVEL model for {modality} uses the old dense format. "
-                "Reprocess the control dataset to fit a chunked RAVEL model."
-            )
-        beta_x = model["beta_x"].astype(np.float32)
-        beta_w = model["beta_w"].astype(np.float32)
+        if modality not in loaded_models:
+            raise ValueError(f"No preloaded RAVEL model was supplied for {modality}")
+        model = loaded_models[modality]
+        brain_mask = model["brain_mask"]
+        control_mask = model["control_mask"]
+        beta_x = model["beta_x"]
+        beta_w = model["beta_w"]
 
         paths = mni_inputs["modalities"][modality]
         V = _load_brain_vector(paths["mni_whitestripe"], brain_mask)
@@ -1831,11 +2174,12 @@ def apply_ravel_model_to_subject(
         _write_brain_vector(corrected, brain_mask, reference_img, paths["mni_ravel"])
         if verbose:
             print(f"  Transforming {participant_id}/{session_id} {modality} RAVEL image back to nativepro...")
-        _inverse_transform_ravel(
+        _inverse_transform_ravel_cli(
             paths["mni_ravel"],
             paths["native_ravel"],
             mni_inputs["native_reference"],
             mni_inputs["mni_to_native"],
             mni_inputs["mni_to_native_invert"],
             threads=threads,
+            output_dtype=np.float32,
         )

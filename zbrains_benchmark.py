@@ -37,6 +37,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from zbrains.hippunfold import hippunfold_cache_tag
+
 
 # ============================================================================
 # 1. ENGINEERING-DECISION AXES
@@ -556,6 +558,28 @@ def processed_base_directory_for(normalization, output_dir_prefix, exclusion_sig
     return f"{output_dir_prefix}/zbrains_{norm_label}{suffix}/"
 
 
+def hippunfold_signature_for_datasets(*datasets):
+    """Return one shared HippUnfold source tag, rejecting mixed inputs."""
+    signatures = set()
+    for dataset in datasets:
+        directory = getattr(dataset, "hippunfold_directory", None)
+        if (
+            not isinstance(directory, (str, os.PathLike))
+            or not directory
+            or not getattr(dataset, "hippocampus", False)
+        ):
+            continue
+        version = getattr(dataset, "requested_hippunfold_version", None)
+        if version is None and getattr(dataset, "_hippunfold_version_detected", False):
+            version = getattr(dataset, "hippunfold_version", None)
+        signatures.add(hippunfold_cache_tag(directory, version=version))
+    if len(signatures) > 1:
+        raise ValueError(
+            "Control and patient datasets use different HippUnfold sources or versions."
+        )
+    return next(iter(signatures), "")
+
+
 # ============================================================================
 # 5. PROCESSED-OUTPUT COMPLETENESS CHECKS AND SYMLINK REUSE
 # ============================================================================
@@ -584,6 +608,45 @@ def processed_maps_complete(output_directory, datasets):
             if (subject_dir / "maps").exists() and (subject_dir / "structural").exists():
                 found += 1
     return expected > 0 and found == expected
+
+
+def subjects_missing_non_hippocampal_processed_outputs(
+    output_directory,
+    dataset,
+):
+    """Subjects that cannot safely enter hippocampus-only processing.
+
+    A subject is ready when its enabled cortex/subcortex map trees and reusable
+    non-HippUnfold structural geometry are present. Hippocampal maps/surfaces are
+    deliberately ignored because those are exactly what the V2 migration rebuilds.
+    """
+    output_directory = Path(output_directory)
+    missing = []
+    for relative_dir in subject_output_directories(dataset):
+        session = output_directory / relative_dir
+        maps = session / "maps"
+        structural = session / "structural"
+        ready = True
+        for structure in ("cortex", "subcortical"):
+            if not getattr(dataset, structure, False):
+                continue
+            structure_dir = maps / structure
+            if not (
+                structure_dir.is_dir()
+                and any(path.is_file() for path in structure_dir.rglob("*"))
+            ):
+                ready = False
+        if not (
+            structural.is_dir()
+            and any(
+                path.is_file() and "_label-hipp_" not in path.name
+                for path in structural.iterdir()
+            )
+        ):
+            ready = False
+        if not ready:
+            missing.append(tuple(relative_dir.parts[-2:]))
+    return missing
 
 
 # Per-base completion sentinel: written ATOMICALLY only after a base has finished
@@ -666,6 +729,84 @@ def score_maps_complete(output_directory, dataset, method="wscore"):
         if score_dir.exists() and any(path.is_file() for path in score_dir.rglob("*")):
             found += 1
     return expected > 0 and found == expected
+
+
+def analysis_structure_maps_complete(
+    output_directory,
+    datasets,
+    method="wscore",
+    structures=("cortex", "hippocampus", "subcortical"),
+):
+    """Check every enabled requested score-map structure for every subject.
+
+    ``score_maps_complete`` intentionally implements a lightweight historical
+    check (any score file per subject). Selective HippUnfold reuse needs a stricter
+    check so a partial score tree can never be mistaken for a safely reusable one.
+    """
+    output_directory = Path(output_directory)
+    expected = 0
+    found = 0
+    for dataset in datasets:
+        enabled = [
+            structure
+            for structure in structures
+            if getattr(dataset, structure, False)
+        ]
+        for relative_dir in subject_output_directories(dataset):
+            for structure in enabled:
+                expected += 1
+                structure_dir = (
+                    output_directory
+                    / relative_dir
+                    / f"{method}_maps"
+                    / structure
+                )
+                if (
+                    structure_dir.is_dir()
+                    and any(path.is_file() for path in structure_dir.rglob("*"))
+                ):
+                    found += 1
+    return expected > 0 and found == expected
+
+
+def subjects_missing_analysis_structure(
+    output_directory,
+    dataset,
+    structure,
+    method="wscore",
+):
+    """Return subject/session pairs missing one enabled analysis structure."""
+    if not getattr(dataset, structure, False):
+        return []
+    output_directory = Path(output_directory)
+    missing = []
+    for relative_dir in subject_output_directories(dataset):
+        structure_dir = (
+            output_directory
+            / relative_dir
+            / f"{method}_maps"
+            / structure
+        )
+        if not (
+            structure_dir.is_dir()
+            and any(path.is_file() for path in structure_dir.rglob("*"))
+        ):
+            missing.append(tuple(relative_dir.parts[-2:]))
+    return missing
+
+
+def non_hippocampal_analysis_outputs_complete(
+    output_directory,
+    datasets,
+    method="wscore",
+):
+    """Whether all enabled cortex/subcortex score trees can be safely reused."""
+    return analysis_structure_maps_complete(
+        output_directory,
+        datasets,
+        method=method,
+        structures=("cortex", "subcortical"),
+    )
 
 
 def output_fully_processed(output_directory, patient_dataset, marker=ANALYSIS_COMPLETION_MARKER):
@@ -762,6 +903,213 @@ def symlink_processed_outputs(source_directory, target_directory, datasets):
         f"Reused {linked_maps} map and {linked_structural} structural directories: "
         f"{source_directory} -> {target_directory}"
     )
+
+
+def seed_non_hippocampal_processed_outputs(
+    source_directory,
+    target_directory,
+    datasets,
+):
+    """Link legacy non-hippocampal products into a versioned HippUnfold base.
+
+    ``maps/hippocampus`` and every ``label-hipp`` structural surface are excluded.
+    The target therefore reuses cortical, subcortical, normalized-volume, SWM, and
+    dataset-normalization products without exposing any legacy hippocampal data.
+    Returns ``False`` when the legacy source is absent or lacks a required enabled
+    non-hippocampal component; callers can then rebuild only the missing subjects.
+    """
+    from zbrains.dataset import _link_structural_to_cache
+
+    source_directory = Path(source_directory)
+    target_directory = Path(target_directory)
+    if not source_directory.is_dir():
+        return False
+    target_directory.mkdir(parents=True, exist_ok=True)
+
+    complete = True
+    linked = 0
+    for dataset in datasets:
+        for relative_dir in subject_output_directories(dataset):
+            source_session = source_directory / relative_dir
+            source_maps = source_session / "maps"
+            target_maps = target_directory / relative_dir / "maps"
+            if not source_maps.is_dir():
+                complete = False
+                continue
+            target_maps.mkdir(parents=True, exist_ok=True)
+            for source_entry in source_maps.iterdir():
+                if (
+                    source_entry.name == "hippocampus"
+                    or "_label-hipp_" in source_entry.name
+                ):
+                    continue
+                if symlink_path(source_entry, target_maps / source_entry.name):
+                    linked += 1
+
+            if (
+                getattr(dataset, "cortex", False)
+                and not (
+                    (target_maps / "cortex").is_dir()
+                    and any(
+                        path.is_file()
+                        for path in (target_maps / "cortex").rglob("*")
+                    )
+                )
+            ):
+                complete = False
+            if (getattr(dataset, "subcortical", False)
+                    and not (
+                        (target_maps / "subcortical").is_dir()
+                        and any(
+                            path.is_file()
+                            for path in (target_maps / "subcortical").rglob("*")
+                        )
+                    )):
+                complete = False
+
+            pid, sid = relative_dir.parts[-2:]
+            target_structural = _link_structural_to_cache(
+                target_directory,
+                pid,
+                sid,
+                hippunfold_directory=getattr(dataset, "hippunfold_directory", None),
+                hippunfold_version=(
+                    getattr(dataset, "requested_hippunfold_version", None)
+                    or getattr(dataset, "hippunfold_version", None)
+                ),
+            )
+            source_structural = source_session / "structural"
+            if not source_structural.is_dir() or target_structural is None:
+                complete = False
+                continue
+            target_structural = Path(target_structural)
+            for source_entry in source_structural.iterdir():
+                if "_label-hipp_" in source_entry.name:
+                    continue
+                if symlink_path(source_entry, target_structural / source_entry.name):
+                    linked += 1
+            if not any(target_structural.iterdir()):
+                complete = False
+
+    for model_dir in ("ravel", "nyul"):
+        source_model = source_directory / model_dir
+        if source_model.exists() and symlink_path(
+            source_model,
+            target_directory / model_dir,
+        ):
+            linked += 1
+
+    print(
+        f"Seeded {linked} non-hippocampal entries: "
+        f"{source_directory} -> {target_directory}"
+    )
+    return complete
+
+
+def hippocampal_v2_outputs_complete(output_directory, datasets):
+    """Whether every subject has all expected V2 maps and bilateral V2 surfaces."""
+    output_directory = Path(output_directory)
+    output_tokens = {
+        "thickness": "thickness",
+        "sa": "SA",
+        "t1map": "qT1",
+        "qt1": "qT1",
+        "adc": "ADC",
+        "fa": "FA",
+        "flair": "FLAIR",
+        "t1w": "T1w",
+    }
+    expected = 0
+    found = 0
+    for dataset in datasets:
+        features = [
+            feature
+            for feature in (getattr(dataset, "features", None) or ["thickness"])
+            if not str(feature).endswith("*blur")
+        ]
+        source_valid = getattr(dataset, "source_valid_subjects", None) or {}
+        for relative_dir in subject_output_directories(dataset):
+            expected += 1
+            pid, sid = relative_dir.parts[-2:]
+            subject = (pid, sid)
+            session = output_directory / relative_dir
+            maps = session / "maps" / "hippocampus"
+            structural = session / "structural"
+            expected_features = []
+            for feature in features:
+                validity = source_valid.get(feature, {})
+                valid_hippocampus = validity.get("structures", {}).get(
+                    "hippocampus")
+                if valid_hippocampus is not None and subject not in valid_hippocampus:
+                    continue
+                expected_features.append(
+                    output_tokens.get(str(feature).lower(), str(feature).lower())
+                )
+            maps_ok = bool(expected_features) and all(
+                any(maps.glob(
+                    f"{pid}_{sid}_hemi-{hemi}_den-8k_label-hipp_midthickness_"
+                    f"feature-{feature}_smooth-*mm.func.gii"
+                ))
+                for feature in expected_features
+                for hemi in ("L", "R")
+            )
+            surfaces_ok = all(
+                (
+                    structural
+                    / f"{pid}_{sid}_hemi-{hemi}_space-{space}_den-8k_"
+                    "label-hipp_midthickness.surf.gii"
+                ).is_file()
+                for hemi in ("L", "R")
+                for space in ("T1w", "unfold")
+            )
+            if maps_ok and surfaces_ok:
+                found += 1
+    return expected > 0 and found == expected
+
+
+def seed_non_hippocampal_analysis_outputs(
+    source_directory,
+    target_directory,
+    datasets,
+    method,
+):
+    """Link cortex/subcortical score-map trees while excluding hippocampus."""
+    source_directory = Path(source_directory)
+    target_directory = Path(target_directory)
+    if not source_directory.is_dir():
+        return False
+
+    complete = True
+    linked = 0
+    score_name = f"{method}_maps"
+    for dataset in datasets:
+        for relative_dir in subject_output_directories(dataset):
+            source_scores = source_directory / relative_dir / score_name
+            target_scores = target_directory / relative_dir / score_name
+            if not source_scores.is_dir():
+                complete = False
+                continue
+            target_scores.mkdir(parents=True, exist_ok=True)
+            for structure in ("cortex", "subcortical"):
+                if structure == "cortex" and not getattr(dataset, "cortex", False):
+                    continue
+                if (structure == "subcortical"
+                        and not getattr(dataset, "subcortical", False)):
+                    continue
+                source_structure = source_scores / structure
+                if (
+                    not source_structure.is_dir()
+                    or not any(path.is_file() for path in source_structure.rglob("*"))
+                ):
+                    complete = False
+                    continue
+                if symlink_path(source_structure, target_scores / structure):
+                    linked += 1
+    print(
+        f"Seeded {linked} non-hippocampal {score_name} directories: "
+        f"{source_directory} -> {target_directory}"
+    )
+    return complete
 
 
 # ============================================================================
@@ -908,14 +1256,25 @@ def run_benchmark(
     label = f"{dataset_label} " if dataset_label else ""
     run_summaries = []
     reprocessed_control_base_directories = set()
+    hippunfold_signature = hippunfold_signature_for_datasets(
+        control_dataset,
+        patient_dataset,
+    )
 
     for category, option, config, warnings in processing_configurations(enabled_families):
         normalization = config["normalization"]
         output_directory = output_directory_for(
-            config, output_dir_prefix, control_correlation_quantile
+            config,
+            output_dir_prefix,
+            control_correlation_quantile,
+            exclusion_signature=hippunfold_signature,
         )
         pipeline_settings = dict(base_pipeline_settings, normalization=normalization)
-        base_output_directory = processed_base_directory_for(normalization, output_dir_prefix)
+        base_output_directory = processed_base_directory_for(
+            normalization,
+            output_dir_prefix,
+            hippunfold_signature,
+        )
         is_base_output = (
             Path(output_directory).resolve() == Path(base_output_directory).resolve()
         )

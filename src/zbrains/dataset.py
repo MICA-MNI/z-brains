@@ -2,6 +2,7 @@ import os
 import sys
 import datetime
 import copy
+from zbrains.hippunfold import hippunfold_cache_tag
 from zbrains.processing import apply_blurring, apply_hippocampal_processing, apply_subcortical_processing, apply_cortical_processing, generate_superficial_white_matter
 from zbrains.normalization import (
     apply_nyul_model_to_subject,
@@ -11,6 +12,7 @@ from zbrains.normalization import (
     ensure_synthseg_csf,
     fit_and_apply_nyul_to_controls,
     fit_and_apply_ravel_to_controls,
+    load_ravel_models,
     normalize_normalization_mode,
     prepare_t1w_flair_identity,
     prepare_t1w_flair_whitestripe,
@@ -133,6 +135,7 @@ class _ThreadLocalStdout:
 # initlized") and SIGSEGVs. Capped because each concurrent subject holds a
 # subject's volumes in RAM; raise/lower via env.num_threads if you have the memory.
 PROCESSING_MAX_THREADS = 12
+NORMALIZATION_MAX_JOBS = 4
 
 
 class demographics():
@@ -297,25 +300,33 @@ class demographics():
         return self
 
 
-def _link_structural_to_cache(output_directory, participant_id, session_id, verbose=False):
+def _link_structural_to_cache(
+    output_directory,
+    participant_id,
+    session_id,
+    verbose=False,
+    hippunfold_directory=None,
+    hippunfold_version=None,
+):
     """Point this base's ``structural/`` dir at a base-independent per-subject cache.
 
-    The structural outputs (native/fsLR surfaces, hippocampal surfaces, the Laplace
-    field and SWM depth surfaces) are pure geometry -- they depend only on the
-    subject's anatomy (freesurfer/micapipe/hippunfold), NOT on the intensity
-    normalization, smoothing, or outlier exclusion that key a base. So we generate
-    them ONCE into ``<prefix>/struct_cache/<sub>/<ses>/structural`` and symlink that
-    dir into every base, instead of re-solving the Laplace PDE + regenerating
-    surfaces for each greedy arm. No-op when ``output_directory`` has no ``zbrains_*``
-    component (legacy) or a REAL structural dir already exists here (existing base --
-    left untouched). Must be called BEFORE any structural files are written.
+    The structural outputs are pure geometry, but the hippocampal files depend on
+    the exact HippUnfold source. They are therefore shared across optimization arms
+    only within a version/source-specific cache. This prevents v1 0p5mm geometry
+    from being exposed to a v2 8k run. No-op when ``output_directory`` has no
+    ``zbrains_*`` component (legacy) or a REAL structural dir already exists here.
+    Must be called BEFORE any structural files are written.
     """
     parts = os.path.abspath(output_directory).split(os.sep)
     idx = next((i for i, p in enumerate(parts)
                 if p.startswith("zbrains_") or p.startswith("zbrains-")), None)
     if idx is None:
         return None
-    parts[idx] = "struct_cache"
+    cache_tag = hippunfold_cache_tag(
+        hippunfold_directory,
+        version=hippunfold_version,
+    )
+    parts[idx] = "struct_cache" + (f"_{cache_tag}" if cache_tag else "")
     cache_struct = os.path.join(os.sep.join(parts), participant_id, session_id, "structural")
     base_struct = os.path.join(output_directory, participant_id, session_id, "structural")
     if os.path.isdir(base_struct) and not os.path.islink(base_struct):
@@ -348,6 +359,9 @@ def _link_structural_to_cache(output_directory, participant_id, session_id, verb
 # re-runs the whole (usually RAVEL-dominated) normalization. These helpers reuse the
 # volumes from a sibling cache keyed by everything EXCEPT smoothing.
 _SMOOTH_TOKEN_RE = re.compile(r"_smoothctx\d+hip\d+")
+_HIPPUNFOLD_TOKEN_RE = re.compile(
+    r"_hippunfoldv(?:\d+|unknown)-[0-9a-f]{10}"
+)
 _NORM_MODEL_DIRS = ("ravel", "nyul")
 
 
@@ -366,6 +380,9 @@ def _norm_cache_dir_for(output_directory):
     sep = "_" if comp.startswith("zbrains_") else "-"
     comp = "norm_cache" + sep + comp.split("zbrains" + sep, 1)[1]
     comp = _SMOOTH_TOKEN_RE.sub("", comp)                 # smoothing arms share ONE cache
+    # HippUnfold changes only hippocampal geometry/sampling. Nativepro intensity
+    # volumes and their RAVEL/Nyul models are safe to share across HU versions.
+    comp = _HIPPUNFOLD_TOKEN_RE.sub("", comp)
     parts[idx] = comp
     return os.sep.join(parts[:idx + 1])
 
@@ -510,7 +527,7 @@ def _cortex_bool_mask(cortex_idx, n_vertices, *, hemi="", label=""):
 
 
 class zbdataset():
-    def __init__(self, name, demographics : demographics, micapipe_directory, hippunfold_directory=None, freesurfer_directory=None, raw_data_directory=None, cortex=True, hippocampus=True, subcortical=True):
+    def __init__(self, name, demographics : demographics, micapipe_directory, hippunfold_directory=None, freesurfer_directory=None, raw_data_directory=None, cortex=True, hippocampus=True, subcortical=True, hippunfold_version=None):
         
         self.name = name
         self.demographics = demographics
@@ -523,7 +540,13 @@ class zbdataset():
         self.hippocampus = hippocampus
         self.subcortical = subcortical
         self.valid_dataset = False
-        self.hippunfold_version = 1
+        if hippunfold_version is not None and int(hippunfold_version) not in (1, 2):
+            raise ValueError("hippunfold_version must be 1, 2, or None")
+        self.requested_hippunfold_version = (
+            int(hippunfold_version) if hippunfold_version is not None else None
+        )
+        self.hippunfold_version = self.requested_hippunfold_version or 1
+        self._hippunfold_version_detected = False
         # Optional feature-specific control QC mask.  The staged correlation arms
         # populate this as ``{feature: {(participant_id, session_id), ...}}``.
         # A masked scan remains a member of the dataset and stays available for
@@ -606,12 +629,38 @@ class zbdataset():
             for _, row in self.demographics.data.iterrows():
                 pid = row['participant_id']
                 sid = row['session_id']
+
+                if self.requested_hippunfold_version == 2:
+                    v2_path = os.path.join(
+                        self.hippunfold_directory,
+                        pid,
+                        sid,
+                        f"surf/{pid}_{sid}_hemi-L_space-T1w_den-8k_label-hipp_midthickness.surf.gii",
+                    )
+                    if os.path.exists(v2_path):
+                        found_version = True
+                        break
+                    continue
+
+                if self.requested_hippunfold_version == 1:
+                    v1_path = os.path.join(
+                        self.hippunfold_directory,
+                        "hippunfold",
+                        pid,
+                        sid,
+                        f"surf/{pid}_{sid}_hemi-L_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii",
+                    )
+                    if os.path.exists(v1_path):
+                        found_version = True
+                        break
+                    continue
                 
                 # Check for 0.5mm file (v1 structure: hippunfold_dir/hippunfold/sub-X)
                 v1_path = os.path.join(self.hippunfold_directory, "hippunfold", pid, sid, 
                                       f"surf/{pid}_{sid}_hemi-L_space-T1w_den-0p5mm_label-hipp_midthickness.surf.gii")
                 if os.path.exists(v1_path):
                     self.hippunfold_version = 1
+                    self._hippunfold_version_detected = True
                     print("Detected HippUnfold resolution: 0.5mm (v1)")
                     found_version = True
                     break
@@ -621,11 +670,27 @@ class zbdataset():
                                       f"surf/{pid}_{sid}_hemi-L_space-T1w_den-8k_label-hipp_midthickness.surf.gii")
                 if os.path.exists(v2_path):
                     self.hippunfold_version = 2
+                    self._hippunfold_version_detected = True
                     print("Detected HippUnfold resolution: 8k (v2)")
                     found_version = True
                     break
             
-            if not found_version:
+            if self.requested_hippunfold_version is not None:
+                self.hippunfold_version = self.requested_hippunfold_version
+                self._hippunfold_version_detected = True
+                if found_version:
+                    resolution = "8k" if self.hippunfold_version == 2 else "0.5mm"
+                    print(
+                        f"Using configured HippUnfold v{self.hippunfold_version} "
+                        f"({resolution}); automatic fallback is disabled."
+                    )
+                else:
+                    print(
+                        f"Warning: configured HippUnfold v{self.hippunfold_version}, "
+                        "but no matching surface was found while probing subjects. "
+                        "Keeping the configured version; v1/v2 fallback is disabled."
+                    )
+            elif not found_version:
                 print("Warning: Could not detect HippUnfold version (checked 8k/v2 and 0.5mm/v1). Defaulting to v1.")
 
         # Initialize valid_subjects structure
@@ -1109,6 +1174,7 @@ class zbdataset():
         n_jobs=None,
         normalization="ravel",
         skip_existing=True,
+        hippocampus_only=False,
     ):
         """
         Process the dataset with specified features and smoothing parameters using joblib parallelization.
@@ -1135,6 +1201,10 @@ class zbdataset():
             T1w/FLAIR normalization source used for volume-to-surface and
             subcortical extraction. "ravel" runs WhiteStripe then RAVEL.
             "whitestripe" runs only WhiteStripe and uses those outputs.
+        hippocampus_only : bool, default=False
+            Regenerate only HippUnfold-dependent structural and feature maps.
+            Matching non-hippocampal maps and normalized volumes must already
+            exist in ``output_directory``.
             
         Returns:
         --------
@@ -1182,6 +1252,11 @@ class zbdataset():
         self.hippocampal_smoothing = hippocampal_smoothing
         self.add_features(*features, verbose=verbose)
 
+        if hippocampus_only and not (self.hippocampus and self.hippunfold_directory):
+            raise ValueError(
+                "hippocampus_only=True requires an enabled HippUnfold dataset"
+            )
+
         if verbose:
             print(f"Processing dataset {self.name} with cortical smoothing {cortical_smoothing} and hippocampal smoothing {hippocampal_smoothing}.")
             if requested_ravel_modalities(features):
@@ -1228,6 +1303,7 @@ class zbdataset():
         
         # Use all base valid subjects
         valid_subjects_to_process = self.valid_subjects['base']
+        hipp_res = "8k" if self.hippunfold_version == 2 else "0p5mm"
 
         # Per-subject REUSE: skip subjects whose outputs (maps/ + structural/)
         # already exist in this base, so a re-run or an enlarged cohort only
@@ -1236,7 +1312,66 @@ class zbdataset():
         # none/whitestripe/wmmean) where each subject is processed independently;
         # RAVEL/Nyul (dataset_norm in {ravel,nyul}) are DATASET-level fits that need
         # every control, so they are never filtered here.
-        if skip_existing and dataset_norm == "none":
+        if skip_existing and hippocampus_only:
+            def _hippocampal_outputs_complete(subject):
+                pid, sid = subject
+                session_dir = os.path.join(output_directory, pid, sid)
+                map_dir = os.path.join(session_dir, "maps", "hippocampus")
+                structural_dir = os.path.join(session_dir, "structural")
+                if not os.path.isdir(map_dir) or not os.path.isdir(structural_dir):
+                    return False
+
+                output_tokens = {
+                    "thickness": "thickness",
+                    "sa": "SA",
+                    "t1map": "qT1",
+                    "qt1": "qT1",
+                    "adc": "ADC",
+                    "fa": "FA",
+                    "flair": "FLAIR",
+                    "t1w": "T1w",
+                }
+                valid_features = [
+                    feature for feature in self.features
+                    if not feature.endswith("*blur")
+                    and subject
+                    in self.valid_subjects[feature]["structures"]["hippocampus"]
+                ]
+                expected_maps = []
+                for feature in valid_features:
+                    token = output_tokens.get(feature.lower(), feature.lower())
+                    for hemi in ("L", "R"):
+                        expected_maps.append(os.path.join(
+                            map_dir,
+                            f"{pid}_{sid}_hemi-{hemi}_den-{hipp_res}_label-hipp_"
+                            f"midthickness_feature-{token}_smooth-"
+                            f"{hippocampal_smoothing}mm.func.gii",
+                        ))
+                expected_surfaces = [
+                    os.path.join(
+                        structural_dir,
+                        f"{pid}_{sid}_hemi-{hemi}_space-{space}_den-{hipp_res}_"
+                        "label-hipp_midthickness.surf.gii",
+                    )
+                    for hemi in ("L", "R")
+                    for space in ("T1w", "unfold")
+                ]
+                return bool(expected_maps) and all(
+                    os.path.isfile(path) for path in expected_maps + expected_surfaces
+                )
+
+            all_valid = list(valid_subjects_to_process)
+            valid_subjects_to_process = [
+                subject for subject in all_valid
+                if not _hippocampal_outputs_complete(subject)
+            ]
+            n_skipped = len(all_valid) - len(valid_subjects_to_process)
+            if n_skipped and verbose:
+                print(
+                    f"Hippocampal reuse: skipping {n_skipped}/{len(all_valid)} "
+                    f"complete subjects; processing {len(valid_subjects_to_process)}."
+                )
+        elif skip_existing and dataset_norm == "none":
             def _outputs_complete(subject):
                 pid, sid = subject
                 sess = os.path.join(output_directory, pid, sid)
@@ -1268,17 +1403,48 @@ class zbdataset():
         # Identify blur features
         blur_features = [feature for feature in self.features if feature.endswith("*blur")]
         
-        # Determine hippocampal resolution str
-        hipp_res = "8k" if self.hippunfold_version == 2 else "0p5mm"
-
         normalization_modalities = requested_ravel_modalities(self.features)
         normalization_failed_subjects = set()
 
-        if normalization_modalities:
+        if normalization_modalities and not hippocampus_only:
             dataset_name = str(self.name).lower()
             is_control_dataset = dataset_name in {"control", "controls", "hc", "healthy_controls", "reference", "normative"}
-            normalization_n_jobs = 1
-            normalization_threads = max(1, int(env.num_threads or 1))
+            normalization_total_threads = max(1, int(env.num_threads or 1))
+
+            def _positive_int_setting(name):
+                value = getattr(env, name, None)
+                if isinstance(value, (int, np.integer)) and not isinstance(value, bool):
+                    return max(1, int(value))
+                return None
+
+            configured_normalization_jobs = _positive_int_setting("normalization_jobs")
+            default_normalization_jobs = min(
+                NORMALIZATION_MAX_JOBS,
+                normalization_total_threads,
+                max(1, len(valid_subjects_to_process)),
+            )
+            normalization_n_jobs = min(
+                configured_normalization_jobs or default_normalization_jobs,
+                normalization_total_threads,
+                max(1, len(valid_subjects_to_process)),
+            )
+            configured_threads_per_job = _positive_int_setting(
+                "normalization_threads_per_job"
+            )
+            available_threads_per_job = max(
+                1,
+                normalization_total_threads // normalization_n_jobs,
+            )
+            normalization_threads = min(
+                configured_threads_per_job or available_threads_per_job,
+                available_threads_per_job,
+            )
+            configured_tmp_dir = getattr(env, "ravel_tmp_dir", None)
+            normalization_tmp_dir = (
+                os.fspath(configured_tmp_dir)
+                if isinstance(configured_tmp_dir, (str, os.PathLike))
+                else None
+            )
             micapipe_directory = self.micapipe_directory
             raw_data_directory = getattr(self, "raw_data_directory", None)
 
@@ -1289,8 +1455,9 @@ class zbdataset():
                     f"{len(valid_subjects_to_process)} subjects: {', '.join(normalization_modalities)}"
                 )
                 print(
-                    "Running T1w/FLAIR normalization one session at a time "
-                    f"({normalization_threads} ANTs/SynthSeg threads)."
+                    f"Running T1w/FLAIR normalization with {normalization_n_jobs} "
+                    f"parallel session job(s) ({normalization_threads} "
+                    "ANTs/SynthSeg threads per job)."
                 )
 
             def subject_normalization_modalities(subject):
@@ -1579,6 +1746,8 @@ class zbdataset():
                             threads=normalization_threads,
                             input_desc=subject_norm,
                             output_desc=normalization,
+                            total_threads=normalization_total_threads,
+                            tmp_dir=normalization_tmp_dir,
                         )
                 except Exception as e:
                     if verbose:
@@ -1589,6 +1758,11 @@ class zbdataset():
             else:
                 if verbose:
                     print("Applying fitted control RAVEL model to patient dataset...")
+                patient_ravel_models = (
+                    None
+                    if norm_hydrated
+                    else load_ravel_models(output_directory, normalization_modalities)
+                )
 
                 def apply_subject_ravel(subject):
                     participant_id, session_id = subject
@@ -1608,6 +1782,7 @@ class zbdataset():
                             verbose=verbose,
                             input_desc=subject_norm,
                             output_desc=normalization,
+                            models=patient_ravel_models,
                         )
                         return participant_id, session_id, True, None
                     except Exception as e:
@@ -1697,12 +1872,44 @@ class zbdataset():
                     # Redirect structural/ to a base-independent per-subject cache
                     # (geometry doesn't depend on the base) BEFORE any structural
                     # write, so surfaces + Laplace/SWM are built once and reused.
-                    _link_structural_to_cache(output_directory, participant_id, session_id, verbose=verbose)
-                    # Copy structural files (into the shared cache via the symlink)
-                    self._copy_structural_files(participant_id, session_id, output_directory, verbose=verbose)
-                    self._create_midline_from_freesurfer(participant_id, session_id, output_directory, verbose=verbose)
+                    _link_structural_to_cache(
+                        output_directory,
+                        participant_id,
+                        session_id,
+                        verbose=verbose,
+                        hippunfold_directory=(
+                            self.hippunfold_directory if self.hippocampus else None
+                        ),
+                        hippunfold_version=(
+                            self.hippunfold_version
+                            if self.hippocampus and self.hippunfold_directory
+                            else None
+                        ),
+                    )
+                    # Partial V1 -> V2 migration seeds non-hippocampal geometry
+                    # from the legacy base, then copies only the V2 surfaces here.
+                    if hippocampus_only:
+                        self._copy_hippocampal_structural_files(
+                            participant_id,
+                            session_id,
+                            output_directory,
+                            verbose=verbose,
+                        )
+                    else:
+                        self._copy_structural_files(
+                            participant_id,
+                            session_id,
+                            output_directory,
+                            verbose=verbose,
+                        )
+                        self._create_midline_from_freesurfer(
+                            participant_id,
+                            session_id,
+                            output_directory,
+                            verbose=verbose,
+                        )
 
-                    if self.freesurfer_directory:
+                    if self.freesurfer_directory and not hippocampus_only:
                         generate_superficial_white_matter(
                             participant_id=participant_id,
                             session_id=session_id,
@@ -1715,7 +1922,7 @@ class zbdataset():
                         )
                     
                     # Apply blurring to features that need it
-                    if blur_features:
+                    if blur_features and not hippocampus_only:
                         # Check which base features are available for this subject
                         available_features = []
                         # Iterate the ORIGINAL blur features to check validity
@@ -1743,7 +1950,8 @@ class zbdataset():
                             )
 
                     # Process cortical features if cortex is enabled
-                    if self.cortex and subject in self.valid_subjects['structures']['cortex']:
+                    if (not hippocampus_only and self.cortex
+                            and subject in self.valid_subjects['structures']['cortex']):
                         # Get valid features for cortex for this subject
                         valid_cortical_features = [f for f in self.features if subject in self.valid_subjects[f]['structures']['cortex']]
                         
@@ -1791,7 +1999,9 @@ class zbdataset():
                             )
 
                     # If subcortex is enabled, extract subcortical stats
-                    if self.subcortical and self.freesurfer_directory and subject in self.valid_subjects['structures']['subcortical']:
+                    if (not hippocampus_only and self.subcortical
+                            and self.freesurfer_directory
+                            and subject in self.valid_subjects['structures']['subcortical']):
                         # Get nonBlur features for subcortical
                         valid_subcort_features = [f for f in self.features 
                                                 if not f.endswith("*blur") 
@@ -2874,6 +3084,64 @@ class zbdataset():
             
         return generated_reports
     
+    def _copy_hippocampal_structural_files(
+        self,
+        participant_id,
+        session_id,
+        output_directory,
+        verbose=False,
+    ):
+        """Copy only the HippUnfold surfaces needed downstream.
+
+        Used by selective V1 -> V2 migration after the non-hippocampal structural
+        files have been linked from the matching legacy base.
+        """
+        import shutil
+
+        structural_output_dir = os.path.join(
+            output_directory,
+            participant_id,
+            session_id,
+            "structural",
+        )
+        os.makedirs(structural_output_dir, exist_ok=True)
+        if self.hippunfold_version == 2:
+            hipp_base = self.hippunfold_directory
+            den_tag = "8k"
+        else:
+            hipp_base = os.path.join(self.hippunfold_directory, "hippunfold")
+            den_tag = "0p5mm"
+
+        success = True
+        for hemi in ("L", "R"):
+            for space in ("unfold", "T1w"):
+                filename = (
+                    f"{participant_id}_{session_id}_hemi-{hemi}_space-{space}_"
+                    f"den-{den_tag}_label-hipp_midthickness.surf.gii"
+                )
+                source_file = os.path.join(
+                    hipp_base,
+                    participant_id,
+                    session_id,
+                    "surf",
+                    filename,
+                )
+                target_file = os.path.join(structural_output_dir, filename)
+                if not os.path.isfile(source_file):
+                    success = False
+                    if verbose:
+                        print(f"  Warning: structural file not found: {source_file}")
+                    continue
+                try:
+                    shutil.copy2(source_file, target_file)
+                    if verbose:
+                        print(f"  Copying hippocampal structural file: {filename}")
+                except Exception as error:
+                    success = False
+                    if verbose:
+                        print(f"  Error copying {source_file}: {error}")
+        return success
+
     def _copy_structural_files(self, participant_id, session_id, output_directory, verbose=False):
         """
         Copy structural surface files from micapipe directory to output directory.

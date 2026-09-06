@@ -16,6 +16,7 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "src"))
 
 from zbrains.dataset import _link_structural_to_cache
+from zbrains.hippunfold import hippunfold_cache_tag
 
 
 def test_structural_symlinked_to_cache_and_reused_across_bases():
@@ -49,6 +50,35 @@ def test_existing_real_structural_dir_left_untouched():
 def test_no_zbrains_component_is_noop():
     with tempfile.TemporaryDirectory() as prefix:
         assert _link_structural_to_cache(os.path.join(prefix, "plain"), "sub-HC1", "ses-01") is None
+
+
+def test_structural_cache_is_separated_by_hippunfold_source_and_version():
+    with tempfile.TemporaryDirectory() as prefix:
+        v1_source = os.path.join(prefix, "hippunfold_v1.4.1")
+        v2_source = os.path.join(prefix, "hippunfold_v2.0.0")
+        os.makedirs(v1_source)
+        os.makedirs(v2_source)
+
+        v1 = _link_structural_to_cache(
+            os.path.join(prefix, "zbrains_V1"),
+            "sub-01",
+            "ses-01",
+            hippunfold_directory=v1_source,
+            hippunfold_version=1,
+        )
+        v2 = _link_structural_to_cache(
+            os.path.join(prefix, "zbrains_V2"),
+            "sub-01",
+            "ses-01",
+            hippunfold_directory=v2_source,
+            hippunfold_version=2,
+        )
+
+        assert os.path.realpath(v1) != os.path.realpath(v2)
+        assert hippunfold_cache_tag(v1_source, 1) in os.path.realpath(v1)
+        assert hippunfold_cache_tag(v2_source, 2) in os.path.realpath(v2)
+        open(os.path.join(v1, "v1-only.surf.gii"), "w").write("v1")
+        assert not os.path.exists(os.path.join(v2, "v1-only.surf.gii"))
 
 
 if __name__ == "__main__":

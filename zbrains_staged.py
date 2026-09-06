@@ -45,12 +45,14 @@ import json
 import os
 import re
 import shutil
+import copy
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import pandas as pd
 
 import zbrains_benchmark as zb
+from zbrains.hippunfold import hippunfold_cache_tag, without_hippunfold_cache_tag
 
 
 # ---------------------------------------------------------------------------
@@ -214,19 +216,25 @@ def _smoothing_label(config):
 _SMOOTHING_CONVENTION = "smfwhm"
 
 
-def _processing_signature(config, exclusion_signature=""):
+def _processing_signature(
+    config,
+    exclusion_signature="",
+    hippunfold_signature="",
+):
     """Suffix processed/analysis dirs for processing-affecting driver settings.
     The smoothing-convention tag is ALWAYS included so stale (pre-`-fwhm`,
     sigma-smoothed) bases are never reused. The smoothing pair is always included
     too, including the 0/0 baseline, because older runs used the no-pair
     ``smfwhm`` suffix for the previous 5/2 baseline."""
     parts = [_SMOOTHING_CONVENTION, _smoothing_label(config)]
+    if hippunfold_signature:
+        parts.append(hippunfold_signature)
     if exclusion_signature:
         parts.append(exclusion_signature)
     return "_".join(parts)
 
 
-def _base_signature(config, exclusion_signature=""):
+def _base_signature(config, exclusion_signature="", hippunfold_signature=""):
     """Processing signature for the PROCESSED BASE (the per-subject maps).
 
     Identical to :func:`_processing_signature` EXCEPT the control-exclusion tag is
@@ -239,7 +247,269 @@ def _base_signature(config, exclusion_signature=""):
     dataset-level fit is active (dataset_norm in {ravel, nyul})."""
     if config.get("dataset_norm", "none") == "none":
         exclusion_signature = ""
-    return _processing_signature(config, exclusion_signature)
+    return _processing_signature(
+        config,
+        exclusion_signature,
+        hippunfold_signature,
+    )
+
+
+_HIPPUNFOLD_REUSE_MODES = {"none", "all", "nonhippocampal"}
+
+
+def _cohort_hippunfold_reuse_mode(cohort):
+    mode = getattr(cohort, "hippunfold_reuse_mode", "none")
+    if mode not in _HIPPUNFOLD_REUSE_MODES:
+        raise ValueError(
+            f"hippunfold_reuse_mode must be one of "
+            f"{sorted(_HIPPUNFOLD_REUSE_MODES)}, got {mode!r}"
+        )
+    return mode
+
+
+def _cohort_hippunfold_signature(cohort):
+    """Cache identity for the exact HippUnfold source used by a cohort."""
+    if _cohort_hippunfold_reuse_mode(cohort) == "all":
+        return ""
+    signatures = set()
+    for dataset in (
+        getattr(cohort, "control_dataset", None),
+        getattr(cohort, "patient_dataset", None),
+    ):
+        directory = getattr(dataset, "hippunfold_directory", None)
+        if (
+            not isinstance(directory, (str, os.PathLike))
+            or not directory
+            or not getattr(dataset, "hippocampus", False)
+        ):
+            continue
+        version = getattr(dataset, "requested_hippunfold_version", None)
+        if version is None and getattr(dataset, "_hippunfold_version_detected", False):
+            version = getattr(dataset, "hippunfold_version", None)
+        signatures.add(hippunfold_cache_tag(directory, version=version))
+    if len(signatures) > 1:
+        raise ValueError(
+            f"Cohort {getattr(cohort, 'name', '<unnamed>')} mixes different "
+            "HippUnfold sources or versions between controls and patients."
+        )
+    return next(iter(signatures), "")
+
+
+def _cohort_processing_signature(cohort, config, exclusion_signature=""):
+    return _processing_signature(
+        config,
+        exclusion_signature,
+        _cohort_hippunfold_signature(cohort),
+    )
+
+
+def _cohort_base_signature(cohort, config, exclusion_signature=""):
+    return _base_signature(
+        config,
+        exclusion_signature,
+        _cohort_hippunfold_signature(cohort),
+    )
+
+
+def _seed_cohort_nonhippocampal_base(cohort, target_base, datasets):
+    """Seed a tagged base from its matching pre-version-tag base when requested."""
+    if _cohort_hippunfold_reuse_mode(cohort) != "nonhippocampal":
+        return False
+    source_base = without_hippunfold_cache_tag(target_base)
+    if os.path.abspath(source_base) == os.path.abspath(target_base):
+        return False
+    return zb.seed_non_hippocampal_processed_outputs(
+        source_base,
+        target_base,
+        datasets,
+    )
+
+
+def _seed_cohort_nonhippocampal_analysis(
+    cohort,
+    target_directory,
+    datasets,
+    method,
+):
+    """Seed non-hippocampal score maps from the matching untagged analysis."""
+    if _cohort_hippunfold_reuse_mode(cohort) != "nonhippocampal":
+        return False
+    source_directory = without_hippunfold_cache_tag(target_directory)
+    if os.path.abspath(source_directory) == os.path.abspath(target_directory):
+        return False
+    return zb.seed_non_hippocampal_analysis_outputs(
+        source_directory,
+        target_directory,
+        datasets,
+        method,
+    )
+
+
+def _structure_only_view(dataset, structure):
+    """Shallow independent view that validates/analyzes one structure only."""
+    if structure not in {"cortex", "hippocampus", "subcortical"}:
+        raise ValueError(f"unknown structure {structure!r}")
+    view = copy.copy(dataset)
+    view.cortex = structure == "cortex"
+    view.hippocampus = structure == "hippocampus"
+    view.subcortical = structure == "subcortical"
+    return view
+
+
+def _analyze_dataset_with_hippunfold_reuse(
+    cohort,
+    patient_dataset,
+    reference_dataset,
+    output_directory,
+    settings,
+    analyze_kwargs,
+):
+    """Analyze while retaining every available legacy NOEL non-hippocampal map.
+
+    In ``nonhippocampal`` mode, hippocampus is always analyzed from the V2 base.
+    Cortex/subcortex are analyzed only for subjects whose matching legacy score
+    tree is unavailable. Running each missing structure through an isolated view
+    also prevents writes through the symlinks that preserve legacy results.
+    """
+    if _cohort_hippunfold_reuse_mode(cohort) != "nonhippocampal":
+        reference_dataset.validate(
+            output_directory=output_directory, verbose=False, **settings)
+        patient_dataset.validate(
+            output_directory=output_directory, verbose=False, **settings)
+        return patient_dataset.analyze(
+            output_directory=output_directory,
+            reference=reference_dataset,
+            **analyze_kwargs,
+        )
+
+    method = analyze_kwargs.get("method", "wscore")
+    work = [("hippocampus", _control_pairs(patient_dataset))]
+    for structure in ("cortex", "subcortical"):
+        missing = zb.subjects_missing_analysis_structure(
+            output_directory,
+            patient_dataset,
+            structure,
+            method=method,
+        )
+        if missing:
+            work.append((structure, missing))
+
+    all_pairs = set(_control_pairs(patient_dataset))
+    result = None
+    for structure, pairs in work:
+        if not pairs:
+            continue
+        scoped_patient = patient_dataset
+        if set(pairs) != all_pairs:
+            scoped_patient = _subset_control_dataset(
+                patient_dataset,
+                pairs,
+                name=patient_dataset.name,
+            )
+        structure_reference = _structure_only_view(reference_dataset, structure)
+        structure_patient = _structure_only_view(scoped_patient, structure)
+        structure_reference.validate(
+            output_directory=output_directory, verbose=False, **settings)
+        structure_patient.validate(
+            output_directory=output_directory, verbose=False, **settings)
+        result = structure_patient.analyze(
+            output_directory=output_directory,
+            reference=structure_reference,
+            **analyze_kwargs,
+        )
+    return result
+
+
+def _process_dataset_for_hippunfold_migration(
+    dataset,
+    output_directory,
+    env,
+    settings,
+    *,
+    verbose=False,
+    force_full=False,
+):
+    """Build V2 hippocampus while retaining every reusable non-hippocampal subject.
+
+    Subjects with a complete seeded cortex/subcortex/structural tree run through
+    ``hippocampus_only``. Any subject absent from the legacy base is processed in
+    full, but only that missing subset is rebuilt.
+    """
+    features = settings.get("features") or []
+    if features and hasattr(dataset, "add_features"):
+        dataset.add_features(*features, verbose=False)
+    all_pairs = [
+        tuple(relative.parts[-2:])
+        for relative in zb.subject_output_directories(dataset)
+    ]
+    if force_full:
+        return dataset.process(
+            output_directory=output_directory,
+            env=env,
+            verbose=verbose,
+            skip_existing=False,
+            **settings,
+        )
+
+    missing_nonhip = set(
+        zb.subjects_missing_non_hippocampal_processed_outputs(
+            output_directory,
+            dataset,
+        )
+    )
+    ready_pairs = [pair for pair in all_pairs if pair not in missing_nonhip]
+    if ready_pairs:
+        ready_dataset = dataset
+        if len(ready_pairs) != len(all_pairs):
+            ready_dataset = _subset_control_dataset(
+                dataset,
+                ready_pairs,
+                name=dataset.name,
+            )
+        ready_dataset.process(
+            output_directory=output_directory,
+            env=env,
+            verbose=verbose,
+            skip_existing=True,
+            hippocampus_only=True,
+            **settings,
+        )
+
+    if missing_nonhip:
+        missing_dataset = dataset
+        if len(missing_nonhip) != len(all_pairs):
+            missing_dataset = _subset_control_dataset(
+                dataset,
+                sorted(missing_nonhip),
+                name=dataset.name,
+            )
+        if verbose:
+            print(
+                f"[{dataset.name}] No reusable non-hippocampal outputs for "
+                f"{len(missing_nonhip)} subject(s); processing only that subset "
+                "in full."
+            )
+        missing_dataset.process(
+            output_directory=output_directory,
+            env=env,
+            verbose=verbose,
+            skip_existing=False,
+            **settings,
+        )
+
+
+def _hippunfold_migration_outputs_complete(output_directory, datasets):
+    """Complete V2 hippocampus plus reusable/present non-hippocampal products."""
+    return (
+        zb.hippocampal_v2_outputs_complete(output_directory, datasets)
+        and all(
+            not zb.subjects_missing_non_hippocampal_processed_outputs(
+                output_directory,
+                dataset,
+            )
+            for dataset in datasets
+        )
+    )
 
 
 def _pipeline_settings(cohort, config, normalization=None):
@@ -424,7 +694,7 @@ DEFAULT_STAGES = _default_stages()
 # are still useful as records, but are intentionally not used for automatic
 # resume because they may predate defaults such as white-surface sampling or the
 # explicit smoothctx0hip0 baseline signature.
-HISTORY_SCHEMA_VERSION = 4
+HISTORY_SCHEMA_VERSION = 6
 
 
 # ---------------------------------------------------------------------------
@@ -538,10 +808,17 @@ def _analysis_provenance(config, cohort):
         "config": hashlib.sha1(
             json.dumps(config, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16],
         "features": feats,
+        "hippunfold": _cohort_hippunfold_signature(cohort),
     }
 
 
-def _guard_analysis_dir(output_directory, provenance, *, verbose=False):
+def _guard_analysis_dir(
+    output_directory,
+    provenance,
+    *,
+    verbose=False,
+    preserve_nonhippocampal=False,
+):
     """If ``output_directory``'s provenance manifest is missing or differs from
     ``provenance`` (different code / config / feature-set), CLEAR its stale analysis
     map trees (``{method}_maps``) so a re-run or other-code run cannot mix stale maps
@@ -558,11 +835,19 @@ def _guard_analysis_dir(output_directory, provenance, *, verbose=False):
     removed = 0
     for d in glob.glob(os.path.join(str(output_directory), "*", "*", "*_maps")):
         if os.path.isdir(d) and not os.path.islink(d):
-            shutil.rmtree(d, ignore_errors=True)
-            removed += 1
+            target = os.path.join(d, "hippocampus") if preserve_nonhippocampal else d
+            if os.path.isdir(target) and not os.path.islink(target):
+                shutil.rmtree(target, ignore_errors=True)
+                removed += 1
+            elif os.path.islink(target):
+                os.remove(target)
+                removed += 1
     if removed and verbose:
-        print(f"    provenance mismatch -> cleared {removed} stale analysis map dir(s) "
-              f"in {output_directory}")
+        scope = "hippocampal " if preserve_nonhippocampal else ""
+        print(
+            f"    provenance mismatch -> cleared {removed} stale {scope}"
+            f"analysis map dir(s) in {output_directory}"
+        )
     return False
 
 
@@ -675,6 +960,11 @@ class Cohort:
     patient_dataset: object
     output_dir_prefix: str
     base_pipeline_settings: dict
+    # ``all`` uses the existing untagged bases (for an already-V2 cohort such as
+    # MICs). ``nonhippocampal`` creates tagged bases, seeds their non-hippocampal
+    # products from the corresponding untagged base, and rebuilds only hippocampus.
+    # ``none`` is the safe default: create an entirely independent tagged base.
+    hippunfold_reuse_mode: str = "none"
 
 
 # --- Step 8: pre-dataset-norm control exclusion --------------------------------
@@ -853,10 +1143,15 @@ def _resolve_excluded_pairs(cohort, config, env, *, verbose=True):
     detector_config = dict(config)
     detector_config["cortical_smoothing"] = 0
     detector_config["hippocampal_smoothing"] = 0
-    processing_signature = _processing_signature(detector_config, "")
+    processing_signature = _cohort_processing_signature(cohort, detector_config, "")
     subj_base = zb.processed_base_directory_for(
         subj_norm_label, cohort.output_dir_prefix, processing_signature
     )
+    # Surface-QC reads cortex only. During a hippocampus-only V1 -> V2 migration,
+    # use the existing untagged detector base directly rather than cloning or
+    # rebuilding it under a HippUnfold-specific path.
+    if _cohort_hippunfold_reuse_mode(cohort) == "nonhippocampal":
+        subj_base = without_hippunfold_cache_tag(subj_base)
     assert "_excl" not in subj_base, "detector base must never be exclusion-keyed"
     cache_key = (subj_base, method, parameter)
     if cache_key in _EXCLUSION_CACHE:
@@ -945,12 +1240,27 @@ def _subset_control_dataset(orig, keep_pairs, name=None):
         reference=orig.demographics.reference,
         subset=[list(p) for p in keep],
     )
-    subset_dataset = _ZBDataset(
-        name or orig.name, ctrl_demo, orig.micapipe_directory,
+    clone_version = (
+        getattr(orig, "requested_hippunfold_version", None)
+        or (
+            getattr(orig, "hippunfold_version", None)
+            if getattr(orig, "_hippunfold_version_detected", False)
+            else None
+        )
+    )
+    clone_kwargs = dict(
         hippunfold_directory=orig.hippunfold_directory,
         freesurfer_directory=orig.freesurfer_directory,
         raw_data_directory=getattr(orig, "raw_data_directory", None),
         cortex=orig.cortex, hippocampus=orig.hippocampus, subcortical=orig.subcortical,
+    )
+    if clone_version is not None:
+        clone_kwargs["hippunfold_version"] = clone_version
+    subset_dataset = _ZBDataset(
+        name or orig.name,
+        ctrl_demo,
+        orig.micapipe_directory,
+        **clone_kwargs,
     )
     allowed = set(keep)
     source_exclusions = getattr(orig, "control_feature_exclusions", None) or {}
@@ -1156,8 +1466,12 @@ def _score_heldout_controls(cohort, config, env, control_correlation_threshold,
     layer repeats, and the incumbent is not re-scored across stages (score_cache).
     Lower SPECIFICITY_CV_FOLDS if the GP scoring arm's per-fold refit is too slow."""
     normalization = config["normalization"]
-    processing_signature = _processing_signature(config, exclusion_signature)
-    base_signature = _base_signature(config, exclusion_signature)   # base: exclusion dropped if dataset_norm=none
+    processing_signature = _cohort_processing_signature(
+        cohort, config, exclusion_signature
+    )
+    base_signature = _cohort_base_signature(
+        cohort, config, exclusion_signature
+    )   # base: exclusion dropped if dataset_norm=none
     output_directory = staged_output_directory(
         config, cohort.output_dir_prefix, control_correlation_threshold,
         exclusion_signature=processing_signature,
@@ -1209,19 +1523,28 @@ def _score_heldout_controls(cohort, config, env, control_correlation_threshold,
         fold_id, train_pairs, test_pairs = job
         train_ds = _subset_control_dataset(control_dataset, train_pairs)
         heldout_ds = _subset_control_dataset(control_dataset, test_pairs)
-        # Validate BOTH the held-out set AND the train reference (mirrors the main
-        # patient path, which validates patient + control). Without validating
-        # train_ds its .features stays [] and analyze() rejects the fold with
-        # "Feature sets don't match between patient and reference datasets."
-        train_ds.validate(output_directory=output_directory, verbose=False, **settings)
-        heldout_ds.validate(output_directory=output_directory, verbose=False, **settings)
-        heldout_ds.analyze(
-            output_directory=output_directory,
-            reference=train_ds,
-            site=cohort.score_name,
-            site_harmonizer=site_harmonizer,
-            scoring_site_covariate=config.get("scoring_site_covariate", False),
-            **akw,
+        if (
+            _cohort_hippunfold_reuse_mode(cohort) == "all"
+            and zb.analysis_structure_maps_complete(
+                output_directory,
+                [heldout_ds],
+                method=config.get("method", akw.get("method", "zscore")),
+            )
+        ):
+            return fold_id, test_pairs
+        _analyze_dataset_with_hippunfold_reuse(
+            cohort,
+            heldout_ds,
+            train_ds,
+            output_directory,
+            settings,
+            dict(
+                akw,
+                site=cohort.score_name,
+                site_harmonizer=site_harmonizer,
+                scoring_site_covariate=config.get(
+                    "scoring_site_covariate", False),
+            ),
         )
         # Only folds that were actually scored contribute negatives; skipped folds
         # wrote no |z| maps, so their held-out controls must NOT be used downstream.
@@ -1251,31 +1574,85 @@ def _ensure_fold_base(cohort, config, env, reference_k, heldout_k, exclusion_sig
     influenced its own normalization. Keyed by ``..._reffold{fold_id}`` so each fold
     gets its own base; sentinel-guarded so it is built once and reused."""
     normalization = config["normalization"]
-    base_fold_sig = f"{_base_signature(config, exclusion_signature)}_reffold{fold_id}"
+    base_fold_sig = (
+        f"{_cohort_base_signature(cohort, config, exclusion_signature)}"
+        f"_reffold{fold_id}"
+    )
     base_dir = zb.processed_base_directory_for(
         normalization, cohort.output_dir_prefix, base_fold_sig)
     settings = _pipeline_settings(cohort, config, normalization=normalization)
     required = list(_control_pairs(reference_k)) + list(_control_pairs(cohort.patient_dataset))
     if heldout_k is not None:
         required += list(_control_pairs(heldout_k))
-    if zb.base_is_marked_complete(base_dir, required):
+    migration_datasets = [reference_k, cohort.patient_dataset]
+    if heldout_k is not None:
+        migration_datasets.append(heldout_k)
+    _seed_cohort_nonhippocampal_base(
+        cohort,
+        base_dir,
+        migration_datasets,
+    )
+    migration_mode = (
+        _cohort_hippunfold_reuse_mode(cohort) == "nonhippocampal"
+    )
+    if (
+        zb.base_is_marked_complete(base_dir, required)
+        and (
+            not migration_mode
+            or _hippunfold_migration_outputs_complete(
+                base_dir, migration_datasets)
+        )
+    ):
         return base_dir
     zb.unmark_base_complete(base_dir)
     # 1. FIT dataset-norm on the train-fold reference (control-named -> fits the model).
-    if not zb.processed_maps_complete(base_dir, [reference_k]):
-        reference_k.process(output_directory=base_dir, env=env, verbose=verbose,
-                            skip_existing=False, **settings)
+    if (
+        migration_mode
+        or (not migration_mode and not zb.processed_maps_complete(
+            base_dir, [reference_k]
+        ))
+    ):
+        if migration_mode:
+            _process_dataset_for_hippunfold_migration(
+                reference_k, base_dir, env, settings, verbose=verbose)
+        else:
+            reference_k.process(
+                output_directory=base_dir, env=env, verbose=verbose,
+                skip_existing=False, **settings)
     # 2. APPLY the frozen fit to the held-out controls (non-control name -> applies).
-    if heldout_k is not None and not zb.processed_maps_complete(base_dir, [heldout_k]):
-        heldout_k.process(output_directory=base_dir, env=env, verbose=verbose,
-                          skip_existing=True, **settings)
+    if heldout_k is not None and (
+        migration_mode
+        or (not migration_mode and not zb.processed_maps_complete(
+            base_dir, [heldout_k]
+        ))
+    ):
+        if migration_mode:
+            _process_dataset_for_hippunfold_migration(
+                heldout_k, base_dir, env, settings, verbose=verbose)
+        else:
+            heldout_k.process(
+                output_directory=base_dir, env=env, verbose=verbose,
+                skip_existing=True, **settings)
     # 3. APPLY the frozen fit to patients.
-    if not zb.processed_maps_complete(base_dir, [cohort.patient_dataset]):
-        cohort.patient_dataset.process(output_directory=base_dir, env=env, verbose=verbose,
-                                       skip_existing=True, **settings)
+    if (
+        migration_mode
+        or (not migration_mode and not zb.processed_maps_complete(
+            base_dir, [cohort.patient_dataset]
+        ))
+    ):
+        if migration_mode:
+            _process_dataset_for_hippunfold_migration(
+                cohort.patient_dataset, base_dir, env, settings, verbose=verbose)
+        else:
+            cohort.patient_dataset.process(
+                output_directory=base_dir, env=env, verbose=verbose,
+                skip_existing=True, **settings)
     present = (zb.processed_maps_complete(base_dir, [reference_k])
                and zb.processed_maps_complete(base_dir, [cohort.patient_dataset])
-               and (heldout_k is None or zb.processed_maps_complete(base_dir, [heldout_k])))
+               and (heldout_k is None or zb.processed_maps_complete(base_dir, [heldout_k]))
+               and (not migration_mode or _hippunfold_migration_outputs_complete(
+                   base_dir, migration_datasets
+               )))
     if present:
         zb.mark_base_complete(base_dir, required)
     return base_dir
@@ -1320,12 +1697,15 @@ def _analyze_reference_cv(ctx, config, env, control_correlation_threshold, *,
     plans = {}          # score_name -> {fold_id: {train,test,reference_k,heldout_k,base_k,fold_root}}
     fold_ids = set()
     for cohort, control_ds, sig in ctx:
-        processing_signature = _processing_signature(config, sig)
+        processing_signature = _cohort_processing_signature(cohort, config, sig)
         base_output = staged_output_directory(
             config, cohort.output_dir_prefix, control_correlation_threshold,
             exclusion_signature=processing_signature).rstrip("/")
         shared_base = zb.processed_base_directory_for(
-            config["normalization"], cohort.output_dir_prefix, _base_signature(config, sig))
+            config["normalization"],
+            cohort.output_dir_prefix,
+            _cohort_base_signature(cohort, config, sig),
+        )
         feat_avail = _control_feature_availability(shared_base, control_ds)
         all_pairs = _control_pairs(control_ds)
         cohort_plan = {}
@@ -1347,7 +1727,14 @@ def _analyze_reference_cv(ctx, config, env, control_correlation_threshold, *,
             fold_root = f"{base_output}_cvfold{fold_id}/"
             # Clear stale analysis maps if this fold root was last written by different
             # code / config / feature-set (before any export/scoring writes into it).
-            _guard_analysis_dir(fold_root, _analysis_provenance(config, cohort), verbose=verbose)
+            reuse_mode = _cohort_hippunfold_reuse_mode(cohort)
+            if reuse_mode != "all":
+                _guard_analysis_dir(
+                    fold_root,
+                    _analysis_provenance(config, cohort),
+                    verbose=verbose,
+                    preserve_nonhippocampal=(reuse_mode == "nonhippocampal"),
+                )
             cohort_plan[fold_id] = dict(
                 train=train_pairs, test=sorted(test_set), reference_k=reference_k,
                 heldout_k=heldout_k, base_k=base_k, fold_root=fold_root)
@@ -1378,6 +1765,7 @@ def _analyze_reference_cv(ctx, config, env, control_correlation_threshold, *,
         akw = _analysis_kwargs(
             config, control_correlation_threshold,
             features=getattr(cohort, "base_pipeline_settings", {}).get("features"), verbose=verbose)
+        analysis_method = config.get("method", akw.get("method", "zscore"))
         scov = config.get("scoring_site_covariate", False)
         patient_pairs = _control_pairs(cohort.patient_dataset)
         for fold_id, fp in plans[cohort.score_name].items():
@@ -1389,17 +1777,60 @@ def _analyze_reference_cv(ctx, config, env, control_correlation_threshold, *,
                 fp["base_k"], fold_root, datasets=[control_ds, cohort.patient_dataset])
             patient_ds = _subset_control_dataset(
                 cohort.patient_dataset, patient_pairs, name=cohort.patient_dataset.name)
-            reference_k.validate(output_directory=fold_root, verbose=False, **settings)
-            patient_ds.validate(output_directory=fold_root, verbose=False, **settings)
-            patient_ds.analyze(
-                output_directory=fold_root, reference=reference_k, site=cohort.score_name,
-                site_harmonizer=harmonizer_k, scoring_site_covariate=scov, **akw)
+            seed_datasets = [control_ds, patient_ds]
+            if fp["heldout_k"] is not None:
+                seed_datasets.append(fp["heldout_k"])
+            _seed_cohort_nonhippocampal_analysis(
+                cohort,
+                fold_root,
+                seed_datasets,
+                analysis_method,
+            )
+            reuse_mode = _cohort_hippunfold_reuse_mode(cohort)
+            if not (
+                reuse_mode == "all"
+                and zb.analysis_structure_maps_complete(
+                    fold_root,
+                    [patient_ds],
+                    method=analysis_method,
+                )
+            ):
+                _analyze_dataset_with_hippunfold_reuse(
+                    cohort,
+                    patient_ds,
+                    reference_k,
+                    fold_root,
+                    settings,
+                    dict(
+                        akw,
+                        site=cohort.score_name,
+                        site_harmonizer=harmonizer_k,
+                        scoring_site_covariate=scov,
+                    ),
+                )
             if needs_controls:
                 heldout_k = fp["heldout_k"]
-                heldout_k.validate(output_directory=fold_root, verbose=False, **settings)
-                heldout_k.analyze(
-                    output_directory=fold_root, reference=reference_k, site=cohort.score_name,
-                    site_harmonizer=harmonizer_k, scoring_site_covariate=scov, **akw)
+                if not (
+                    reuse_mode == "all"
+                    and zb.analysis_structure_maps_complete(
+                        fold_root,
+                        [heldout_k],
+                        method=analysis_method,
+                    )
+                ):
+                    _analyze_dataset_with_hippunfold_reuse(
+                        cohort,
+                        heldout_k,
+                        reference_k,
+                        fold_root,
+                        settings,
+                        dict(
+                            akw,
+                            site=cohort.score_name,
+                            site_harmonizer=harmonizer_k,
+                            scoring_site_covariate=scov,
+                        ),
+                    )
             _stamp_analysis_dir(fold_root, _analysis_provenance(config, cohort))
             fold_output_dirs[cohort.score_name][fold_id] = fold_root
             control_subjects_by_name[cohort.score_name][fold_id] = fp["test"]
@@ -1431,7 +1862,9 @@ def _ensure_base_processed(cohort, config, env, *, control_dataset=None,
     normalization = config["normalization"]
     # Base is keyed by _base_signature (exclusion dropped when dataset_norm=='none'),
     # so ROBPCA/exclusion arms reuse the shared base instead of re-processing.
-    base_signature = _base_signature(config, exclusion_signature)
+    base_signature = _cohort_base_signature(
+        cohort, config, exclusion_signature
+    )
     settings = _pipeline_settings(cohort, config, normalization=normalization)
     base_dir = zb.processed_base_directory_for(
         normalization, cohort.output_dir_prefix, base_signature
@@ -1443,44 +1876,91 @@ def _ensure_base_processed(cohort, config, env, *, control_dataset=None,
     # rather than being masked by a stale 'complete' mark.
     required_pairs = list(_control_pairs(control_dataset)) + list(_control_pairs(cohort.patient_dataset))
 
+    migration_datasets = [control_dataset, cohort.patient_dataset]
+    _seed_cohort_nonhippocampal_base(
+        cohort,
+        base_dir,
+        migration_datasets,
+    )
+    migration_mode = (
+        _cohort_hippunfold_reuse_mode(cohort) == "nonhippocampal"
+    )
+
     # Fast, RACE-SAFE completion check: the per-base sentinel is written (atomically)
     # only after BOTH controls and patients finish AND covers all required subjects,
     # so if it matches the base is fully done -- trust it in O(1) without re-scanning,
     # and never treat a base a PEER machine is still writing (or one missing newly-added
     # subjects) as complete (shared storage, forward/reverse runs).
-    if not reprocess_controls and zb.base_is_marked_complete(base_dir, required_pairs):
+    if (
+        not reprocess_controls
+        and zb.base_is_marked_complete(base_dir, required_pairs)
+        and (
+            not migration_mode
+            or _hippunfold_migration_outputs_complete(
+                base_dir, migration_datasets)
+        )
+    ):
         return base_dir
     # We may (re)write this base -> drop any stale sentinel first so a crash mid-build
     # can't leave a base marked complete while it is actually partial.
     zb.unmark_base_complete(base_dir)
-
-    need_controls = reprocess_controls or not zb.processed_maps_complete(
-        base_dir, [control_dataset]
+    need_controls = (
+        reprocess_controls
+        or migration_mode
+        or (not migration_mode and not zb.processed_maps_complete(
+            base_dir, [control_dataset]
+        ))
     )
     if need_controls:
         if verbose:
             print(f"[{cohort.name}] Processing controls into {normalization} base {base_dir}")
         # reprocess_controls forces a full rebuild; otherwise per-subject reuse
         # skips controls already processed in this base (only new/missing ones run).
-        control_dataset.process(
-            output_directory=base_dir, env=env, verbose=verbose,
-            skip_existing=not reprocess_controls, **settings
-        )
+        if migration_mode:
+            _process_dataset_for_hippunfold_migration(
+                control_dataset,
+                base_dir,
+                env,
+                settings,
+                verbose=verbose,
+                force_full=reprocess_controls,
+            )
+        else:
+            control_dataset.process(
+                output_directory=base_dir, env=env, verbose=verbose,
+                skip_existing=not reprocess_controls, **settings)
 
-    if not zb.processed_maps_complete(base_dir, [cohort.patient_dataset]):
+    need_patients = (
+        migration_mode
+        or (not migration_mode and not zb.processed_maps_complete(
+            base_dir, [cohort.patient_dataset]
+        ))
+    )
+    if need_patients:
         if verbose:
             print(f"[{cohort.name}] Processing patients into {normalization} base {base_dir}")
-        cohort.patient_dataset.process(
-            output_directory=base_dir, env=env, verbose=verbose,
-            skip_existing=True, **settings
-        )
+        if migration_mode:
+            _process_dataset_for_hippunfold_migration(
+                cohort.patient_dataset,
+                base_dir,
+                env,
+                settings,
+                verbose=verbose,
+            )
+        else:
+            cohort.patient_dataset.process(
+                output_directory=base_dir, env=env, verbose=verbose,
+                skip_existing=True, **settings)
 
     # Stamp complete ONLY when both datasets are verified fully present -- so a run
     # where some subjects failed to process is NOT falsely trusted (it re-attempts
     # next time). This also ADOPTS a pre-sentinel base that was already fully
     # processed (nothing was rebuilt above; we just mark it -> ZERO reprocessing).
     if (zb.processed_maps_complete(base_dir, [control_dataset])
-            and zb.processed_maps_complete(base_dir, [cohort.patient_dataset])):
+            and zb.processed_maps_complete(base_dir, [cohort.patient_dataset])
+            and (not migration_mode or _hippunfold_migration_outputs_complete(
+                base_dir, migration_datasets
+            ))):
         zb.mark_base_complete(base_dir, required_pairs)
     return base_dir
 
@@ -1506,8 +1986,12 @@ def _analyze_candidate(cohort, config, env, control_correlation_threshold, *,
     # Analysis dir keeps the full exclusion signature (its z-reference depends on the
     # excluded set); the base dir uses _base_signature (exclusion dropped when
     # dataset_norm=='none') so exclusion arms symlink from the shared base.
-    processing_signature = _processing_signature(config, exclusion_signature)
-    base_signature = _base_signature(config, exclusion_signature)
+    processing_signature = _cohort_processing_signature(
+        cohort, config, exclusion_signature
+    )
+    base_signature = _cohort_base_signature(
+        cohort, config, exclusion_signature
+    )
     output_directory = staged_output_directory(
         config, cohort.output_dir_prefix, control_correlation_threshold,
         exclusion_signature=processing_signature,
@@ -1516,12 +2000,7 @@ def _analyze_candidate(cohort, config, env, control_correlation_threshold, *,
         normalization, cohort.output_dir_prefix, base_signature
     )
     settings = _pipeline_settings(cohort, config, normalization=normalization)
-
-    # Provenance guard: clear stale {method}_maps if this dir was last written by a
-    # different code version / config / feature-set (prevents orphaned maps from a
-    # prior run being globbed into the objective). Base maps/structural untouched.
     provenance = _analysis_provenance(config, cohort)
-    _guard_analysis_dir(output_directory, provenance, verbose=verbose)
 
     if Path(output_directory).resolve() != Path(base_dir).resolve():
         zb.symlink_processed_outputs(
@@ -1529,27 +2008,74 @@ def _analyze_candidate(cohort, config, env, control_correlation_threshold, *,
             datasets=[control_dataset, cohort.patient_dataset],
         )
 
-    control_dataset.validate(
-        output_directory=output_directory, verbose=False, **settings
-    )
-    cohort.patient_dataset.validate(
-        output_directory=output_directory, verbose=False, **settings
-    )
-    cohort.patient_dataset.analyze(
-        output_directory=output_directory,
-        reference=control_dataset,
-        export_control_features=export_control_features,
-        site_harmonizer=site_harmonizer,
-        site=cohort.score_name,
-        scoring_site_covariate=config.get("scoring_site_covariate", False),
-        **_analysis_kwargs(
+    reuse_mode = _cohort_hippunfold_reuse_mode(cohort)
+    if (
+        export_control_features is None
+        and reuse_mode == "all"
+        and zb.analysis_structure_maps_complete(
+            output_directory,
+            [cohort.patient_dataset],
+            method=config["method"],
+        )
+    ):
+        if verbose:
+            print(f"[{cohort.name}] Reusing existing analysis maps: {output_directory}")
+        return output_directory
+
+    if export_control_features is None:
+        _guard_analysis_dir(
+            output_directory,
+            provenance,
+            verbose=verbose,
+            preserve_nonhippocampal=(reuse_mode == "nonhippocampal"),
+        )
+        _seed_cohort_nonhippocampal_analysis(
+            cohort,
+            output_directory,
+            [control_dataset, cohort.patient_dataset],
+            config["method"],
+        )
+        analysis_control = control_dataset
+        analysis_patient = cohort.patient_dataset
+    else:
+        # Export is read-only and must include every structure so a later pooled
+        # harmonizer remains fully defined. It does not write patient score maps.
+        analysis_control = control_dataset
+        analysis_patient = cohort.patient_dataset
+
+    analyze_kwargs = dict(
+        _analysis_kwargs(
             config,
             control_correlation_threshold,
             features=getattr(cohort, "base_pipeline_settings", {}).get("features"),
             verbose=verbose,
         ),
+        export_control_features=export_control_features,
+        site_harmonizer=site_harmonizer,
+        site=cohort.score_name,
+        scoring_site_covariate=config.get("scoring_site_covariate", False),
     )
-    _stamp_analysis_dir(output_directory, provenance)
+    if export_control_features is None:
+        _analyze_dataset_with_hippunfold_reuse(
+            cohort,
+            analysis_patient,
+            analysis_control,
+            output_directory,
+            settings,
+            analyze_kwargs,
+        )
+    else:
+        analysis_control.validate(
+            output_directory=output_directory, verbose=False, **settings)
+        analysis_patient.validate(
+            output_directory=output_directory, verbose=False, **settings)
+        analysis_patient.analyze(
+            output_directory=output_directory,
+            reference=analysis_control,
+            **analyze_kwargs,
+        )
+    if export_control_features is None:
+        _stamp_analysis_dir(output_directory, provenance)
     return output_directory
 
 
@@ -2088,7 +2614,11 @@ def analyze_config_across_cohorts(config, cohorts, env, control_correlation_thre
         control_ds = _restricted_control_dataset(cohort, excluded)
         # Cache the built base by its BASE signature (exclusion dropped when
         # dataset_norm=='none'), so exclusion arms that share a base don't rebuild it.
-        base_key = (cohort.name, normalization, _base_signature(config, sig))
+        base_key = (
+            cohort.name,
+            normalization,
+            _cohort_base_signature(cohort, config, sig),
+        )
         if base_key not in built_bases:
             _ensure_base_processed(
                 cohort, config, env,
